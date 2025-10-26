@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # hmapp_smartphone
 
 A new Flutter project.
@@ -14,3 +15,6 @@ A few resources to get you started if this is your first Flutter project:
 For help getting started with Flutter development, view the
 [online documentation](https://docs.flutter.dev/), which offers tutorials,
 samples, guidance on mobile development, and a full API reference.
+=======
+# HM_sm_app
+>>>>>>> 37f1b5113a2679c180dd1222ecafabca31ed248f
