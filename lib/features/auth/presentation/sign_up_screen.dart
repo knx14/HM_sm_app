@@ -57,7 +57,13 @@ class _SignUpScreenState extends State<SignUpScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Sign Up')),
+      backgroundColor: const Color(0xFFF1F8E9),
+      appBar: AppBar(
+        backgroundColor: const Color(0xFFF1F8E9),
+        elevation: 0,
+        centerTitle: true,
+        title: Image.asset(alignment: Alignment.centerLeft, 'assets/images/logo.png', width: 50, height: 50),
+      ),
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: _awaitingCode
@@ -71,16 +77,32 @@ class _SignUpScreenState extends State<SignUpScreen> {
                 ],
               )
             : Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  Text('新規登録', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 12),
                   TextField(controller: _email, decoration: const InputDecoration(labelText: 'メールアドレス')),
                   TextField(controller: _password, obscureText: true, decoration: const InputDecoration(labelText: 'パスワード')),
                   TextField(controller: _name, decoration: const InputDecoration(labelText: 'フルネーム')),
                   TextField(controller: _jaName, decoration: const InputDecoration(labelText: '所属している農業共同組合名')),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 24),
                   if (_error != null) Text(_error!, style: const TextStyle(color: Colors.red)),
-                  FilledButton(onPressed: _loading ? null : _signUp, child: const Text('新規登録')),
-                ],
-              ),
+                  Center(
+                    child: FilledButton(
+                      style: FilledButton.styleFrom(
+                      backgroundColor: const Color(0xFF66BB6A),
+                      foregroundColor: Colors.white,
+                      minimumSize: const Size(130, 48),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(30),
+                      ),
+                    ),
+                    onPressed: _loading ? null : _signUp,
+                    child: _loading ? const CircularProgressIndicator() : const Text('新規登録'),
+                  ),
+            ),
+          ],
+        ),
       ),
     );
   }

@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../auth/data/amplify_auth_service.dart';
 import '../../auth/domain/auth_repository.dart';
-import 'sign_up_screen.dart';
 
 class SignInScreen extends StatefulWidget {
   const SignInScreen({super.key});
@@ -17,11 +16,9 @@ class _SignInScreenState extends State<SignInScreen> {
   final _password = TextEditingController();
   final _repo = AuthRepository(AmplifyAuthService());
   bool _loading = false;
-  String? _error;
   Future<void> _signIn() async {
     setState(() {
       _loading = true;
-      _error = null;
     });
     try {
       await _repo.signIn(
@@ -33,7 +30,10 @@ class _SignInScreenState extends State<SignInScreen> {
         const SnackBar(content: Text('ログインしました')),
       );
     } catch (e) {
-      setState(() => _error = e.toString());
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('エラー: ${e.toString()}')),
+      );
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -41,24 +41,40 @@ class _SignInScreenState extends State<SignInScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text('サインイン')),
+      backgroundColor: const Color(0xFFF1F8E9), // welcomeウィジェットと同じ色調
+      appBar: AppBar(
+        backgroundColor: const Color(0xFFF1F8E9),
+        elevation: 0,
+        centerTitle: true,
+        title: Image.asset(
+          'assets/images/logo.png',
+          width: 50,
+          height: 50,
+        ),
+      ),
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            Text('ログイン',style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 12),
             TextField(controller: _email, decoration: InputDecoration(labelText: 'メールアドレス')),
             TextField(controller: _password, decoration: InputDecoration(labelText: 'パスワード')),
-            const SizedBox(height: 12),
-            FilledButton(
-              onPressed: _loading ? null : _signIn,
-              child: _loading ? const CircularProgressIndicator() : const Text('サインイン'),
-            ),
-            TextButton(
-              onPressed: () => Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const SignUpScreen()),
+            const SizedBox(height: 24),
+            Center(
+              child: FilledButton(
+                style: FilledButton.styleFrom(
+                  backgroundColor: const Color(0xFF66BB6A),
+                  foregroundColor: Colors.white,
+                  minimumSize: const Size(130, 48),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(30),
+                  ),
+                ),
+                onPressed: _loading ? null : _signIn,
+                child: _loading ? const CircularProgressIndicator() : const Text('ログイン'),
               ),
-              child: const Text('新規登録'),
             ),
           ],
         ),
