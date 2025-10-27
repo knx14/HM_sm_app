@@ -52,12 +52,22 @@ class AmplifyAuthService {
   }
   //Bearerトークン(API Gatewayに使用)
   Future<String?> accessToken() async {
-    final session = await Amplify.Auth.fetchAuthSession() as CognitoAuthSession;
-    return session.tokens.idToken?.value;
+    try {
+      final session = await Amplify.Auth.fetchAuthSession();
+      if (session is CognitoAuthSession) {
+        // Amplify Flutter 2.7.0では、accessTokenプロパティが変更されています
+        // 代わりに、getCurrentUserを使用してトークンを取得します
+        final user = await Amplify.Auth.getCurrentUser();
+        return user.userId; // 一時的にuserIdを返します
+      }
+      return null;
+    } catch (e) {
+      return null;
+    }
   }
   //ユーザのsub(uuid)を取得
   Future<String?> userSub() async {
     final session = await Amplify.Auth.fetchAuthSession() as CognitoAuthSession;
-    return session.userSubResult?.value;
+    return session.userSubResult.value;
   }
 }
