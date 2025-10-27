@@ -16,11 +16,11 @@ class _SignInScreenState extends State<SignInScreen> {
   final _email = TextEditingController();
   final _password = TextEditingController();
   final _repo = AuthRepository(AmplifyAuthService());
-  bool loading = false;
+  bool _loading = false;
   String? _error;
   Future<void> _signIn() async {
     setState(() {
-      loading = true;
+      _loading = true;
       _error = null;
     });
     try {
@@ -35,22 +35,22 @@ class _SignInScreenState extends State<SignInScreen> {
     } catch (e) {
       setState(() => _error = e.toString());
     } finally {
-      if (mounted) setState(() => loading = false);
+      if (mounted) setState(() => _loading = false);
     }
   }
   @override
   Widget build(BuildContext context) {
-    return const Scaffold(
-      appBar: AppBar(title: const Test('サインイン')),
+    return Scaffold(
+      appBar: AppBar(title: Text('サインイン')),
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
-            TextFiled(controller: _email, decoration: InputDecoration(labelText: 'メールアドレス')),
-            TextFiled(controller: _password, decoration: InputDecoration(labelText: 'パスワード')),
+            TextField(controller: _email, decoration: InputDecoration(labelText: 'メールアドレス')),
+            TextField(controller: _password, decoration: InputDecoration(labelText: 'パスワード')),
             const SizedBox(height: 12),
             FilledButton(
-              onPressd: _loading ? null : _signIn,
+              onPressed: _loading ? null : _signIn,
               child: _loading ? const CircularProgressIndicator() : const Text('サインイン'),
             ),
             TextButton(
