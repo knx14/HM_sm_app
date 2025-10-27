@@ -13,7 +13,7 @@ class AuthRepository {
     required String name,
     required String jaName,
   }) =>
-      _service.signUp(
+      _service.singnUp(
         email: email,
         password: password,
         name: name,
