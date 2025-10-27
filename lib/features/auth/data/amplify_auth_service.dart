@@ -23,7 +23,6 @@ class AmplifyAuthService {
     await Amplify.Auth.signUp(
       username: email,
       password: password,
-      userAttributes: userAttributes,
       options: SignUpOptions(userAttributes: userAttributes),
     );
   }
@@ -54,7 +53,7 @@ class AmplifyAuthService {
   //Bearerトークン(API Gatewayに使用)
   Future<String?> accessToken() async {
     final session = await Amplify.Auth.fetchAuthSession() as CognitoAuthSession;
-    return session.tokens.accessToken;
+    return session.tokens.idToken?.value;
   }
   //ユーザのsub(uuid)を取得
   Future<String?> userSub() async {
