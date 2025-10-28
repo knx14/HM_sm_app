@@ -6,13 +6,13 @@ class HmApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const MaterialApp(
+    return MaterialApp(
       title: 'Henry Monitor App',
       theme: ThemeData(
         useMaterial3: true,
-        colorSchemeSeed: Colors. green,
+        colorSchemeSeed: Colors.green,
       ),
-      home: const SplashScreen(),
+      home: SplashScreen(),
     );
   }
 }
