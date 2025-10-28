@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../../auth/data/amplify_auth_service.dart';
 import '../../auth/domain/auth_repository.dart';
 import '../../../app/routes.dart';
+import '../../../providers/user_provider.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -15,6 +17,7 @@ class _SplashScreenState extends State<SplashScreen>
   late AnimationController _controller;
   late Animation<double> _fadeAnimation;
   final _repo = AuthRepository(AmplifyAuthService());
+  final _authService = AmplifyAuthService();
   @override
   void initState() {
     super.initState();
@@ -29,10 +32,40 @@ class _SplashScreenState extends State<SplashScreen>
 
   Future<void> _checkAuthState() async {
     await Future.delayed(const Duration(seconds: 1));
-    final isSignedIn = await _repo.isSignedIn();
-    if (isSignedIn) {
-      Navigator.pushReplacementNamed(context, AppRoutes.main);
-    } else {
+    
+    try {
+      final isSignedIn = await _repo.isSignedIn();
+      if (isSignedIn) {
+        // ログイン済みの場合、ユーザIDを取得してProviderに設定
+        final userProvider = Provider.of<UserProvider>(context, listen: false);
+        
+        try {
+          final userId = await _authService.userSub();
+          if (userId != null) {
+            userProvider.setUserId(userId);
+            Navigator.pushReplacementNamed(context, AppRoutes.main);
+          } else {
+            userProvider.setError('ユーザIDの取得に失敗しました');
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (_) => const _WelcomeView()),
+            );
+          }
+        } catch (e) {
+          userProvider.setError('ユーザIDの取得中にエラーが発生しました: $e');
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (_) => const _WelcomeView()),
+          );
+        }
+      } else {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const _WelcomeView()),
+        );
+      }
+    } catch (e) {
+      // 認証状態の確認でエラーが発生した場合
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (_) => const _WelcomeView()),

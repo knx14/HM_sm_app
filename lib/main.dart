@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:amplify_flutter/amplify_flutter.dart';
 import 'package:amplify_auth_cognito/amplify_auth_cognito.dart';
 import 'amplifyconfiguration.dart';
 import 'app/app.dart';
+import 'providers/user_provider.dart';
 
 Future<void> _configureAmplify() async {
   try {
@@ -19,5 +21,10 @@ Future<void> _configureAmplify() async {
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await _configureAmplify();
-  runApp(const HmApp());
+  runApp(
+    ChangeNotifierProvider(
+      create: (context) => UserProvider(),
+      child: const HmApp(),
+    ),
+  );
 }
