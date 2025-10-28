@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../auth/data/amplify_auth_service.dart';
 import '../../auth/domain/auth_repository.dart';
-import 'sign_in_screen.dart';
-import 'sign_up_screen.dart';
+import '../../../app/routes.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -32,7 +31,7 @@ class _SplashScreenState extends State<SplashScreen>
     await Future.delayed(const Duration(seconds: 1));
     final isSignedIn = await _repo.isSignedIn();
     if (isSignedIn) {
-      Navigator.pushReplacementNamed(context, '/home');
+      Navigator.pushReplacementNamed(context, AppRoutes.main);
     } else {
       Navigator.pushReplacement(
         context,
@@ -121,7 +120,7 @@ class _WelcomeView extends StatelessWidget {
                 ),
                 onPressed: () => Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (_) => const SignUpScreen()),
+                  MaterialPageRoute(builder: (_) => AppRoutes.signUpScreen()),
                 ),
                 child: const Text('新規登録'),
               ),
@@ -137,7 +136,7 @@ class _WelcomeView extends StatelessWidget {
                 ),
                 onPressed: () => Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (_) => const SignInScreen()),
+                  MaterialPageRoute(builder: (_) => AppRoutes.signInScreen()),
                 ),
                 child: const Text('ログイン'),
               ),
