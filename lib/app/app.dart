@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../features/auth/presentation/splash_screen.dart';
+import 'routes.dart';
 
 class HmApp extends StatelessWidget {
   const HmApp({super.key});
@@ -12,7 +12,8 @@ class HmApp extends StatelessWidget {
         useMaterial3: true,
         colorSchemeSeed: Colors.green,
       ),
-      home: SplashScreen(),
+      initialRoute: AppRoutes.splash,
+      routes: appRoutes,
     );
   }
 }
