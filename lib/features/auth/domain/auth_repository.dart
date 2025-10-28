@@ -2,7 +2,6 @@ import '../data/amplify_auth_service.dart';
 
 class AuthRepository {
   AuthRepository(this._service);
-
   final AmplifyAuthService _service;
 
   Future<bool> isSignedIn() => _service.isSignedIn();
@@ -38,4 +37,10 @@ class AuthRepository {
     final token = await _service.accessToken();
     return token == null ? null : 'Bearer $token';
   }
+  Future<void> sendResetCode({required String email}) => _service.sendResetCode(email: email);
+  Future<void> confirmResetPassword({
+    required String email,
+    required String code,
+    required String newPassword,
+  }) => _service.confirmResetPassword(email: email, code: code, newPassword: newPassword);
 }

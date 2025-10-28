@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../auth/data/amplify_auth_service.dart';
 import '../../auth/domain/auth_repository.dart';
+import 'reset_password_screen.dart';
 
 class SignInScreen extends StatefulWidget {
   const SignInScreen({super.key});
@@ -74,6 +75,16 @@ class _SignInScreenState extends State<SignInScreen> {
                 ),
                 onPressed: _loading ? null : _signIn,
                 child: _loading ? const CircularProgressIndicator() : const Text('ログイン'),
+              ),
+            ),
+            Center(child: TextButton(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const ResetPasswordScreen()),
+                );
+              },
+              child: const Text('パスワードを忘れた？'),
               ),
             ),
           ],

@@ -50,6 +50,22 @@ class AmplifyAuthService {
   Future<void> signOut() async {
     await Amplify.Auth.signOut();
   }
+  //パスワードリセット時のメール送信
+  Future<void> sendResetCode({required String email}) async {
+    await Amplify.Auth.resetPassword(username: email);
+  }
+  //リセットコード確認＋新パスワード登録
+  Future<void> confirmResetPassword({
+    required String email,
+    required String code,
+    required String newPassword,
+  }) async {
+    await Amplify.Auth.confirmResetPassword(
+    username: email,
+    newPassword: newPassword,
+    confirmationCode: code,
+    );
+  }
   //Bearerトークン(API Gatewayに使用)
   Future<String?> accessToken() async {
     try {
