@@ -32,7 +32,18 @@ class _SignUpScreenState extends State<SignUpScreen> {
       );
       setState(() => _awaitingCode = true);
     } catch (e) {
-      setState(() => _error = e.toString());
+      String errorMessage = e.toString();
+      if (errorMessage.contains('InvalidPasswordException')) {
+        setState(() => _error = 'パスワードには特殊文字（!@#\$%^&*()_+-=[]{}|;:,.<>?）を含める必要があります');
+      } else if (errorMessage.contains('InvalidParameterException')) {
+        if (errorMessage.contains('ja_name')) {
+          setState(() => _error = '所属している農業共同組合名の入力に問題があります。正しい名前を入力してください。');
+        } else {
+          setState(() => _error = '入力された情報に問題があります。すべての項目を正しく入力してください。');
+        }
+      } else {
+        setState(() => _error = errorMessage);
+      }
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -68,12 +79,30 @@ class _SignUpScreenState extends State<SignUpScreen> {
         padding: const EdgeInsets.all(16),
         child: _awaitingCode
             ? Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('A confirmation code was sent to ${_email.text}.'),
-                  TextField(controller: _code, decoration: const InputDecoration(labelText: '認証コード')),
+                  Text('確認コードが ${_email.text}\nへ送信されました。',
+                    style: const TextStyle(fontSize: 16),
+                    textAlign: TextAlign.left,
+                  ),
                   const SizedBox(height: 12),
+                  TextField(controller: _code, decoration: const InputDecoration(labelText: '認証コード')),
+                  const SizedBox(height: 24),
                   if (_error != null) Text(_error!, style: const TextStyle(color: Colors.red)),
-                  FilledButton(onPressed: _loading ? null : _confirm, child: const Text('認証')),
+                  Center(
+                    child: FilledButton(
+                      style: FilledButton.styleFrom(
+                        backgroundColor: const Color(0xFF66BB6A),
+                        foregroundColor: Colors.white,
+                        minimumSize: const Size(130, 48),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(30),
+                        ),
+                      ),
+                      onPressed: _loading ? null : _confirm,
+                      child: _loading ? const CircularProgressIndicator() : const Text('認証'),
+                    ),
+                  ),
                 ],
               )
             : Column(
