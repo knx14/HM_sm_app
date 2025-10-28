@@ -55,7 +55,35 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF1F8E9),
-      appBar: AppBar(title: const Text('パスワードをリセット')),
+      appBar: AppBar(
+        backgroundColor: const Color(0xFFF1F8E9),
+        elevation: 0,
+        automaticallyImplyLeading: false,
+        title: Column(
+          children: [
+            Row(
+              children: [
+                IconButton(
+                  onPressed: () => Navigator.pop(context),
+                  icon: const Icon(Icons.arrow_back),
+                ),
+                Expanded(
+                  child: const Text(
+                    'パスワードをリセット',
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+                const SizedBox(width: 48), // 右側のバランス調整
+              ],
+            ),
+            Container(
+              width: double.infinity,
+              height: 2,
+              color: Colors.grey,
+            ),
+          ],
+        ),
+      ),
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: _codeSent ? _buildConfirmForm() : _buildEmailForm(),
