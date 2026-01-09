@@ -1,8 +1,11 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../../auth/data/amplify_auth_service.dart';
 import '../../auth/domain/auth_repository.dart';
+import '../../../providers/user_provider.dart';
+import '../../../app/routes.dart';
 import 'reset_password_screen.dart';
 
 class SignInScreen extends StatefulWidget {
@@ -27,9 +30,21 @@ class _SignInScreenState extends State<SignInScreen> {
         password: _password.text,
       );
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('ログインしました')),
-      );
+      
+      // ログイン成功直後: subをProviderにセット
+      final userProvider = Provider.of<UserProvider>(context, listen: false);
+      final authService = AmplifyAuthService();
+      final userId = await authService.userSub();
+      if (userId != null) {
+        userProvider.setUserId(userId);
+      }
+      
+      // id_tokenも取得して確認（デバッグ用）
+      final token = await authService.idToken();
+      print('id_token取得: ${token != null ? "成功" : "失敗"}');
+      
+      // ホーム画面に遷移
+      Navigator.pushReplacementNamed(context, AppRoutes.main);
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
