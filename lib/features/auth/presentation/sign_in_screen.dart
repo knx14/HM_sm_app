@@ -20,6 +20,29 @@ class _SignInScreenState extends State<SignInScreen> {
   final _password = TextEditingController();
   final _repo = AuthRepository(AmplifyAuthService());
   bool _loading = false;
+
+  /// エラーメッセージを日本語に変換
+  String _parseError(dynamic error) {
+    final errorString = error.toString().toLowerCase();
+    
+    // 認証エラー（パスワードまたはメールアドレスが間違っている）
+    if (errorString.contains('notauthorizedexception') ||
+        errorString.contains('not authorized') ||
+        errorString.contains('incorrect username or password') ||
+        errorString.contains('invalid credentials')) {
+      return 'メールアドレスかパスワードが誤っています';
+    }
+    
+    // ユーザーが見つからない
+    if (errorString.contains('usernotfoundexception') ||
+        errorString.contains('user not found')) {
+      return 'メールアドレスかパスワードが誤っています';
+    }
+    
+    // その他のエラー
+    return 'メールアドレスかパスワードが誤っています';
+  }
+
   Future<void> _signIn() async {
     setState(() {
       _loading = true;
@@ -47,8 +70,12 @@ class _SignInScreenState extends State<SignInScreen> {
       Navigator.pushReplacementNamed(context, AppRoutes.main);
     } catch (e) {
       if (!mounted) return;
+      final errorMessage = _parseError(e);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('エラー: ${e.toString()}')),
+        SnackBar(
+          content: Text(errorMessage),
+          backgroundColor: Theme.of(context).colorScheme.error,
+        ),
       );
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -75,8 +102,17 @@ class _SignInScreenState extends State<SignInScreen> {
           children: [
             Text('ログイン',style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
             const SizedBox(height: 12),
-            TextField(controller: _email, decoration: InputDecoration(labelText: 'メールアドレス')),
-            TextField(controller: _password, decoration: InputDecoration(labelText: 'パスワード')),
+            TextField(
+              controller: _email,
+              decoration: InputDecoration(labelText: 'メールアドレス'),
+              keyboardType: TextInputType.emailAddress,
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: _password,
+              decoration: InputDecoration(labelText: 'パスワード'),
+              obscureText: true,
+            ),
             const SizedBox(height: 24),
             Center(
               child: FilledButton(

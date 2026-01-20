@@ -1,7 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
+import 'dart:io';
 import 'package:provider/provider.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../../../providers/user_provider.dart';
 import '../../../core/api/api_client.dart';
+import '../../../utils/static_maps.dart';
+import '../../../utils/polygon_area.dart';
 import '../../auth/data/amplify_auth_service.dart';
 import '../data/farm_repository.dart';
 import '../domain/farm.dart';
@@ -19,6 +26,9 @@ class _FarmScreenState extends State<FarmScreen> {
   List<Farm> _farms = [];
   bool _isLoading = false;
   String? _error;
+  String? _googleMapsApiKey;
+  
+  static const MethodChannel _channel = MethodChannel('com.example.hmapp_smartphone/google_maps_api_key');
 
   @override
   void initState() {
@@ -34,7 +44,75 @@ class _FarmScreenState extends State<FarmScreen> {
       authService: authService,
     );
     _farmRepository = FarmRepository(apiClient);
-    _loadFarms();
+    _initializeData();
+  }
+
+  Future<void> _initializeData() async {
+    await _loadGoogleMapsApiKey();
+    await _loadFarms();
+  }
+
+  /// AndroidManifest.xmlからGoogle Maps APIキーを取得（MethodChannel経由）
+  Future<void> _loadGoogleMapsApiKey() async {
+    try {
+      final apiKey = await _channel.invokeMethod<String>('getGoogleMapsApiKey');
+      if (apiKey != null && apiKey.isNotEmpty) {
+        setState(() {
+          _googleMapsApiKey = apiKey;
+        });
+        if (kDebugMode) {
+          debugPrint('Google Maps APIキーを取得しました: ${apiKey.substring(0, 10)}... (長さ: ${apiKey.length})');
+        }
+      } else {
+        if (kDebugMode) {
+          debugPrint('Google Maps APIキーが取得できませんでした（nullまたは空）');
+        }
+        // フォールバック: local.propertiesから直接読み込む（開発用）
+        await _loadApiKeyFromLocalProperties();
+      }
+    } on PlatformException catch (e) {
+      if (kDebugMode) {
+        debugPrint('Google Maps APIキーの取得に失敗（PlatformException）: ${e.message}');
+        debugPrint('エラーコード: ${e.code}');
+      }
+      // フォールバック: local.propertiesから直接読み込む（開発用）
+      await _loadApiKeyFromLocalProperties();
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint('Google Maps APIキーの取得に失敗: $e');
+      }
+      // フォールバック: local.propertiesから直接読み込む（開発用）
+      await _loadApiKeyFromLocalProperties();
+    }
+  }
+
+  /// local.propertiesから直接APIキーを読み込む（開発用フォールバック）
+  Future<void> _loadApiKeyFromLocalProperties() async {
+    try {
+      final file = File('android/local.properties');
+      if (await file.exists()) {
+        final content = await file.readAsString();
+        final lines = content.split('\n');
+        for (final line in lines) {
+          if (line.startsWith('GOOGLE_MAPS_API_KEY=')) {
+            final apiKey = line.substring('GOOGLE_MAPS_API_KEY='.length).trim();
+            if (apiKey.isNotEmpty) {
+              setState(() {
+                _googleMapsApiKey = apiKey;
+              });
+              if (kDebugMode) {
+                debugPrint('local.propertiesからAPIキーを読み込みました: ${apiKey.substring(0, 10)}...');
+              }
+              return;
+            }
+          }
+        }
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint('local.propertiesからの読み込みも失敗: $e');
+      }
+    }
   }
 
   Future<void> _loadFarms() async {
@@ -56,193 +134,422 @@ class _FarmScreenState extends State<FarmScreen> {
     }
   }
 
+  /// 境界点をLatLngのリストに変換
+  List<LatLng> _boundaryPolygonToLatLng(List<Map<String, double>> boundaryPolygon) {
+    return boundaryPolygon.map((point) {
+      return LatLng(point['lat']!, point['lng']!);
+    }).toList();
+  }
 
   /// 圃場カードウィジェット
-  Widget _buildFarmCard(Farm farm) {
+  Widget _buildFarmCard(Farm farm, ThemeData theme, ColorScheme colorScheme) {
+    final boundaryPoints = _boundaryPolygonToLatLng(farm.boundaryPolygon);
+    final center = boundaryPoints.isNotEmpty
+        ? _calculateCenter(boundaryPoints)
+        : const LatLng(35.6812, 139.7671);
+    final area = boundaryPoints.length >= 3
+        ? calculatePolygonArea(boundaryPoints)
+        : 0.0;
+
     return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      elevation: 2,
+      margin: const EdgeInsets.only(bottom: 16),
+      elevation: 0,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(
+          color: colorScheme.outline.withOpacity(0.1),
+        ),
       ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // 左側: 地図画像
-          Container(
-            width: 120,
-            height: 120,
-            decoration: BoxDecoration(
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(8),
-                bottomLeft: Radius.circular(8),
+      child: InkWell(
+        onTap: () {
+          // TODO: 圃場詳細画面へ遷移
+          debugPrint('圃場詳細: ${farm.farmName}');
+        },
+        borderRadius: BorderRadius.circular(16),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // 左側: 地図サムネイル
+              _buildMapThumbnail(
+                farm: farm,
+                boundaryPoints: boundaryPoints,
+                center: center,
+                colorScheme: colorScheme,
               ),
-              color: Colors.grey[200],
-            ),
-            child: ClipRRect(
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(8),
-                bottomLeft: Radius.circular(8),
+              const SizedBox(width: 16),
+              // 右側: 圃場情報
+              Expanded(
+                child: _buildFarmInfo(
+                  farm: farm,
+                  area: area,
+                  theme: theme,
+                  colorScheme: colorScheme,
+                ),
               ),
-              child: farm.boundaryPolygon.isNotEmpty
-                  ? _buildMapPlaceholder(farm)
-                  : Container(
-                      color: Colors.grey[300],
-                      child: const Icon(
-                        Icons.map,
-                        color: Colors.grey,
-                        size: 40,
-                      ),
-                    ),
-            ),
+            ],
           ),
-          // 右側: 圃場情報
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.all(12.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    farm.farmName,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 8),
-                  if (farm.cultivationMethod != null) ...[
-                    Row(
-                      children: [
-                        const Icon(Icons.agriculture, size: 16, color: Colors.grey),
-                        const SizedBox(width: 4),
-                        Expanded(
-                          child: Text(
-                            farm.cultivationMethod!,
-                            style: const TextStyle(
-                              fontSize: 14,
-                              color: Colors.grey,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                  ],
-                  if (farm.cropType != null) ...[
-                    Row(
-                      children: [
-                        const Icon(Icons.local_florist, size: 16, color: Colors.grey),
-                        const SizedBox(width: 4),
-                        Expanded(
-                          child: Text(
-                            farm.cropType!,
-                            style: const TextStyle(
-                              fontSize: 14,
-                              color: Colors.grey,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ],
-              ),
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
 
-  /// 地図プレースホルダー（boundary_polygonを描画）
-  Widget _buildMapPlaceholder(Farm farm) {
-    return CustomPaint(
-      painter: _MapPolygonPainter(farm.boundaryPolygon),
+  /// 地図サムネイルウィジェット
+  Widget _buildMapThumbnail({
+    required Farm farm,
+    required List<LatLng> boundaryPoints,
+    required LatLng center,
+    required ColorScheme colorScheme,
+  }) {
+    const double thumbnailWidth = 140.0;
+    const double thumbnailHeight = 100.0;
+    const double borderRadius = 12.0;
+
+    // APIキーがない場合はプレースホルダー
+    if (_googleMapsApiKey == null || _googleMapsApiKey!.isEmpty) {
+      return _buildMapPlaceholder(
+        width: thumbnailWidth,
+        height: thumbnailHeight,
+        borderRadius: borderRadius,
+        colorScheme: colorScheme,
+      );
+    }
+
+    // Static Maps APIのURLを生成
+    // キャッシュバスター: farm.idとupdatedAtを使用（変更時のみ再生成）
+    final cacheBuster = '${farm.id}_${farm.updatedAt?.millisecondsSinceEpoch ?? farm.createdAt?.millisecondsSinceEpoch ?? DateTime.now().millisecondsSinceEpoch}';
+    
+    final mapUrl = buildStaticMapUrl(
+      boundaryPoints: boundaryPoints,
+      apiKey: _googleMapsApiKey!,
+      width: (thumbnailWidth * 2).toInt(), // scale=2なので2倍
+      height: (thumbnailHeight * 2).toInt(),
+      cacheBuster: cacheBuster,
+    );
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(borderRadius),
       child: Container(
-        color: Colors.grey[100],
+        width: thumbnailWidth,
+        height: thumbnailHeight,
+        decoration: BoxDecoration(
+          color: colorScheme.surfaceContainerHighest,
+          borderRadius: BorderRadius.circular(borderRadius),
+        ),
+        child: CachedNetworkImage(
+          imageUrl: mapUrl,
+          key: ValueKey(mapUrl), // URLが変わったら必ず再描画されるように
+          fit: BoxFit.cover,
+          filterQuality: FilterQuality.high, // 高品質フィルタリング
+          // メモリキャッシュサイズ（高解像度画像用）
+          memCacheWidth: (thumbnailWidth * 2).toInt(),
+          memCacheHeight: (thumbnailHeight * 2).toInt(),
+          // ローディング中
+          placeholder: (context, url) => _buildMapSkeleton(
+            width: thumbnailWidth,
+            height: thumbnailHeight,
+            colorScheme: colorScheme,
+          ),
+          // エラー時
+          errorWidget: (context, url, error) {
+            if (kDebugMode) {
+              debugPrint('地図画像の読み込みエラー: $error');
+              debugPrint('URL: ${mapUrl.replaceAll(_googleMapsApiKey ?? '', '***')}');
+            }
+            return _buildMapPlaceholder(
+              width: thumbnailWidth,
+              height: thumbnailHeight,
+              borderRadius: borderRadius,
+              colorScheme: colorScheme,
+            );
+          },
+        ),
       ),
+    );
+  }
+
+  /// 地図スケルトン（ローディング中）
+  Widget _buildMapSkeleton({
+    required double width,
+    required double height,
+    required ColorScheme colorScheme,
+  }) {
+    return Container(
+      width: width,
+      height: height,
+      color: colorScheme.surfaceContainerHighest,
+      child: Center(
+        child: SizedBox(
+          width: 24,
+          height: 24,
+          child: CircularProgressIndicator(
+            strokeWidth: 2,
+            color: colorScheme.primary,
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// 地図プレースホルダー（エラー時）
+  Widget _buildMapPlaceholder({
+    required double width,
+    required double height,
+    required double borderRadius,
+    required ColorScheme colorScheme,
+  }) {
+    return Container(
+      width: width,
+      height: height,
+      decoration: BoxDecoration(
+        color: colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(borderRadius),
+        border: Border.all(
+          color: colorScheme.outline.withOpacity(0.2),
+        ),
+      ),
+      child: Center(
+        child: Text(
+          'Map',
+          style: TextStyle(
+            color: colorScheme.onSurface.withOpacity(0.4),
+            fontSize: 12,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// 圃場情報ウィジェット
+  Widget _buildFarmInfo({
+    required Farm farm,
+    required double area,
+    required ThemeData theme,
+    required ColorScheme colorScheme,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min, // 最小サイズに制限
+      children: [
+        // 圃場名
+        Text(
+          farm.farmName,
+          style: theme.textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.w600,
+            color: colorScheme.onSurface,
+          ),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+        const SizedBox(height: 12),
+        // 栽培方法
+        if (farm.cultivationMethod != null) ...[
+          Text(
+            farm.cultivationMethod!,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: colorScheme.onSurface.withOpacity(0.7),
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          const SizedBox(height: 8),
+        ],
+        // 作物種別
+        if (farm.cropType != null) ...[
+          Text(
+            farm.cropType!,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: colorScheme.onSurface.withOpacity(0.7),
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          const SizedBox(height: 8),
+        ],
+        // 面積と更新日
+        Row(
+          children: [
+            if (area > 0) ...[
+              Flexible(
+                child: Text(
+                  formatArea(area),
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: colorScheme.onSurface.withOpacity(0.6),
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              if (farm.updatedAt != null) ...[
+                Text(
+                  ' • ',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: colorScheme.onSurface.withOpacity(0.4),
+                  ),
+                ),
+              ],
+            ],
+            if (farm.updatedAt != null)
+              Flexible(
+                child: Text(
+                  _formatDate(farm.updatedAt!),
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: colorScheme.onSurface.withOpacity(0.6),
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  /// 日付をフォーマット
+  String _formatDate(DateTime date) {
+    final now = DateTime.now();
+    final difference = now.difference(date);
+
+    if (difference.inDays == 0) {
+      return '今日';
+    } else if (difference.inDays == 1) {
+      return '昨日';
+    } else if (difference.inDays < 7) {
+      return '${difference.inDays}日前';
+    } else if (difference.inDays < 30) {
+      final weeks = (difference.inDays / 7).floor();
+      return '${weeks}週間前';
+    } else {
+      return '${date.year}/${date.month}/${date.day}';
+    }
+  }
+
+  /// 中心座標を計算
+  LatLng _calculateCenter(List<LatLng> points) {
+    if (points.isEmpty) {
+      return const LatLng(35.6812, 139.7671);
+    }
+
+    double sumLat = 0.0;
+    double sumLng = 0.0;
+
+    for (final point in points) {
+      sumLat += point.latitude;
+      sumLng += point.longitude;
+    }
+
+    return LatLng(
+      sumLat / points.length,
+      sumLng / points.length,
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
     return Scaffold(
+      backgroundColor: colorScheme.surface,
       appBar: AppBar(
-        title: const Text('圃場管理'),
+        automaticallyImplyLeading: false,
+        title: Text(
+          '圃場管理',
+          style: theme.textTheme.titleLarge?.copyWith(
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        elevation: 0,
+        backgroundColor: colorScheme.surface,
+        foregroundColor: colorScheme.onSurface,
       ),
       body: Consumer<UserProvider>(
         builder: (context, userProvider, child) {
           if (_isLoading && _farms.isEmpty) {
-            return const Center(
-              child: CircularProgressIndicator(),
+            return Center(
+              child: CircularProgressIndicator(
+                color: colorScheme.primary,
+              ),
             );
           }
 
           if (_error != null && _farms.isEmpty) {
             return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(Icons.error_outline, size: 64, color: Colors.red),
-                  const SizedBox(height: 16),
-                  Text(
-                    'エラーが発生しました',
-                    style: Theme.of(context).textTheme.titleLarge,
-                  ),
-                  const SizedBox(height: 8),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 32),
-                    child: Text(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.error_outline,
+                      size: 64,
+                      color: colorScheme.error,
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'エラーが発生しました',
+                      style: theme.textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
                       _error!,
                       textAlign: TextAlign.center,
-                      style: const TextStyle(color: Colors.grey),
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: colorScheme.onSurface.withOpacity(0.7),
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 16),
-                  ElevatedButton(
-                    onPressed: _loadFarms,
-                    child: const Text('再試行'),
-                  ),
-                ],
+                    const SizedBox(height: 24),
+                    FilledButton(
+                      onPressed: _loadFarms,
+                      child: const Text('再試行'),
+                    ),
+                  ],
+                ),
               ),
             );
           }
 
           if (_farms.isEmpty) {
             return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(Icons.agriculture, size: 64, color: Colors.grey),
-                  const SizedBox(height: 16),
-                  Text(
-                    '登録されている圃場がありません',
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                  const SizedBox(height: 8),
-                  const Text(
-                    '新しい圃場を登録してください',
-                    style: TextStyle(color: Colors.grey),
-                  ),
-                ],
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      '登録されている圃場がありません',
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      '新しい圃場を登録してください',
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: colorScheme.onSurface.withOpacity(0.7),
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                ),
               ),
             );
           }
 
           return RefreshIndicator(
             onRefresh: _loadFarms,
+            color: colorScheme.primary,
             child: ListView.builder(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(20),
               itemCount: _farms.length,
               itemBuilder: (context, index) {
-                return _buildFarmCard(_farms[index]);
+                return _buildFarmCard(_farms[index], theme, colorScheme);
               },
             ),
           );
@@ -258,12 +565,14 @@ class _FarmScreenState extends State<FarmScreen> {
               ),
             ),
           );
-          
+
           // 登録成功時は一覧を再読み込み
           if (result == true) {
             _loadFarms();
           }
         },
+        backgroundColor: colorScheme.primary,
+        foregroundColor: colorScheme.onPrimary,
         child: const Icon(Icons.add),
         tooltip: '圃場を登録',
       ),
@@ -271,63 +580,3 @@ class _FarmScreenState extends State<FarmScreen> {
   }
 }
 
-/// 地図上にポリゴンを描画するカスタムペインター
-class _MapPolygonPainter extends CustomPainter {
-  final List<Map<String, double>> boundaryPolygon;
-
-  _MapPolygonPainter(this.boundaryPolygon);
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    if (boundaryPolygon.isEmpty) return;
-
-    // 境界点の座標を正規化（0-1の範囲に変換）
-    double minLat = boundaryPolygon.map((p) => p['lat']!).reduce((a, b) => a < b ? a : b);
-    double maxLat = boundaryPolygon.map((p) => p['lat']!).reduce((a, b) => a > b ? a : b);
-    double minLng = boundaryPolygon.map((p) => p['lng']!).reduce((a, b) => a < b ? a : b);
-    double maxLng = boundaryPolygon.map((p) => p['lng']!).reduce((a, b) => a > b ? a : b);
-
-    // マージンを追加
-    double latRange = maxLat - minLat;
-    double lngRange = maxLng - minLng;
-    double margin = 0.1; // 10%のマージン
-    minLat -= latRange * margin;
-    maxLat += latRange * margin;
-    minLng -= lngRange * margin;
-    maxLng += lngRange * margin;
-
-    // 座標を画面座標に変換
-    List<Offset> points = boundaryPolygon.map((p) {
-      double x = ((p['lng']! - minLng) / (maxLng - minLng)) * size.width;
-      double y = ((maxLat - p['lat']!) / (maxLat - minLat)) * size.height;
-      return Offset(x, y);
-    }).toList();
-
-    // ポリゴンを描画
-    final paint = Paint()
-      ..color = Colors.green.withOpacity(0.3)
-      ..style = PaintingStyle.fill;
-
-    final path = Path();
-    if (points.isNotEmpty) {
-      path.moveTo(points[0].dx, points[0].dy);
-      for (int i = 1; i < points.length; i++) {
-        path.lineTo(points[i].dx, points[i].dy);
-      }
-      path.close();
-    }
-
-    canvas.drawPath(path, paint);
-
-    // 境界線を描画
-    final strokePaint = Paint()
-      ..color = Colors.green
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2.0;
-
-    canvas.drawPath(path, strokePaint);
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
-}
