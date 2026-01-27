@@ -44,6 +44,11 @@ dependencies:
   geolocator: ^13.0.1
   permission_handler: ^11.3.1
   cached_network_image: ^3.3.1
+  usb_serial: ^0.5.2
+  graphic: ^2.5.1
+  percent_indicator: ^4.2.3
+  path_provider: ^2.1.2
+  path: ^1.9.0
 
 dev_dependencies:
   flutter_test:
