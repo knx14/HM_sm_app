@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'results/presentation/home_screen.dart';
-import 'measure/presentation/measure_screen.dart';
+import 'measure/presentation/measurement_session_screen.dart';
 import 'farms/presentation/farm_screen.dart';
 import 'common_widgets/bottom_nav_bar.dart';
 import '../../providers/user_provider.dart';
@@ -18,7 +18,7 @@ class _MainScaffoldState extends State<MainScaffold> {
 
   final _pages = const [
     HomeScreen(), //左タブ：結果表示（＝ホーム）
-    MeasureScreen(), //中央タブ：測定画面
+    MeasurementSessionScreen(), //中央タブ：測定セッション
     FarmScreen(), //右タブ：圃場管理画面
   ];
   @override
