@@ -18,6 +18,8 @@ class LocalSaveService {
     required String note2,
     required MeasureSettings settings,
     required String? ampId,
+    double? latitude,
+    double? longitude,
   }) async {
     if (userId.trim().isEmpty) {
       throw ArgumentError('userIdが空です');
@@ -54,6 +56,8 @@ class LocalSaveService {
       'note1': note1,
       'note2': note2,
       'ampId': ampId,
+      if (latitude != null && longitude != null) 'latitude': latitude,
+      if (latitude != null && longitude != null) 'longitude': longitude,
       'predicted_CEC': null,
       'start_frequency': settings.fstart.toString(),
       'delta_frequency': settings.fdelta.toString(),
