@@ -14,7 +14,7 @@ class ResultMarkerIconFactory {
     final cached = _cache[key];
     if (cached != null) return cached;
 
-    const size = 96.0;
+    const size = 64.0;
     final recorder = ui.PictureRecorder();
     final canvas = Canvas(recorder);
 
@@ -26,13 +26,13 @@ class ResultMarkerIconFactory {
     final border = Paint()
       ..color = Colors.black.withValues(alpha: 0.08)
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 2;
+      ..strokeWidth = 1.5;
     canvas.drawCircle(const Offset(size / 2, size / 2), size / 2 - 1, border);
 
     // テキスト
     final textStyle = TextStyle(
       color: _bestTextColor(color),
-      fontSize: 22,
+      fontSize: 15,
       fontWeight: FontWeight.w700,
     );
     final tp = TextPainter(

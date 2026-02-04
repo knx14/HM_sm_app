@@ -6,6 +6,10 @@ import 'farm_results_dates_screen.dart';
 import 'result_map_screen.dart';
 import '../utils/result_formatters.dart';
 import '../utils/result_formatters.dart' as fmt;
+import '../../../features/auth/data/amplify_auth_service.dart';
+import '../../../features/auth/domain/auth_repository.dart';
+import '../../../providers/user_provider.dart';
+import '../../../app/routes.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -21,6 +25,33 @@ class HomeScreen extends StatelessWidget {
 
 class _ResultsTopView extends StatelessWidget {
   const _ResultsTopView();
+
+  Future<void> _handleLogout(BuildContext context) async {
+    try {
+      final authRepo = AuthRepository(AmplifyAuthService());
+      await authRepo.signOut();
+      
+      final userProvider = Provider.of<UserProvider>(context, listen: false);
+      userProvider.clearUserId();
+      
+      if (!context.mounted) return;
+      
+      // ログインと新規登録画面に遷移（SplashScreen経由でWelcomeViewを表示）
+      Navigator.pushNamedAndRemoveUntil(
+        context,
+        AppRoutes.splash,
+        (route) => false,
+      );
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('ログアウトに失敗しました: $e'),
+          backgroundColor: Theme.of(context).colorScheme.error,
+        ),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -38,6 +69,13 @@ class _ResultsTopView extends StatelessWidget {
         elevation: 0,
         backgroundColor: cs.surface,
         foregroundColor: cs.onSurface,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.logout),
+            onPressed: () => _handleLogout(context),
+            tooltip: 'ログアウト',
+          ),
+        ],
       ),
       body: Consumer<ResultsTopNotifier>(
         builder: (context, state, child) {

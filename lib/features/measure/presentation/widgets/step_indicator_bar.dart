@@ -4,16 +4,16 @@ import '../measurement_session_screen.dart' show SessionStep;
 
 class StepIndicatorBar extends StatelessWidget {
   final SessionStep currentStep;
-  final bool isConnected;
-  final bool isZeroDone;
-  final bool isBgDoneOrSkipped;
+  /// Step1(接続)が完了したか。仕様上は「接続 + Recall完了」を指す。
+  final bool isStep1Done;
+  /// BGが完了したか（必須）。
+  final bool isBgDone;
 
   const StepIndicatorBar({
     super.key,
     required this.currentStep,
-    required this.isConnected,
-    required this.isZeroDone,
-    required this.isBgDoneOrSkipped,
+    required this.isStep1Done,
+    required this.isBgDone,
   });
 
   @override
@@ -75,24 +75,18 @@ class StepIndicatorBar extends StatelessWidget {
           item(
             index: 1,
             label: '接続',
-            done: isConnected,
+            done: isStep1Done,
             active: isActive(SessionStep.connect),
           ),
           item(
             index: 2,
-            label: 'Zero',
-            done: isZeroDone,
-            active: isActive(SessionStep.zero),
-          ),
-          item(
-            index: 3,
-            label: 'BG',
-            done: isBgDoneOrSkipped,
+            label: 'BG測定',
+            done: isBgDone,
             active: isActive(SessionStep.bg),
           ),
           item(
-            index: 4,
-            label: '測定',
+            index: 3,
+            label: '本測定',
             done: false,
             active: isActive(SessionStep.measure),
           ),
