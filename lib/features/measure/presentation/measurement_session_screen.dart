@@ -375,18 +375,22 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
     await _startExec();
   }
 
-  Future<void> _save() async {
+  Future<String?> _save() async {
     final userId = context.read<UserProvider>().userId;
     if (userId == null || userId.trim().isEmpty) {
       _appendLog('ユーザIDが未設定のため保存できません\n');
-      return;
+      return null;
+    }
+    if (_chartData.isEmpty) {
+      _appendLog('保存するデータがありません\n');
+      return null;
     }
 
     final note1 = _note1.text.trim();
     final note2 = _note2.text.trim();
     if (!LocalSaveService.isValidMemo(note1) || !LocalSaveService.isValidMemo(note2)) {
       _appendLog('${AppConstants.errorInvalidMemoFormat}\n');
-      return;
+      return null;
     }
 
     try {
@@ -401,37 +405,15 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
         longitude: _confirmedLocation?.longitude,
       );
       _appendLog('保存完了: $fileBase\n');
+      return fileBase;
     } catch (e) {
       _appendLog('保存エラー: $e\n');
+      return null;
     }
   }
 
   Future<void> _saveAndUpload() async {
     if (_isMeasuring || _isUploading) return;
-
-    final userId = context.read<UserProvider>().userId;
-    if (userId == null || userId.trim().isEmpty) {
-      _appendUploadLog('error: ユーザIDが未設定のためアップロードできません');
-      return;
-    }
-    if (_chartData.isEmpty) {
-      _appendUploadLog('error: アップロードするデータがありません');
-      return;
-    }
-
-    final note1 = _note1.text.trim();
-    final note2 = _note2.text.trim();
-    if (!LocalSaveService.isValidMemo(note1) || !LocalSaveService.isValidMemo(note2)) {
-      _appendUploadLog('error: ${AppConstants.errorInvalidMemoFormat}');
-      return;
-    }
-
-    final farm = _selectedFarm ?? await _selectFarm();
-    if (!mounted) return;
-    if (farm == null) {
-      _appendUploadLog('error: 圃場が未選択です');
-      return;
-    }
 
     setState(() {
       _uploadPhase = UploadPhase.saving;
@@ -441,17 +423,22 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
 
     try {
       _appendUploadLog('save: start');
-      final fileBase = await LocalSaveService.saveMeasurement(
-        chartData: List<ChartData>.from(_chartData),
-        userId: userId,
-        note1: note1,
-        note2: note2,
-        settings: _currentSettings(),
-        ampId: _ampId,
-        latitude: _confirmedLocation?.latitude,
-        longitude: _confirmedLocation?.longitude,
-      );
+      final fileBase = await _save();
+      if (!mounted) return;
+      if (fileBase == null) {
+        setState(() => _uploadPhase = UploadPhase.error);
+        _appendUploadLog('save: error');
+        return;
+      }
       _appendUploadLog('save: ok $fileBase');
+
+      final farm = _selectedFarm ?? await _selectFarm();
+      if (!mounted) return;
+      if (farm == null) {
+        setState(() => _uploadPhase = UploadPhase.error);
+        _appendUploadLog('error: 圃場が未選択です');
+        return;
+      }
 
       final dir = await getApplicationDocumentsDirectory();
       final csvFile = File('${dir.path}/$fileBase.csv');
@@ -462,6 +449,8 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
       final measurementDate =
           (measurementParameters['timestamp'] as String?) ?? DateTime.now().toIso8601String();
 
+      final note1 = _note1.text.trim();
+      final note2 = _note2.text.trim();
       final uploader = MeasurementUploadService();
       final result = await uploader.uploadCsvWithInitComplete(
         farmId: farm.id,
@@ -857,10 +846,6 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
                           spacing: 8,
                           runSpacing: 8,
                           children: [
-                            ElevatedButton(
-                              onPressed: (_chartData.isNotEmpty && !_isMeasuring) ? _save : null,
-                              child: const Text('保存'),
-                            ),
                             ElevatedButton(
                               onPressed: (_chartData.isNotEmpty && !_isMeasuring && !_isUploading)
                                   ? _saveAndUpload
