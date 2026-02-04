@@ -23,7 +23,7 @@ class _FarmFormScreenState extends State<FarmFormScreen> {
   // Step1: 基本情報
   final _formKey = GlobalKey<FormState>();
   final _farmNameController = TextEditingController();
-  final _cultivationMethodController = TextEditingController();
+  String? _selectedCultivationMethod; // 栽培方式（プルダウン選択）
   final _cropTypeController = TextEditingController();
 
   // Step2: 境界設定
@@ -61,7 +61,6 @@ class _FarmFormScreenState extends State<FarmFormScreen> {
   void dispose() {
     _pageController.dispose();
     _farmNameController.dispose();
-    _cultivationMethodController.dispose();
     _cropTypeController.dispose();
     _mapController?.dispose();
     super.dispose();
@@ -238,9 +237,7 @@ class _FarmFormScreenState extends State<FarmFormScreen> {
 
       await widget.farmRepository.createFarm(
         farmName: _farmNameController.text.trim(),
-        cultivationMethod: _cultivationMethodController.text.trim().isEmpty
-            ? null
-            : _cultivationMethodController.text.trim(),
+        cultivationMethod: _selectedCultivationMethod,
         cropType: _cropTypeController.text.trim().isEmpty
             ? null
             : _cropTypeController.text.trim(),
@@ -368,12 +365,12 @@ class _FarmFormScreenState extends State<FarmFormScreen> {
                       ),
                       const SizedBox(height: 20),
 
-                      // 栽培方法
-                      TextFormField(
-                        controller: _cultivationMethodController,
+                      // 栽培方式（プルダウン）
+                      DropdownButtonFormField<String>(
+                        value: _selectedCultivationMethod,
                         decoration: InputDecoration(
-                          labelText: '栽培方法',
-                          hintText: '例: 有機栽培、慣行栽培など',
+                          labelText: '栽培方式',
+                          hintText: '選択してください',
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
                           ),
@@ -381,9 +378,28 @@ class _FarmFormScreenState extends State<FarmFormScreen> {
                           fillColor: colorScheme.surfaceContainerHighest,
                         ),
                         style: theme.textTheme.bodyLarge,
+                        items: const [
+                          DropdownMenuItem<String>(
+                            value: '畑',
+                            child: Text('畑'),
+                          ),
+                          DropdownMenuItem<String>(
+                            value: '施設',
+                            child: Text('施設'),
+                          ),
+                          DropdownMenuItem<String>(
+                            value: '水田',
+                            child: Text('水田'),
+                          ),
+                        ],
+                        onChanged: (String? value) {
+                          setState(() {
+                            _selectedCultivationMethod = value;
+                          });
+                        },
                         validator: (value) {
-                          if (value == null || value.trim().isEmpty) {
-                            return '栽培方法を入力してください';
+                          if (value == null || value.isEmpty) {
+                            return '栽培方式を選択してください';
                           }
                           return null;
                         },
@@ -609,7 +625,7 @@ class _FarmFormScreenState extends State<FarmFormScreen> {
   Widget _buildStep1Footer(ThemeData theme, ColorScheme colorScheme) {
     final canSubmit = _boundaryPoints.length >= 4 &&
         _farmNameController.text.trim().isNotEmpty &&
-        _cultivationMethodController.text.trim().isNotEmpty &&
+        _selectedCultivationMethod != null &&
         _cropTypeController.text.trim().isNotEmpty;
 
     return Container(
