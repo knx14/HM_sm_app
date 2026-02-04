@@ -4,10 +4,8 @@ import 'package:percent_indicator/linear_percent_indicator.dart';
 import '../constants/app_constants.dart';
 import '../data/serial_comm_android.dart';
 import '../domain/app_settings.dart';
-import '../domain/chart_data.dart';
 import '../domain/measurement_parser.dart';
 import '../domain/measurement_service.dart';
-import 'widgets/measurement_chart.dart';
 
 /// BG（null測定）画面
 class BgScreen extends StatefulWidget {
@@ -31,8 +29,6 @@ class _BgScreenState extends State<BgScreen> {
   int totalPoints = AppConstants.defaultPointCount;
   int receivedPoints = 0;
   bool _isMeasuring = false;
-
-  final List<ChartData> _chartData = [];
 
   @override
   void initState() {
@@ -73,7 +69,6 @@ class _BgScreenState extends State<BgScreen> {
   void _sendBgCommand() {
     _updateSettings();
     setState(() {
-      _chartData.clear();
       _progress = 0.0;
       _logController.clear();
       receivedPoints = 0;
@@ -100,11 +95,6 @@ class _BgScreenState extends State<BgScreen> {
         if (line.startsWith('*')) {
           receivedPoints++;
           _progress = (receivedPoints / totalPoints).clamp(0.0, 1.0);
-
-          final point = MeasurementParser.tryParseBgDataLine(line);
-          if (point != null) {
-            _chartData.add(point);
-          }
         }
 
         if (MeasurementParser.isOkLine(line)) {
@@ -187,14 +177,6 @@ class _BgScreenState extends State<BgScreen> {
                 center: Text('${(_progress * 100).toStringAsFixed(0)}%'),
                 backgroundColor: Colors.grey[300],
                 progressColor: Colors.blue,
-              ),
-              const SizedBox(height: 8),
-              SizedBox(
-                height: 320,
-                child: MeasurementChart(
-                  chartData: _chartData,
-                  initialMode: GraphMode.complex,
-                ),
               ),
             ],
           ),

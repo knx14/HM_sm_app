@@ -13,12 +13,26 @@ import '../constants/app_constants.dart';
 class SerialComm {
   static UsbPort? _port;
   static final List<void Function(String)> _listeners = [];
+  static final List<void Function()> _disconnectListeners = [];
   static StreamSubscription<Uint8List>? _subscription;
+  static StreamSubscription<UsbEvent>? _usbEventSubscription;
   static bool _isListening = false;
   static bool _isConnected = false;
+  static int? _connectedDeviceId;
 
   static final StringBuffer _responseBuffer = StringBuffer();
   static Completer<String>? _responseCompleter;
+
+  /// USB抜線などの「予期せぬ切断」をUIへ通知する（手動disconnectでは通知しない）。
+  static void addDisconnectListener(void Function() onDisconnect) {
+    if (!_disconnectListeners.contains(onDisconnect)) {
+      _disconnectListeners.add(onDisconnect);
+    }
+  }
+
+  static void removeDisconnectListener(void Function() onDisconnect) {
+    _disconnectListeners.remove(onDisconnect);
+  }
 
   static void init(void Function(String) onReceive) {
     if (!_listeners.contains(onReceive)) {
@@ -33,6 +47,48 @@ class SerialComm {
       _subscription?.cancel();
       _isListening = false;
     }
+  }
+
+  static void _handleUnexpectedDisconnect() {
+    if (!_isConnected) return;
+
+    _isConnected = false;
+    _isListening = false;
+    _connectedDeviceId = null;
+
+    try {
+      _subscription?.cancel();
+    } catch (_) {}
+    _subscription = null;
+
+    try {
+      _port?.close();
+    } catch (_) {}
+    _port = null;
+
+    // UIへ通知
+    for (final cb in List<void Function()>.from(_disconnectListeners)) {
+      try {
+        cb();
+      } catch (_) {
+        // ignore
+      }
+    }
+  }
+
+  static void _ensureUsbEventListener() {
+    if (_usbEventSubscription != null) return;
+
+    _usbEventSubscription = UsbSerial.usbEventStream?.listen((UsbEvent msg) {
+      if (!_isConnected) return;
+      if (msg.event != UsbEvent.ACTION_USB_DETACHED) return;
+
+      // If deviceId is known, filter by it. Otherwise treat any detach as disconnect.
+      final detachedId = msg.device?.deviceId;
+      if (_connectedDeviceId == null || detachedId == null || detachedId == _connectedDeviceId) {
+        _handleUnexpectedDisconnect();
+      }
+    });
   }
 
   static void _setupListener() {
@@ -58,10 +114,10 @@ class SerialComm {
             }
           },
           onError: (_) {
-            _isListening = false;
+            _handleUnexpectedDisconnect();
           },
           onDone: () {
-            _isListening = false;
+            _handleUnexpectedDisconnect();
           },
         );
         _isListening = true;
@@ -84,13 +140,18 @@ class SerialComm {
     final devices = await UsbSerial.listDevices();
     if (devices.isEmpty) return false;
 
-    final created = await devices.first.create(); // usb_serial: UsbPort?
+    final device = devices.first;
+    _connectedDeviceId = device.deviceId;
+    _ensureUsbEventListener();
+
+    final created = await device.create(); // usb_serial: UsbPort?
     if (created == null) return false;
     _port = created;
 
     final success = await _port!.open();
     if (!success) {
       _port = null;
+      _connectedDeviceId = null;
       return false;
     }
 
@@ -124,6 +185,7 @@ class SerialComm {
     _subscription = null;
     _isListening = false;
     _isConnected = false;
+    _connectedDeviceId = null;
     _port?.close();
     _port = null;
     _listeners.clear();

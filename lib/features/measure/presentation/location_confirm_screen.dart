@@ -265,7 +265,7 @@ class _LocationConfirmScreenState extends State<LocationConfirmScreen> {
                                           );
                                         }
                                       : null,
-                                  child: const Text('この地点で開始'),
+                                  child: const Text('測定開始'),
                                 ),
                               ),
                             ],

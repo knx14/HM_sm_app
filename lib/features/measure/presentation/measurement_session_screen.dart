@@ -26,9 +26,7 @@ import 'measurement_settings_sheet.dart';
 import 'widgets/measurement_chart.dart';
 import 'widgets/step_indicator_bar.dart';
 
-enum MeasureOp { idle, zero, exec }
-
-enum SessionStep { connect, zero, bg, measure }
+enum SessionStep { connect, bg, measure }
 
 class MeasurementSessionScreen extends StatefulWidget {
   const MeasurementSessionScreen({super.key});
@@ -63,7 +61,6 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
   double _progress = 0.0;
   String _selectedSensor = '0';
   String? _ampId;
-  MeasureOp _currentOp = MeasureOp.idle;
 
   final List<ChartData> _chartData = [];
 
@@ -72,20 +69,22 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
   // NOTE: upload_id等はログ本文に出すため、UIでの表示用途は持たない
   UploadResult? _lastUploadResult;
 
-  bool _isZeroDone = false;
   LatLng? _confirmedLocation;
   GeoFenceStatus? _lastGeoStatus;
 
   SessionStep _currentStep = SessionStep.connect;
 
+  // Auto recall state (Step1 -> Step2 transition)
+  bool _isRecalling = false;
+  bool _recallDone = false;
+  Timer? _recallTimeoutTimer;
+
   // BG step state (UI-only; behavior matches BgScreen)
   bool _bgIsMeasuring = false;
   bool _bgDone = false;
-  bool _bgSkipped = false;
   int _bgReceivedPoints = 0;
   int _bgTotalPoints = AppConstants.defaultPointCount;
   double _bgProgress = 0.0;
-  final List<ChartData> _bgChartData = [];
 
   TextStyle _getTextStyle() => const TextStyle(fontSize: AppConstants.standardFontSize);
 
@@ -94,10 +93,13 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
     super.initState();
     // 受信は SerialComm（HomeScreen互換の onReceive(data)）で扱う
     SerialComm.init(_onReceive);
+    SerialComm.addDisconnectListener(_onUsbDisconnected);
   }
 
   @override
   void dispose() {
+    _recallTimeoutTimer?.cancel();
+    SerialComm.removeDisconnectListener(_onUsbDisconnected);
     SerialComm.removeListener(_onReceive);
     _logController.dispose();
     _logScrollController.dispose();
@@ -113,6 +115,26 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
     _note1.dispose();
     _note2.dispose();
     super.dispose();
+  }
+
+  void _onUsbDisconnected() {
+    if (!mounted) return;
+    _recallTimeoutTimer?.cancel();
+    setState(() {
+      _isConnected = false;
+      _currentStep = SessionStep.connect;
+
+      _isRecalling = false;
+      _recallDone = false;
+
+      _bgIsMeasuring = false;
+      _bgDone = false;
+
+      _isMeasuring = false;
+      _progress = 0.0;
+      _bgProgress = 0.0;
+    });
+    _appendLog('USBが切断されました。接続からやり直してください。\n');
   }
 
   void _appendLog(String text) {
@@ -170,21 +192,57 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
     }
     setState(() {
       _isConnected = success;
-      if (success) {
-        _currentStep = SessionStep.zero;
-      }
+      // Step1 stays on connect; transition to BG happens after recall ok.
+      _currentStep = SessionStep.connect;
     });
     _appendLog(success
         ? '${AppConstants.messageConnectionSuccess}\n'
         : '${AppConstants.errorConnectionFailed}\n');
+
+    if (success) {
+      _startAutoRecall();
+    }
+  }
+
+  void _startAutoRecall() {
+    if (!_isConnected) return;
+
+    // sensorNumber is fixed to 0 for now (spec)
+    const sensorNumber = '0';
+    _selectedSensor = sensorNumber;
+
+    _recallTimeoutTimer?.cancel();
+    setState(() {
+      _isRecalling = true;
+      _recallDone = false;
+    });
+
+    _appendLog('送信: condition recall $sensorNumber\n');
+    MeasurementService.sendRecallCommand(sensorNumber);
+
+    _recallTimeoutTimer = Timer(const Duration(seconds: 20), () {
+      if (!mounted) return;
+      if (!_isRecalling) return;
+
+      setState(() {
+        _isRecalling = false;
+        _recallDone = false;
+        _currentStep = SessionStep.connect;
+      });
+      _appendLog('Recallタイムアウト（20秒）\n');
+    });
   }
 
   void _disconnect() {
     SerialComm.disconnect();
+    _recallTimeoutTimer?.cancel();
     setState(() {
       _isConnected = false;
-      _currentOp = MeasureOp.idle;
       _currentStep = SessionStep.connect;
+      _isRecalling = false;
+      _recallDone = false;
+      _bgIsMeasuring = false;
+      _bgDone = false;
     });
     _appendLog('${AppConstants.messageDisconnected}\n');
   }
@@ -231,23 +289,6 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
     });
   }
 
-  void _sendZeroCommand(AppSettings settings) {
-    _updateSettings();
-    setState(() {
-      _logController.clear();
-      _progress = 0.0;
-      receivedPoints = 0;
-      totalPoints = int.tryParse(_points.text) ?? AppConstants.defaultPointCount;
-      _currentOp = MeasureOp.zero;
-      _isZeroDone = false;
-      _currentStep = SessionStep.zero;
-    });
-
-    final cmd = settings.getZeroCommand();
-    _appendLog('送信: $cmd\n');
-    MeasurementService.sendZeroCommand(settings);
-  }
-
   void _startBg() {
     if (!_isConnected) {
       _appendLog('${AppConstants.errorConnectFirst}\n');
@@ -257,32 +298,18 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
 
     setState(() {
       _logController.clear();
-      _bgChartData.clear();
       _bgProgress = 0.0;
       _bgReceivedPoints = 0;
       _bgTotalPoints = _settings.points;
       _bgIsMeasuring = true;
       _bgDone = false;
-      _bgSkipped = false;
       _currentStep = SessionStep.bg;
-      // NOTE: Bg uses '*' lines which would otherwise be treated as exec points when idle.
-      // We keep current exec parsing untouched by forcing zero mode during BG.
-      _currentOp = MeasureOp.zero;
     });
 
     _appendLog(
       '送信: null ${_settings.excite} ${_settings.range} ${_settings.integrate} ${_settings.average}\n',
     );
     MeasurementService.sendBgMeasurementCommand(_settings);
-  }
-
-  void _skipBg() {
-    if (_bgIsMeasuring) return;
-    setState(() {
-      _bgSkipped = true;
-      _bgDone = false;
-      _currentStep = SessionStep.measure;
-    });
   }
 
   Future<void> _startExec() async {
@@ -304,7 +331,6 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
       _progress = 0.0;
       _isMeasuring = true;
       totalPoints = int.tryParse(_points.text) ?? AppConstants.defaultPointCount;
-      _currentOp = MeasureOp.exec;
     });
 
     MeasurementService.sendMeasurementCommand(settings);
@@ -488,57 +514,71 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
           _logController.text += 'AMP ID: $_ampId\n';
         }
 
-        // 進捗カウント: Zeroは「&」, 測定(exec)は「*」(正解実装準拠)
-        final isZeroPoint = _currentOp == MeasureOp.zero && line.startsWith('&');
-        final isExecPoint = _currentOp != MeasureOp.zero && line.startsWith('*');
-        if (isZeroPoint || isExecPoint) {
-          if (isExecPoint) {
-            final idx = receivedPoints;
-            final freq = _fstartValue() + (_fdeltaValue() * idx);
-            final point = MeasurementParser.tryParseExecDataLine(line, frequency: freq);
-            if (point != null) {
-              _chartData.add(point);
-            }
-          }
-          receivedPoints++;
-          _progress = (receivedPoints / totalPoints).clamp(0.0, 1.0);
-        }
-
-        // BG step parsing (matches BgScreen)
-        if (_currentStep == SessionStep.bg && _bgIsMeasuring && line.startsWith('*')) {
-          _bgReceivedPoints++;
-          _bgProgress = (_bgReceivedPoints / _bgTotalPoints).clamp(0.0, 1.0);
-          final p = MeasurementParser.tryParseBgDataLine(line);
-          if (p != null) {
-            _bgChartData.add(p);
-          }
-        }
-
         if (MeasurementParser.isOkLine(line)) {
-          if (_currentOp == MeasureOp.zero) {
-            _isZeroDone = true;
-          }
-          _isMeasuring = false;
-          _progress = 1.0;
-          receivedPoints = totalPoints;
-          _currentOp = MeasureOp.idle;
-
-          // step transitions
-          if (_currentStep == SessionStep.zero && _isZeroDone) {
+          // Step1: auto recall completed -> move to BG
+          if (_isRecalling) {
+            _recallTimeoutTimer?.cancel();
+            _isRecalling = false;
+            _recallDone = true;
             _currentStep = SessionStep.bg;
-          } else if (_currentStep == SessionStep.bg && _bgIsMeasuring) {
+            continue;
+          }
+
+          // Step2: BG completed -> move to measure
+          if (_currentStep == SessionStep.bg && _bgIsMeasuring) {
             _bgIsMeasuring = false;
             _bgDone = true;
             _currentStep = SessionStep.measure;
+            continue;
+          }
+
+          // Step3: exec completed
+          if (_currentStep == SessionStep.measure && _isMeasuring) {
+            _isMeasuring = false;
+            _progress = 1.0;
+            receivedPoints = totalPoints;
+            continue;
           }
         } else if (MeasurementParser.isErrorLine(line)) {
-          _isMeasuring = false;
-          _logController.text += '測定中にエラーが発生しました\n';
-          _currentOp = MeasureOp.idle;
+          if (_isRecalling) {
+            _recallTimeoutTimer?.cancel();
+            _isRecalling = false;
+            _recallDone = false;
+            _currentStep = SessionStep.connect;
+            _logController.text += 'Recallに失敗しました\n';
+            continue;
+          }
 
           if (_currentStep == SessionStep.bg && _bgIsMeasuring) {
             _bgIsMeasuring = false;
+            _logController.text += 'BG測定中にエラーが発生しました\n';
+            continue;
           }
+
+          if (_currentStep == SessionStep.measure && _isMeasuring) {
+            _isMeasuring = false;
+            _logController.text += '測定中にエラーが発生しました\n';
+            continue;
+          }
+        }
+
+        // BG progress (required)
+        if (_currentStep == SessionStep.bg && _bgIsMeasuring && line.startsWith('*')) {
+          _bgReceivedPoints++;
+          _bgProgress = (_bgReceivedPoints / _bgTotalPoints).clamp(0.0, 1.0);
+          continue;
+        }
+
+        // Exec progress + plot
+        if (_currentStep == SessionStep.measure && _isMeasuring && line.startsWith('*')) {
+          final idx = receivedPoints;
+          final freq = _fstartValue() + (_fdeltaValue() * idx);
+          final point = MeasurementParser.tryParseExecDataLine(line, frequency: freq);
+          if (point != null) {
+            _chartData.add(point);
+          }
+          receivedPoints++;
+          _progress = (receivedPoints / totalPoints).clamp(0.0, 1.0);
         }
       }
     });
@@ -642,14 +682,12 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final bgDoneOrSkipped = _bgDone || _bgSkipped;
-
     return Scaffold(
       appBar: AppBar(
         title: const Text(''),
         actions: [
           IconButton(
-            onPressed: _openSettings,
+            onPressed: (_isMeasuring || _bgIsMeasuring || _isUploading || _isRecalling) ? null : _openSettings,
             icon: const Icon(Icons.settings),
             tooltip: '設定',
           ),
@@ -659,9 +697,8 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
         children: [
           StepIndicatorBar(
             currentStep: _currentStep,
-            isConnected: _isConnected,
-            isZeroDone: _isZeroDone,
-            isBgDoneOrSkipped: bgDoneOrSkipped,
+            isStep1Done: _isConnected && _recallDone,
+            isBgDone: _bgDone,
           ),
 
           // Step bodies (only one visible)
@@ -676,7 +713,7 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          _stepBodyTitle(context, 'Step 1: 接続', 'センサーと接続してください。'),
+                          _stepBodyTitle(context, 'Step 1: 接続', ''),
                           Wrap(
                             spacing: 8,
                             runSpacing: 8,
@@ -686,57 +723,25 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
                                 child: const Text('接続'),
                               ),
                               ElevatedButton(
-                                onPressed: (!_isConnected || _isMeasuring) ? null : _disconnect,
+                                onPressed: (!_isConnected || _isMeasuring || _isRecalling) ? null : _disconnect,
                                 child: const Text('切断'),
+                              ),
+                              OutlinedButton(
+                                onPressed: (!_isConnected || _isRecalling || _recallDone) ? null : _startAutoRecall,
+                                child: const Text('Recall再試行'),
                               ),
                             ],
                           ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.all(12),
-                      child: _standardLogField(
-                        controller: _logController,
-                        scrollController: _logScrollController,
-                        label: '応答ログ',
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-
-          if (_currentStep == SessionStep.zero) ...[
-            Expanded(
-              child: Column(
-                children: [
-                  Flexible(
-                    fit: FlexFit.loose,
-                    child: SingleChildScrollView(
-                      padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          _stepBodyTitle(context, 'Step 2: Zero', 'Zeroバランスを実行してください。'),
-                          SizedBox(
-                            width: double.infinity,
-                            child: ElevatedButton(
-                              onPressed: (!_isConnected || _isMeasuring) ? null : () => _sendZeroCommand(_settings),
-                              child: const Text('Zeroバランス'),
+                          const SizedBox(height: 8),
+                          if (_isConnected) ...[
+                            Text(
+                              _isRecalling
+                                  ? 'Recall実行中…（最大20秒）'
+                                  : _recallDone
+                                      ? 'Recall完了（OK）'
+                                      : 'Recall未完了',
                             ),
-                          ),
-                          const SizedBox(height: 12),
-                          LinearPercentIndicator(
-                            lineHeight: AppConstants.progressBarHeight,
-                            percent: _progress.clamp(0.0, 1.0),
-                            center: Text('${(_progress * 100).toStringAsFixed(0)}%'),
-                            backgroundColor: Colors.grey[300],
-                            progressColor: Theme.of(context).colorScheme.primary,
-                          ),
+                          ],
                         ],
                       ),
                     ),
@@ -767,18 +772,14 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          _stepBodyTitle(context, 'Step 3: BG（任意）', 'BG測定を行うか、スキップして次へ進んでください。'),
+                          _stepBodyTitle(context, 'Step 2: BG測定（必須）', '完了後に本測定へ進みます。'),
                           Wrap(
                             spacing: 8,
                             runSpacing: 8,
                             children: [
                               ElevatedButton(
                                 onPressed: _bgIsMeasuring ? null : _startBg,
-                                child: const Text('BG測定'),
-                              ),
-                              OutlinedButton(
-                                onPressed: _bgIsMeasuring ? null : _skipBg,
-                                child: const Text('スキップ'),
+                                child: const Text('BG測定開始'),
                               ),
                             ],
                           ),
@@ -796,25 +797,12 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
                     ),
                   ),
                   Expanded(
-                    child: SingleChildScrollView(
+                    child: Padding(
                       padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          _standardLogField(
-                            controller: _logController,
-                            scrollController: _logScrollController,
-                            label: '応答ログ',
-                          ),
-                          const SizedBox(height: 12),
-                          SizedBox(
-                            height: 420,
-                            child: MeasurementChart(
-                              chartData: _bgChartData,
-                              initialMode: GraphMode.complex,
-                            ),
-                          ),
-                        ],
+                      child: _standardLogField(
+                        controller: _logController,
+                        scrollController: _logScrollController,
+                        label: '応答ログ',
                       ),
                     ),
                   ),
@@ -835,14 +823,14 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          _stepBodyTitle(context, 'Step 4: 本測定', '地点確定のあと測定を開始し、保存・アップロードできます。'),
+                          _stepBodyTitle(context, 'Step 3: 本測定', '地点確定のあと測定を開始し、アップロードできます。'),
                           Wrap(
                             spacing: 8,
                             runSpacing: 8,
                             children: [
                               ElevatedButton(
                                 onPressed: _isMeasuring ? null : _confirmLocationAndStartExec,
-                                child: const Text('測定開始'),
+                                child: const Text('測定地点選択'),
                               ),
                             ],
                           ),

@@ -152,7 +152,7 @@ class MeasurementSettingsSheet extends StatelessWidget {
                     children: [
                       Expanded(
                         child: _field(
-                          '励起[V]',
+                          '励起電圧[V]',
                           excite,
                           keyboardType: TextInputType.number,
                           enabled: !_disableDuringSession,
