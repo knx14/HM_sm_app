@@ -109,6 +109,7 @@ class _ResultMapScreenState extends State<ResultMapScreen> {
                       children: [
                         GoogleMap(
                           initialCameraPosition: _tokyo,
+                          mapType: MapType.satellite,
                           myLocationButtonEnabled: false,
                           zoomControlsEnabled: false,
                           onMapCreated: (c) => setState(() => _mapController = c),
