@@ -152,22 +152,18 @@ class _LocationConfirmScreenState extends State<LocationConfirmScreen> {
                   myLocationEnabled: true,
                   myLocationButtonEnabled: false,
                   zoomControlsEnabled: false,
+                  mapType: MapType.satellite,
                   polygons: {
                     if (polygon.length >= 3)
                       Polygon(
                         polygonId: const PolygonId('farm'),
                         points: polygon,
-                        strokeWidth: 2,
+                        strokeColor: Colors.red,
+                        strokeWidth: 3,
+                        fillColor: Colors.transparent,
                       ),
                   },
-                  markers: {
-                    if (confirmed != null)
-                      Marker(
-                        markerId: const MarkerId('confirmed'),
-                        position: confirmed,
-                        draggable: false,
-                      ),
-                  },
+                  markers: {},
                   onTap: _setConfirmed,
                 ),
                 Positioned(
