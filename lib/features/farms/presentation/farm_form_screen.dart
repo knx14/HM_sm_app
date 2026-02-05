@@ -1,14 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:dio/dio.dart';
 import '../../../utils/polygon_area.dart';
 import '../data/farm_repository.dart';
+import '../domain/farm.dart';
 
 class FarmFormScreen extends StatefulWidget {
   final FarmRepository farmRepository;
+  final Farm? farm; // 編集モードの場合は既存の圃場データ
 
   const FarmFormScreen({
     required this.farmRepository,
+    this.farm, // オプショナルパラメータ
     super.key,
   });
 
@@ -47,6 +51,35 @@ class _FarmFormScreenState extends State<FarmFormScreen> {
   @override
   void initState() {
     super.initState();
+    
+    // 編集モードの場合、既存データで初期化
+    if (widget.farm != null) {
+      _farmNameController.text = widget.farm!.farmName;
+      _selectedCultivationMethod = widget.farm!.cultivationMethod;
+      _cropTypeController.text = widget.farm!.cropType ?? '';
+      
+      // 境界点を設定
+      _boundaryPoints = widget.farm!.boundaryPolygon.map((point) {
+        return LatLng(point['lat']!, point['lng']!);
+      }).toList();
+      
+      // 地図の初期位置を境界の中心に設定
+      if (_boundaryPoints.isNotEmpty) {
+        final center = _calculateCenter(_boundaryPoints);
+        _initialPosition = CameraPosition(
+          target: center,
+          zoom: 15,
+        );
+      }
+      
+      // ウィジェットが構築された後にマーカーとポリゴンを更新
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          _updateMarkersAndPolygon();
+        }
+      });
+    }
+    
     // 30秒後にタイムアウトチェック
     Future.delayed(const Duration(seconds: 30), () {
       if (mounted && !_mapInitialized && _mapError == null && _currentStep == 1) {
@@ -150,8 +183,11 @@ class _FarmFormScreenState extends State<FarmFormScreen> {
       return;
     }
 
-    // 現在地を取得して初期位置を設定
-    await _getCurrentLocation();
+    // 編集モードで既に初期位置が設定されている場合はスキップ
+    if (widget.farm == null || _initialPosition == null) {
+      // 現在地を取得して初期位置を設定
+      await _getCurrentLocation();
+    }
 
     _pageController.nextPage(
       duration: const Duration(milliseconds: 300),
@@ -235,32 +271,82 @@ class _FarmFormScreenState extends State<FarmFormScreen> {
         };
       }).toList();
 
-      await widget.farmRepository.createFarm(
-        farmName: _farmNameController.text.trim(),
-        cultivationMethod: _selectedCultivationMethod,
-        cropType: _cropTypeController.text.trim().isEmpty
-            ? null
-            : _cropTypeController.text.trim(),
-        boundaryPolygon: boundaryPolygon,
-      );
+      if (widget.farm != null) {
+        // 更新モード
+        await widget.farmRepository.updateFarm(
+          farmId: widget.farm!.id,
+          farmName: _farmNameController.text.trim(),
+          cultivationMethod: _selectedCultivationMethod,
+          cropType: _cropTypeController.text.trim().isEmpty
+              ? null
+              : _cropTypeController.text.trim(),
+          boundaryPolygon: boundaryPolygon,
+        );
 
-      if (!mounted) return;
+        if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('圃場を登録しました'),
-          backgroundColor: Theme.of(context).colorScheme.primary,
-        ),
-      );
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('圃場を更新しました'),
+            backgroundColor: Theme.of(context).colorScheme.primary,
+          ),
+        );
+      } else {
+        // 登録モード
+        await widget.farmRepository.createFarm(
+          farmName: _farmNameController.text.trim(),
+          cultivationMethod: _selectedCultivationMethod,
+          cropType: _cropTypeController.text.trim().isEmpty
+              ? null
+              : _cropTypeController.text.trim(),
+          boundaryPolygon: boundaryPolygon,
+        );
+
+        if (!mounted) return;
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('圃場を登録しました'),
+            backgroundColor: Theme.of(context).colorScheme.primary,
+          ),
+        );
+      }
 
       Navigator.pop(context, true);
     } catch (e) {
       if (!mounted) return;
 
+      // エラーメッセージを詳細に表示
+      String errorMessage = 'エラーが発生しました';
+      if (e is DioException && e.response != null) {
+        final statusCode = e.response?.statusCode;
+        final responseData = e.response?.data;
+        
+        if (statusCode == 500) {
+          errorMessage = 'サーバーエラーが発生しました。\nしばらく時間をおいて再度お試しください。';
+        } else if (statusCode == 422) {
+          // バリデーションエラー
+          if (responseData is Map && responseData.containsKey('errors')) {
+            final errors = responseData['errors'] as Map<String, dynamic>;
+            final errorList = errors.values.expand((e) => e as List).join('\n');
+            errorMessage = '入力内容に誤りがあります:\n$errorList';
+          } else {
+            errorMessage = '入力内容に誤りがあります。';
+          }
+        } else if (statusCode == 403) {
+          errorMessage = 'この圃場を編集する権限がありません。';
+        } else if (responseData is Map && responseData.containsKey('message')) {
+          errorMessage = responseData['message'] as String;
+        }
+      } else {
+        errorMessage = 'エラー: $e';
+      }
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('エラー: $e'),
+          content: Text(errorMessage),
           backgroundColor: Theme.of(context).colorScheme.error,
+          duration: const Duration(seconds: 5),
         ),
       );
     } finally {
@@ -272,16 +358,37 @@ class _FarmFormScreenState extends State<FarmFormScreen> {
     }
   }
 
+  /// 中心座標を計算（編集モード用）
+  LatLng _calculateCenter(List<LatLng> points) {
+    if (points.isEmpty) {
+      return const LatLng(35.6812, 139.7671);
+    }
+
+    double sumLat = 0.0;
+    double sumLng = 0.0;
+
+    for (final point in points) {
+      sumLat += point.latitude;
+      sumLng += point.longitude;
+    }
+
+    return LatLng(
+      sumLat / points.length,
+      sumLng / points.length,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
+    final isEditMode = widget.farm != null;
 
     return Scaffold(
       backgroundColor: colorScheme.surface,
       appBar: AppBar(
         title: Text(
-          _currentStep == 0 ? '基本情報' : '境界設定',
+          isEditMode ? '圃場を編集' : (_currentStep == 0 ? '基本情報' : '境界設定'),
           style: theme.textTheme.titleLarge?.copyWith(
             fontWeight: FontWeight.w600,
           ),
@@ -664,7 +771,7 @@ class _FarmFormScreenState extends State<FarmFormScreen> {
                   ),
                 )
               : Text(
-                  '登録',
+                  widget.farm != null ? '更新' : '登録',
                   style: theme.textTheme.labelLarge?.copyWith(
                     fontSize: 16,
                     fontWeight: FontWeight.w600,

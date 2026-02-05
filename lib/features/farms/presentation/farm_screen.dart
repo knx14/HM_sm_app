@@ -166,30 +166,83 @@ class _FarmScreenState extends State<FarmScreen> {
           debugPrint('圃場詳細: ${farm.farmName}');
         },
         borderRadius: BorderRadius.circular(16),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // 左側: 地図サムネイル
-              _buildMapThumbnail(
-                farm: farm,
-                boundaryPoints: boundaryPoints,
-                center: center,
-                colorScheme: colorScheme,
+        child: Stack(
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // 左側: 地図サムネイル
+                  _buildMapThumbnail(
+                    farm: farm,
+                    boundaryPoints: boundaryPoints,
+                    center: center,
+                    colorScheme: colorScheme,
+                  ),
+                  const SizedBox(width: 12),
+                  // 右側: 圃場情報（編集アイコンのスペースを確保）
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.only(right: 40), // 編集アイコンのスペース
+                      child: _buildFarmInfo(
+                        farm: farm,
+                        area: area,
+                        theme: theme,
+                        colorScheme: colorScheme,
+                      ),
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(width: 16),
-              // 右側: 圃場情報
-              Expanded(
-                child: _buildFarmInfo(
-                  farm: farm,
-                  area: area,
-                  theme: theme,
-                  colorScheme: colorScheme,
+            ),
+            // 右上に編集アイコン
+            Positioned(
+              top: 8,
+              right: 8,
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: () async {
+                    final result = await Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => FarmFormScreen(
+                          farmRepository: _farmRepository,
+                          farm: farm, // 既存の圃場データを渡す
+                        ),
+                      ),
+                    );
+
+                    // 更新成功時は一覧を再読み込み
+                    if (result == true) {
+                      _loadFarms();
+                    }
+                  },
+                  borderRadius: BorderRadius.circular(20),
+                  child: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: colorScheme.surface,
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.1),
+                          blurRadius: 4,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: Icon(
+                      Icons.edit,
+                      size: 20,
+                      color: colorScheme.onSurface,
+                    ),
+                  ),
                 ),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
@@ -202,8 +255,9 @@ class _FarmScreenState extends State<FarmScreen> {
     required LatLng center,
     required ColorScheme colorScheme,
   }) {
-    const double thumbnailWidth = 140.0;
-    const double thumbnailHeight = 100.0;
+    // カードの3分の1程度のサイズに調整
+    const double thumbnailWidth = 100.0;
+    const double thumbnailHeight = 90.0;
     const double borderRadius = 12.0;
 
     // APIキーがない場合はプレースホルダー
@@ -329,82 +383,73 @@ class _FarmScreenState extends State<FarmScreen> {
     required ThemeData theme,
     required ColorScheme colorScheme,
   }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisSize: MainAxisSize.min, // 最小サイズに制限
-      children: [
-        // 圃場名
-        Text(
-          farm.farmName,
-          style: theme.textTheme.titleMedium?.copyWith(
-            fontWeight: FontWeight.w600,
-            color: colorScheme.onSurface,
-          ),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        ),
-        const SizedBox(height: 12),
-        // 栽培方法
-        if (farm.cultivationMethod != null) ...[
-          Text(
-            farm.cultivationMethod!,
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: colorScheme.onSurface.withOpacity(0.7),
-            ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-          const SizedBox(height: 8),
-        ],
-        // 作物種別
-        if (farm.cropType != null) ...[
-          Text(
-            farm.cropType!,
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: colorScheme.onSurface.withOpacity(0.7),
-            ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-          const SizedBox(height: 8),
-        ],
-        // 面積と更新日
-        Row(
+    // 画像の高さ（90）と同じ高さに設定、上下に10pxずつスペースを設ける
+    return SizedBox(
+      height: 90, // 画像の高さと同じ
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 10), // 上下に10pxずつスペース
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.start,
           children: [
-            if (area > 0) ...[
-              Flexible(
-                child: Text(
-                  formatArea(area),
+            // 圃場名（文字サイズを少し小さく）
+            Text(
+              farm.farmName,
+              style: theme.textTheme.titleSmall?.copyWith(
+                fontWeight: FontWeight.w600,
+                color: colorScheme.onSurface,
+                fontSize: 16,
+                height: 1.2, // 行の高さを小さく
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            const SizedBox(height: 4), // 小さなスペース
+            // 栽培方式と栽培種目を横並び
+            Row(
+              children: [
+                // 栽培方式
+                Text(
+                  farm.cultivationMethod ?? '未設定',
                   style: theme.textTheme.bodySmall?.copyWith(
-                    color: colorScheme.onSurface.withOpacity(0.6),
+                    color: colorScheme.onSurface.withOpacity(0.7),
+                    fontSize: 13,
+                    height: 1.2, // 行の高さを小さく
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
-              ),
-              if (farm.updatedAt != null) ...[
-                Text(
-                  ' • ',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: colorScheme.onSurface.withOpacity(0.4),
+                const SizedBox(width: 8), // スペースで間隔をあける
+                // 栽培種目
+                Flexible(
+                  child: Text(
+                    farm.cropType ?? '未設定',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: colorScheme.onSurface.withOpacity(0.7),
+                      fontSize: 13,
+                      height: 1.2, // 行の高さを小さく
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
               ],
-            ],
-            if (farm.updatedAt != null)
-              Flexible(
-                child: Text(
-                  _formatDate(farm.updatedAt!),
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: colorScheme.onSurface.withOpacity(0.6),
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
+            ),
+            const SizedBox(height: 4), // 小さなスペース
+            // 面積（必ず表示）
+            Text(
+              area > 0 ? formatArea(area) : '面積未設定',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: colorScheme.onSurface.withOpacity(0.6),
+                fontSize: 12,
+                height: 1.2, // 行の高さを小さく
               ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
           ],
         ),
-      ],
+      ),
     );
   }
 
