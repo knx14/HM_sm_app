@@ -95,50 +95,72 @@ class _SignInScreenState extends State<SignInScreen> {
           height: 50,
         ),
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('ログイン',style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _email,
-              decoration: InputDecoration(labelText: 'メールアドレス'),
-              keyboardType: TextInputType.emailAddress,
-            ),
-            const SizedBox(height: 8),
-            TextField(
-              controller: _password,
-              decoration: InputDecoration(labelText: 'パスワード'),
-              obscureText: true,
-            ),
-            const SizedBox(height: 24),
-            Center(
-              child: FilledButton(
-                style: FilledButton.styleFrom(
-                  backgroundColor: const Color(0xFF66BB6A),
-                  foregroundColor: Colors.white,
-                  minimumSize: const Size(130, 48),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(30),
+      body: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () => FocusScope.of(context).unfocus(),
+        child: SafeArea(
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final bottomInset = MediaQuery.of(context).viewInsets.bottom;
+              return SingleChildScrollView(
+                padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + bottomInset),
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                  child: IntrinsicHeight(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'ログイン',
+                          style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                        ),
+                        const SizedBox(height: 12),
+                        TextField(
+                          controller: _email,
+                          decoration: const InputDecoration(labelText: 'メールアドレス'),
+                          keyboardType: TextInputType.emailAddress,
+                        ),
+                        const SizedBox(height: 8),
+                        TextField(
+                          controller: _password,
+                          decoration: const InputDecoration(labelText: 'パスワード'),
+                          obscureText: true,
+                        ),
+                        const SizedBox(height: 24),
+                        Center(
+                          child: FilledButton(
+                            style: FilledButton.styleFrom(
+                              backgroundColor: const Color(0xFF66BB6A),
+                              foregroundColor: Colors.white,
+                              minimumSize: const Size(130, 48),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(30),
+                              ),
+                            ),
+                            onPressed: _loading ? null : _signIn,
+                            child: _loading
+                                ? const CircularProgressIndicator()
+                                : const Text('ログイン'),
+                          ),
+                        ),
+                        Center(
+                          child: TextButton(
+                            onPressed: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(builder: (_) => const ResetPasswordScreen()),
+                              );
+                            },
+                            child: const Text('パスワードを忘れた？'),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-                onPressed: _loading ? null : _signIn,
-                child: _loading ? const CircularProgressIndicator() : const Text('ログイン'),
-              ),
-            ),
-            Center(child: TextButton(
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const ResetPasswordScreen()),
-                );
-              },
-              child: const Text('パスワードを忘れた？'),
-              ),
-            ),
-          ],
+              );
+            },
+          ),
         ),
       ),
     );
