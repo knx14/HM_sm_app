@@ -6,6 +6,11 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 class ResultMarkerIconFactory {
   static final Map<String, BitmapDescriptor> _cache = {};
 
+  /// キャッシュをクリアする（色スケール変更時などに使用）
+  static void clearCache() {
+    _cache.clear();
+  }
+
   static Future<BitmapDescriptor> circleLabel({
     required Color color,
     required String label,

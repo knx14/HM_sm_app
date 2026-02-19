@@ -13,8 +13,8 @@ class ResultColorScale {
       return _neutralNormal();
     }
     final t = ((value - min) / (max - min)).clamp(0.0, 1.0);
-    // light green -> dark green
-    return Color.lerp(const Color(0xFFE8F5E9), const Color(0xFF1B5E20), t)!;
+    // blue (low) -> red (high)
+    return Color.lerp(const Color(0xFFE3F2FD), const Color(0xFFC62828), t)!;
   }
 
   // 比較: ±Δmax 正規化（欠損は呼び出し側でmissing）

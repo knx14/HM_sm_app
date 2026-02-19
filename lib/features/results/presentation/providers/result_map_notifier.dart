@@ -179,6 +179,8 @@ class ResultMapNotifier extends ChangeNotifier {
     _isUpdatingMarkers = true;
     notifyListeners();
     try {
+      // マーカーアイコンのキャッシュをクリア（色スケール変更時などに必要）
+      ResultMarkerIconFactory.clearCache();
       if (_mode == ResultMapMode.normal) {
         final pts = _normal?.points ?? const <ResultPoint>[];
         final values = pts.map((pt) => findValueByParameter(pt.values, _parameter.apiName));

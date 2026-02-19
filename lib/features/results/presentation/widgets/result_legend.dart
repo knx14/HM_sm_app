@@ -31,7 +31,7 @@ class ResultLegend extends StatelessWidget {
 
     final gradient = isCompare
         ? const LinearGradient(colors: [Color(0xFF1565C0), Colors.white, Color(0xFFC62828)])
-        : const LinearGradient(colors: [Color(0xFFE8F5E9), Color(0xFF1B5E20)]);
+        : const LinearGradient(colors: [Color(0xFFE3F2FD), Color(0xFFC62828)]);
 
     final uniform = isCompare ? (deltaMax <= 0) : (max <= min);
 
