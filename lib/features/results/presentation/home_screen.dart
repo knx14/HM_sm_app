@@ -26,6 +26,32 @@ class HomeScreen extends StatelessWidget {
 class _ResultsTopView extends StatelessWidget {
   const _ResultsTopView();
 
+  Future<void> _showLogoutDialog(BuildContext context) async {
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('ログアウト'),
+          content: const Text('ログイン画面に遷移します'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('キャンセル'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('ログアウト'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (result == true && context.mounted) {
+      await _handleLogout(context);
+    }
+  }
+
   Future<void> _handleLogout(BuildContext context) async {
     try {
       final authRepo = AuthRepository(AmplifyAuthService());
@@ -72,7 +98,7 @@ class _ResultsTopView extends StatelessWidget {
         actions: [
           IconButton(
             icon: const Icon(Icons.logout),
-            onPressed: () => _handleLogout(context),
+            onPressed: () => _showLogoutDialog(context),
             tooltip: 'ログアウト',
           ),
         ],
