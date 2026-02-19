@@ -41,7 +41,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
     if (errorString.contains('InvalidPasswordException') ||
         errorString.contains('InvalidParameterException')) {
       if (errorString.contains('password') || errorString.contains('Password')) {
-        return 'パスワードは8文字以上で、大文字・小文字・数字・特殊文字を含む必要があります。';
+        return 'パスワードは8文字以上で、数字・特殊文字（^ \$ * . [ ] { } ( ) ? - " ! @ # % & / \\ , > < \' : ; | _ ~ ` + =）・大文字・小文字をそれぞれ1つ以上含む必要があります。';
       }
     }
     

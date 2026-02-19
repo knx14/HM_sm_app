@@ -44,7 +44,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
     } catch (e) {
       final errorMessage = e.toString().toLowerCase();
       if (errorMessage.contains('invalidpasswordexception')) {
-        setState(() => _error = 'パスワードは8文字以上で、数字・特殊文字・大文字・小文字をそれぞれ1つ以上含む必要があります。');
+        setState(() => _error = 'パスワードは8文字以上で、数字・特殊文字（^ \$ * . [ ] { } ( ) ? - " ! @ # % & / \\ , > < \' : ; | _ ~ ` + =）・大文字・小文字をそれぞれ1つ以上含む必要があります。');
       } else if (errorMessage.contains('invalidparameterexception')) {
         if (errorMessage.contains('ja_name')) {
           setState(() => _error = '所属している農業共同組合名の入力に問題があります。正しい名前を入力してください。');
