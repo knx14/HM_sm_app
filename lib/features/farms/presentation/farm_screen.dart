@@ -27,6 +27,8 @@ class _FarmScreenState extends State<FarmScreen> {
   bool _isLoading = false;
   String? _error;
   String? _googleMapsApiKey;
+
+  static const double _cardRadius = 18;
   
   static const MethodChannel _channel = MethodChannel('com.example.hmapp_smartphone/google_maps_api_key');
 
@@ -152,12 +154,13 @@ class _FarmScreenState extends State<FarmScreen> {
         : 0.0;
 
     return Card(
-      margin: const EdgeInsets.only(bottom: 16),
+      margin: const EdgeInsets.only(bottom: 12),
       elevation: 0,
+      color: colorScheme.surfaceContainerLow,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(_cardRadius),
         side: BorderSide(
-          color: colorScheme.outline.withOpacity(0.1),
+          color: colorScheme.outline.withValues(alpha: 0.12),
         ),
       ),
       child: InkWell(
@@ -165,7 +168,7 @@ class _FarmScreenState extends State<FarmScreen> {
           // TODO: 圃場詳細画面へ遷移
           debugPrint('圃場詳細: ${farm.farmName}');
         },
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(_cardRadius),
         child: Stack(
           children: [
             Padding(
@@ -227,7 +230,7 @@ class _FarmScreenState extends State<FarmScreen> {
                       shape: BoxShape.circle,
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withOpacity(0.1),
+                          color: Colors.black.withValues(alpha: 0.10),
                           blurRadius: 4,
                           offset: const Offset(0, 2),
                         ),
@@ -360,14 +363,14 @@ class _FarmScreenState extends State<FarmScreen> {
         color: colorScheme.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(borderRadius),
         border: Border.all(
-          color: colorScheme.outline.withOpacity(0.2),
+          color: colorScheme.outline.withValues(alpha: 0.20),
         ),
       ),
       child: Center(
         child: Text(
           'Map',
           style: TextStyle(
-            color: colorScheme.onSurface.withOpacity(0.4),
+            color: colorScheme.onSurface.withValues(alpha: 0.40),
             fontSize: 12,
             fontWeight: FontWeight.w500,
           ),
@@ -387,7 +390,7 @@ class _FarmScreenState extends State<FarmScreen> {
     return SizedBox(
       height: 90, // 画像の高さと同じ
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 10), // 上下に10pxずつスペース
+        padding: const EdgeInsets.symmetric(vertical: 8), // 高さ固定のため少し詰める
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisAlignment: MainAxisAlignment.start,
@@ -409,15 +412,17 @@ class _FarmScreenState extends State<FarmScreen> {
             Row(
               children: [
                 // 栽培方式
-                Text(
-                  farm.cultivationMethod ?? '未設定',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: colorScheme.onSurface.withOpacity(0.7),
-                    fontSize: 13,
-                    height: 1.2, // 行の高さを小さく
+                Flexible(
+                  child: Text(
+                    farm.cultivationMethod ?? '未設定',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: colorScheme.onSurface.withValues(alpha: 0.70),
+                      fontSize: 13,
+                      height: 1.2,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(width: 8), // スペースで間隔をあける
                 // 栽培種目
@@ -425,9 +430,9 @@ class _FarmScreenState extends State<FarmScreen> {
                   child: Text(
                     farm.cropType ?? '未設定',
                     style: theme.textTheme.bodySmall?.copyWith(
-                      color: colorScheme.onSurface.withOpacity(0.7),
+                      color: colorScheme.onSurface.withValues(alpha: 0.70),
                       fontSize: 13,
-                      height: 1.2, // 行の高さを小さく
+                      height: 1.2,
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -440,9 +445,9 @@ class _FarmScreenState extends State<FarmScreen> {
             Text(
               area > 0 ? formatArea(area) : '面積未設定',
               style: theme.textTheme.bodySmall?.copyWith(
-                color: colorScheme.onSurface.withOpacity(0.6),
+                color: colorScheme.onSurface.withValues(alpha: 0.60),
                 fontSize: 12,
-                height: 1.2, // 行の高さを小さく
+                height: 1.2,
               ),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
@@ -451,25 +456,6 @@ class _FarmScreenState extends State<FarmScreen> {
         ),
       ),
     );
-  }
-
-  /// 日付をフォーマット
-  String _formatDate(DateTime date) {
-    final now = DateTime.now();
-    final difference = now.difference(date);
-
-    if (difference.inDays == 0) {
-      return '今日';
-    } else if (difference.inDays == 1) {
-      return '昨日';
-    } else if (difference.inDays < 7) {
-      return '${difference.inDays}日前';
-    } else if (difference.inDays < 30) {
-      final weeks = (difference.inDays / 7).floor();
-      return '${weeks}週間前';
-    } else {
-      return '${date.year}/${date.month}/${date.day}';
-    }
   }
 
   /// 中心座標を計算
