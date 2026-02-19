@@ -164,7 +164,14 @@ class _LocationConfirmScreenState extends State<LocationConfirmScreen> {
                         fillColor: Colors.transparent,
                       ),
                   },
-                  markers: {},
+                  markers: {
+                    if (confirmed != null)
+                      Marker(
+                        markerId: const MarkerId('confirmed_location'),
+                        position: confirmed,
+                        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
+                      ),
+                  },
                   onTap: _setConfirmed,
                 ),
                 Positioned(
@@ -179,6 +186,7 @@ class _LocationConfirmScreenState extends State<LocationConfirmScreen> {
                       padding: const EdgeInsets.all(12),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
                         children: [
                           Text(
                             widget.farm.farmName,
@@ -220,6 +228,7 @@ class _LocationConfirmScreenState extends State<LocationConfirmScreen> {
                       padding: const EdgeInsets.all(12),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
+                        mainAxisSize: MainAxisSize.min,
                         children: [
                           if (_currentLocation != null)
                             Align(
