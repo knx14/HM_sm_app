@@ -381,10 +381,6 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
       _appendLog('ユーザIDが未設定のため保存できません\n');
       return null;
     }
-    if (_chartData.isEmpty) {
-      _appendLog('保存するデータがありません\n');
-      return null;
-    }
 
     final note1 = _note1.text.trim();
     final note2 = _note2.text.trim();
@@ -394,12 +390,16 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
     }
 
     try {
+      // CSV保存は「応答ログ」から `* freq real imag 0.000e+00 0.00` を150点復元して作る。
+      // 改行により `0.00` が別行に表示されても、ログ全体から復元できるようにする。
+      final settings = _currentSettings();
+      final chartDataForCsv = _buildExecChartDataForCsvFromResponseLog(settings);
       final fileBase = await LocalSaveService.saveMeasurement(
-        chartData: List<ChartData>.from(_chartData),
+        chartData: chartDataForCsv,
         userId: userId,
         note1: note1,
         note2: note2,
-        settings: _currentSettings(),
+        settings: settings,
         ampId: _ampId,
         latitude: _confirmedLocation?.latitude,
         longitude: _confirmedLocation?.longitude,
@@ -410,6 +410,59 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
       _appendLog('保存エラー: $e\n');
       return null;
     }
+  }
+
+  /// 応答ログ全体から exec 測定の150レコードを復元し、CSV保存に使う ChartData を返す。
+  ///
+  /// 期待フォーマット（物理レコード）:
+  /// `* freq real imag 0.000e+00 0.00`
+  ///
+  /// - `0.00` がログ表示上で改行されても、`\s+` で吸収して復元する。
+  /// - 並びは fstart から fdelta 刻みで points 個に整列し、欠損があれば例外にする。
+  List<ChartData> _buildExecChartDataForCsvFromResponseLog(MeasureSettings settings) {
+    final text = _logController.text;
+
+    // '*' と freq の間にスペースがあってもなくてもOK。
+    // 改行を含む空白（\s）を許容して、レコードを跨って復元する。
+    final re = RegExp(
+      r'\*\s*([0-9.+\-eE]+)\s+' // freq
+      r'([0-9.+\-eE]+)\s+' // real
+      r'([0-9.+\-eE]+)\s+' // imag
+      r'([0-9.+\-eE]+)\s+' // 0.000e+00 (unused)
+      r'([0-9.+\-eE]+)', // 0.00 (unused)
+    );
+
+    // freq をキーにして、受信順や重複に強くする（double誤差を避けて int に丸める）。
+    final byFreq = <int, ChartData>{};
+    for (final m in re.allMatches(text)) {
+      final freqD = double.tryParse(m.group(1)!);
+      final real = double.tryParse(m.group(2)!);
+      final imag = double.tryParse(m.group(3)!);
+      if (freqD == null || real == null || imag == null) continue;
+
+      final freq = freqD.round();
+      byFreq[freq] = ChartData(real: real, imag: imag, frequency: freq.toDouble());
+    }
+
+    final missing = <int>[];
+    final ordered = <ChartData>[];
+    for (var i = 0; i < settings.points; i++) {
+      final expected = (settings.fstart + settings.fdelta * i).round();
+      final v = byFreq[expected];
+      if (v == null) {
+        missing.add(expected);
+      } else {
+        ordered.add(v);
+      }
+    }
+
+    if (missing.isNotEmpty) {
+      throw StateError(
+        'CSV用データ欠損: ${ordered.length}/${settings.points}点（missing freq=${missing.take(30).toList()}${missing.length > 30 ? '...' : ''}）',
+      );
+    }
+
+    return ordered;
   }
 
   Future<void> _saveAndUpload() async {

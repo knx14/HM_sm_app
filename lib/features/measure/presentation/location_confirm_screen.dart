@@ -164,7 +164,14 @@ class _LocationConfirmScreenState extends State<LocationConfirmScreen> {
                         fillColor: Colors.transparent,
                       ),
                   },
-                  markers: {},
+                  markers: {
+                    if (confirmed != null)
+                      Marker(
+                        markerId: const MarkerId('confirmed_location'),
+                        position: confirmed,
+                        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
+                      ),
+                  },
                   onTap: _setConfirmed,
                 ),
                 Positioned(
@@ -179,6 +186,7 @@ class _LocationConfirmScreenState extends State<LocationConfirmScreen> {
                       padding: const EdgeInsets.all(12),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
                         children: [
                           Text(
                             widget.farm.farmName,
@@ -211,70 +219,77 @@ class _LocationConfirmScreenState extends State<LocationConfirmScreen> {
                 Positioned(
                   left: 12,
                   right: 12,
-                  bottom: 12,
-                  child: Material(
-                    elevation: 0,
-                    color: theme.colorScheme.surface.withOpacity(0.92),
-                    borderRadius: BorderRadius.circular(12),
-                    child: Padding(
-                      padding: const EdgeInsets.all(12),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          if (_currentLocation != null)
-                            Align(
-                              alignment: Alignment.centerLeft,
-                              child: TextButton(
-                                onPressed: () {
-                                  final here = _currentLocation;
-                                  if (here == null) return;
-                                  _setConfirmed(here);
-                                  _mapController?.animateCamera(
-                                    CameraUpdate.newCameraPosition(
-                                      CameraPosition(target: here, zoom: 18),
-                                    ),
-                                  );
-                                },
-                                child: const Text('現在地に戻す'),
+                  bottom: 0,
+                  child: SafeArea(
+                    top: false,
+                    left: false,
+                    right: false,
+                    minimum: const EdgeInsets.only(bottom: 12),
+                    child: Material(
+                      elevation: 0,
+                      color: theme.colorScheme.surface.withOpacity(0.92),
+                      borderRadius: BorderRadius.circular(12),
+                      child: Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (_currentLocation != null)
+                              Align(
+                                alignment: Alignment.centerLeft,
+                                child: TextButton(
+                                  onPressed: () {
+                                    final here = _currentLocation;
+                                    if (here == null) return;
+                                    _setConfirmed(here);
+                                    _mapController?.animateCamera(
+                                      CameraUpdate.newCameraPosition(
+                                        CameraPosition(target: here, zoom: 18),
+                                      ),
+                                    );
+                                  },
+                                  child: const Text('現在地に戻す'),
+                                ),
                               ),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: OutlinedButton(
+                                    onPressed: () => Navigator.pop(context),
+                                    child: const Text('キャンセル'),
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: ElevatedButton(
+                                    onPressed: canConfirm
+                                        ? () {
+                                            final p = _confirmedLocation;
+                                            if (p == null) return;
+                                            Navigator.pop(
+                                              context,
+                                              LocationConfirmResult(
+                                                confirmedLocation: p,
+                                                status: _status,
+                                              ),
+                                            );
+                                          }
+                                        : null,
+                                    child: const Text('測定開始'),
+                                  ),
+                                ),
+                              ],
                             ),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: OutlinedButton(
-                                  onPressed: () => Navigator.pop(context),
-                                  child: const Text('キャンセル'),
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: ElevatedButton(
-                                  onPressed: canConfirm
-                                      ? () {
-                                          final p = _confirmedLocation;
-                                          if (p == null) return;
-                                          Navigator.pop(
-                                            context,
-                                            LocationConfirmResult(
-                                              confirmedLocation: p,
-                                              status: _status,
-                                            ),
-                                          );
-                                        }
-                                      : null,
-                                  child: const Text('測定開始'),
-                                ),
+                            if (_status == GeoFenceStatus.outside) ...[
+                              const SizedBox(height: 6),
+                              Text(
+                                '圃場外のため開始できません。地点を圃場内に調整してください。',
+                                style: theme.textTheme.bodySmall,
                               ),
                             ],
-                          ),
-                          if (_status == GeoFenceStatus.outside) ...[
-                            const SizedBox(height: 6),
-                            Text(
-                              '圃場外のため開始できません。地点を圃場内に調整してください。',
-                              style: theme.textTheme.bodySmall,
-                            ),
                           ],
-                        ],
+                        ),
                       ),
                     ),
                   ),
