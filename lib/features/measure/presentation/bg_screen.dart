@@ -137,7 +137,7 @@ class _BgScreenState extends State<BgScreen> {
       child: Scaffold(
         appBar: AppBar(
           title: const Text('BG測定'),
-          automaticallyImplyLeading: !_isMeasuring,
+          leading: Navigator.canPop(context) ? null : const SizedBox.shrink(),
         ),
         body: Padding(
           padding: const EdgeInsets.all(12),

@@ -674,6 +674,7 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text(''),
+        leading: Navigator.canPop(context) ? null : const SizedBox.shrink(),
         actions: [
           IconButton(
             onPressed: (_isMeasuring || _bgIsMeasuring || _isUploading || _isRecalling) ? null : _openSettings,

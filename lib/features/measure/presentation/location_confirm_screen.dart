@@ -140,6 +140,7 @@ class _LocationConfirmScreenState extends State<LocationConfirmScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('地点を確定'),
+        leading: Navigator.canPop(context) ? null : const SizedBox.shrink(),
       ),
       body: Column(
         children: [

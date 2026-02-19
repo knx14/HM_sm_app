@@ -65,6 +65,7 @@ class _FarmSelectScreenState extends State<FarmSelectScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('圃場を選択'),
+        leading: Navigator.canPop(context) ? null : const SizedBox.shrink(),
       ),
       body: Padding(
         padding: const EdgeInsets.all(12),
