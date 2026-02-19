@@ -37,17 +37,22 @@ String buildStaticMapUrl({
   final clampedWidth = width.clamp(1, 640);
   final clampedHeight = height.clamp(1, 640);
 
-  // bounds -> center/zoom を自前計算（visible依存をやめる）
+  // bounds -> center/zoom を自前計算
   final bounds = boundsFromPoints(boundaryPoints);
-  final mapCenter = centerOfBounds(bounds);
+
+  // boundsを少し拡張して余裕を持たせる（マーカーやポリゴンの線がはみ出さないように）
+  final expandedBounds = _expandBounds(bounds, factor: 0.15); // 15%拡張（マーカーと線の余裕）
+  final mapCenter = centerOfBounds(expandedBounds);
 
   // ★ scale分を加味してズーム計算（Static Mapsの実ピクセルに合わせる）
+  // パディングを大きくして、マーカーやポリゴンの線がはみ出さないようにする
+  // 最小ズームレベルを高く設定して、小さな圃場でも適切にズームインする
   final mapZoom = zoomForBounds(
-    bounds: bounds,
+    bounds: expandedBounds,
     widthPx: clampedWidth * scale,
     heightPx: clampedHeight * scale,
-    paddingPx: 28,
-    minZoom: 3,
+    paddingPx: 50, // マーカーとポリゴンの線の余裕を考慮
+    minZoom: 15, // 最小ズームを高く設定（小さな圃場でも適切にズームイン）
     maxZoom: 20,
   );
 
@@ -139,6 +144,27 @@ double _latRad(double lat) {
   final radX2 = math.log((1 + sinv) / (1 - sinv)) / 2;
   // mercatorのクランプ
   return math.max(math.min(radX2, math.pi), -math.pi) / 2;
+}
+
+/// boundsを拡張する（マーカーやポリゴンの線がはみ出さないように）
+LatLngBounds _expandBounds(LatLngBounds bounds, {double factor = 0.1}) {
+  final latDiff = bounds.northeast.latitude - bounds.southwest.latitude;
+  final lngDiff = bounds.northeast.longitude - bounds.southwest.longitude;
+  
+  // 拡張量を計算
+  final latExpand = latDiff * factor;
+  final lngExpand = lngDiff * factor;
+  
+  return LatLngBounds(
+    southwest: LatLng(
+      bounds.southwest.latitude - latExpand,
+      bounds.southwest.longitude - lngExpand,
+    ),
+    northeast: LatLng(
+      bounds.northeast.latitude + latExpand,
+      bounds.northeast.longitude + lngExpand,
+    ),
+  );
 }
 
 int zoomForBounds({
