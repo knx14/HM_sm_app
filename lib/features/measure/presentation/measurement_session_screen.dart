@@ -21,7 +21,6 @@ import '../domain/measure_settings.dart';
 import '../domain/measurement_parser.dart';
 import '../domain/measurement_service.dart';
 import 'farm_select_screen.dart';
-import 'location_confirm_screen.dart';
 import 'measurement_settings_sheet.dart';
 import 'widgets/measurement_chart.dart';
 import 'widgets/step_indicator_bar.dart';
@@ -337,11 +336,14 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
   }
 
   Future<Farm?> _selectFarm() async {
-    final farm = await Navigator.push<Farm>(
+    final result = await Navigator.push<FarmSelectResult>(
       context,
-      MaterialPageRoute(builder: (_) => const FarmSelectScreen()),
+      MaterialPageRoute(
+        builder: (_) => const FarmSelectScreen(mode: FarmSelectMode.farmOnly),
+      ),
     );
     if (!mounted) return null;
+    final farm = result?.farm;
     if (farm != null) {
       setState(() => _selectedFarm = farm);
     }
@@ -350,24 +352,27 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
 
   Future<void> _confirmLocationAndStartExec() async {
     if (_isMeasuring) return;
-    final farm = _selectedFarm ?? await _selectFarm();
+
+    // 画面スタックを「本測定 → 圃場選択 → 地点確定」にして、地点確定画面の戻る矢印で圃場選択へ戻れるようにする。
+    final flow = await Navigator.push<FarmSelectResult>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const FarmSelectScreen(mode: FarmSelectMode.farmAndLocationConfirm),
+      ),
+    );
     if (!mounted) return;
-    if (farm == null) {
+    if (flow == null) {
       _appendLog('圃場選択がキャンセルされました\n');
       return;
     }
-
-    final result = await Navigator.push<LocationConfirmResult>(
-      context,
-      MaterialPageRoute(builder: (_) => LocationConfirmScreen(farm: farm)),
-    );
-    if (!mounted) return;
+    final result = flow.locationConfirmResult;
     if (result == null) {
       _appendLog('地点確定がキャンセルされました\n');
       return;
     }
 
     setState(() {
+      _selectedFarm = flow.farm;
       _confirmedLocation = result.confirmedLocation;
       _lastGeoStatus = result.status;
     });
@@ -420,37 +425,57 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
   /// - `0.00` がログ表示上で改行されても、`\s+` で吸収して復元する。
   /// - 並びは fstart から fdelta 刻みで points 個に整列し、欠損があれば例外にする。
   List<ChartData> _buildExecChartDataForCsvFromResponseLog(MeasureSettings settings) {
-    final text = _logController.text;
+    // Android OS / USB実装差などで、応答ログの「データ行」の列数が揺れることがある。
+    // 例:
+    // - `* freq real imag 0.000e+00 0.00`（5列）
+    // - `* freq real imag 0.000e+00`（4列: 末尾 0.00 が欠ける）
+    //
+    // ここでは行単位に `*` 行をパースし、freq/real/imag のみを採用する。
 
-    // '*' と freq の間にスペースがあってもなくてもOK。
-    // 改行を含む空白（\s）を許容して、レコードを跨って復元する。
-    final re = RegExp(
-      r'\*\s*([0-9.+\-eE]+)\s+' // freq
-      r'([0-9.+\-eE]+)\s+' // real
-      r'([0-9.+\-eE]+)\s+' // imag
-      r'([0-9.+\-eE]+)\s+' // 0.000e+00 (unused)
-      r'([0-9.+\-eE]+)', // 0.00 (unused)
-    );
+    // 期待する周波数（settingsから生成）
+    final expectedFreqs = <int>[];
+    final expectedSet = <int>{};
+    for (var i = 0; i < settings.points; i++) {
+      final f = (settings.fstart + settings.fdelta * i).round();
+      expectedFreqs.add(f);
+      expectedSet.add(f);
+    }
 
     // freq をキーにして、受信順や重複に強くする（double誤差を避けて int に丸める）。
     final byFreq = <int, ChartData>{};
-    for (final m in re.allMatches(text)) {
-      final freqD = double.tryParse(m.group(1)!);
-      final real = double.tryParse(m.group(2)!);
-      final imag = double.tryParse(m.group(3)!);
+
+    for (final rawLine in _logController.text.split(RegExp(r'\r?\n'))) {
+      var line = rawLine.trim();
+      if (line.isEmpty) continue;
+
+      // 応答ログのデータ行は基本 '*' 開始。全角 '＊' も吸収する。
+      if (line.startsWith('*') || line.startsWith('＊')) {
+        line = line.substring(1).trim();
+      } else {
+        continue;
+      }
+
+      final parts = line.split(RegExp(r'\s+'));
+      // 4列（freq real imag unused）/ 5列（+ 0.00）を許容しつつ、最低限 freq real imag を読む。
+      if (parts.length < 4) continue;
+
+      final freqD = double.tryParse(parts[0]);
+      final real = double.tryParse(parts[1]);
+      final imag = double.tryParse(parts[2]);
       if (freqD == null || real == null || imag == null) continue;
 
       final freq = freqD.round();
+      if (!expectedSet.contains(freq)) continue;
+
       byFreq[freq] = ChartData(real: real, imag: imag, frequency: freq.toDouble());
     }
 
     final missing = <int>[];
     final ordered = <ChartData>[];
-    for (var i = 0; i < settings.points; i++) {
-      final expected = (settings.fstart + settings.fdelta * i).round();
-      final v = byFreq[expected];
+    for (final f in expectedFreqs) {
+      final v = byFreq[f];
       if (v == null) {
-        missing.add(expected);
+        missing.add(f);
       } else {
         ordered.add(v);
       }
