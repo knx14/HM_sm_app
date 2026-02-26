@@ -4,9 +4,36 @@ import '../../../core/api/api_client.dart';
 import '../../auth/data/amplify_auth_service.dart';
 import '../../farms/data/farm_repository.dart';
 import '../../farms/domain/farm.dart';
+import 'location_confirm_screen.dart';
+
+enum FarmSelectMode {
+  /// 圃場を選択して、この画面を閉じる（従来動作）。
+  farmOnly,
+
+  /// 圃場選択後に地点確定へ進み、地点確定まで完了したら結果を返す。
+  ///
+  /// 画面スタック: 本測定 → 圃場選択 → 地点確定
+  /// とすることで、地点確定画面の戻る矢印で圃場選択へ戻れる。
+  farmAndLocationConfirm,
+}
+
+class FarmSelectResult {
+  final Farm farm;
+  final LocationConfirmResult? locationConfirmResult;
+
+  const FarmSelectResult({
+    required this.farm,
+    this.locationConfirmResult,
+  });
+}
 
 class FarmSelectScreen extends StatefulWidget {
-  const FarmSelectScreen({super.key});
+  final FarmSelectMode mode;
+
+  const FarmSelectScreen({
+    super.key,
+    this.mode = FarmSelectMode.farmOnly,
+  });
 
   @override
   State<FarmSelectScreen> createState() => _FarmSelectScreenState();
@@ -112,7 +139,31 @@ class _FarmSelectScreenState extends State<FarmSelectScreen> {
                               title: Text(farm.farmName),
                               subtitle: Text('ID: ${farm.id}'),
                               trailing: const Icon(Icons.chevron_right),
-                              onTap: () => Navigator.pop(context, farm),
+                              onTap: () async {
+                                switch (widget.mode) {
+                                  case FarmSelectMode.farmOnly:
+                                    Navigator.pop(context, FarmSelectResult(farm: farm));
+                                    return;
+                                  case FarmSelectMode.farmAndLocationConfirm:
+                                    final result = await Navigator.push<LocationConfirmResult>(
+                                      context,
+                                      MaterialPageRoute(builder: (_) => LocationConfirmScreen(farm: farm)),
+                                    );
+                                    if (!context.mounted) return;
+                                    if (result == null) {
+                                      // 地点確定がキャンセルされたら、圃場選択に留まる（戻れるようにする）。
+                                      return;
+                                    }
+                                    Navigator.pop(
+                                      context,
+                                      FarmSelectResult(
+                                        farm: farm,
+                                        locationConfirmResult: result,
+                                      ),
+                                    );
+                                    return;
+                                }
+                              },
                             );
                           },
                         ),

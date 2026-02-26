@@ -21,7 +21,6 @@ import '../domain/measure_settings.dart';
 import '../domain/measurement_parser.dart';
 import '../domain/measurement_service.dart';
 import 'farm_select_screen.dart';
-import 'location_confirm_screen.dart';
 import 'measurement_settings_sheet.dart';
 import 'widgets/measurement_chart.dart';
 import 'widgets/step_indicator_bar.dart';
@@ -337,11 +336,14 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
   }
 
   Future<Farm?> _selectFarm() async {
-    final farm = await Navigator.push<Farm>(
+    final result = await Navigator.push<FarmSelectResult>(
       context,
-      MaterialPageRoute(builder: (_) => const FarmSelectScreen()),
+      MaterialPageRoute(
+        builder: (_) => const FarmSelectScreen(mode: FarmSelectMode.farmOnly),
+      ),
     );
     if (!mounted) return null;
+    final farm = result?.farm;
     if (farm != null) {
       setState(() => _selectedFarm = farm);
     }
@@ -350,24 +352,27 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
 
   Future<void> _confirmLocationAndStartExec() async {
     if (_isMeasuring) return;
-    final farm = _selectedFarm ?? await _selectFarm();
+
+    // 画面スタックを「本測定 → 圃場選択 → 地点確定」にして、地点確定画面の戻る矢印で圃場選択へ戻れるようにする。
+    final flow = await Navigator.push<FarmSelectResult>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const FarmSelectScreen(mode: FarmSelectMode.farmAndLocationConfirm),
+      ),
+    );
     if (!mounted) return;
-    if (farm == null) {
+    if (flow == null) {
       _appendLog('圃場選択がキャンセルされました\n');
       return;
     }
-
-    final result = await Navigator.push<LocationConfirmResult>(
-      context,
-      MaterialPageRoute(builder: (_) => LocationConfirmScreen(farm: farm)),
-    );
-    if (!mounted) return;
+    final result = flow.locationConfirmResult;
     if (result == null) {
       _appendLog('地点確定がキャンセルされました\n');
       return;
     }
 
     setState(() {
+      _selectedFarm = flow.farm;
       _confirmedLocation = result.confirmedLocation;
       _lastGeoStatus = result.status;
     });
