@@ -923,11 +923,6 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
             isConnected: _isConnected,
             isMeasuring: _isMeasuring,
             isUploading: _isUploading,
-            selectedFarm: _selectedFarm,
-            onSelectFarm: () {
-              Navigator.pop(sheetContext);
-              _openFarmSelection(clearSpots: true);
-            },
             fstart: _fstart,
             fdelta: _fdelta,
             points: _points,
@@ -948,7 +943,6 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
             uploadLogController: _uploadLogController,
             uploadLogScrollController: _uploadLogScrollController,
             uploadPhase: _uploadPhase,
-            lastGeoStatus: _lastGeoStatus,
           ),
         );
       },
@@ -1188,7 +1182,7 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          _stepBodyTitle(context, 'Step 2: BG測定（必須）', '完了後に圃場選択へ進みます。'),
+                          _stepBodyTitle(context, 'Step 2: BG測定', '完了後に圃場選択へ進みます。'),
                           Wrap(
                             spacing: 8,
                             runSpacing: 8,
@@ -1213,16 +1207,6 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
                           ),
                           const SizedBox(height: 16),
                         ],
-                      ),
-                    ),
-                  ),
-                  Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.all(12),
-                      child: _standardLogField(
-                        controller: _logController,
-                        scrollController: _logScrollController,
-                        label: '応答ログ',
                       ),
                     ),
                   ),

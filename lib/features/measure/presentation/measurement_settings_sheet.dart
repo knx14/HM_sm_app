@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../../../services/geo_service.dart';
-import '../../farms/domain/farm.dart';
 import '../constants/app_constants.dart';
 import '../data/measurement_upload_service.dart';
 
@@ -9,9 +7,6 @@ class MeasurementSettingsSheet extends StatelessWidget {
   final bool isConnected;
   final bool isMeasuring;
   final bool isUploading;
-
-  final Farm? selectedFarm;
-  final VoidCallback onSelectFarm;
 
   final TextEditingController fstart;
   final TextEditingController fdelta;
@@ -37,15 +32,11 @@ class MeasurementSettingsSheet extends StatelessWidget {
   final ScrollController uploadLogScrollController;
   final UploadPhase uploadPhase;
 
-  final GeoFenceStatus? lastGeoStatus;
-
   const MeasurementSettingsSheet({
     super.key,
     required this.isConnected,
     required this.isMeasuring,
     required this.isUploading,
-    required this.selectedFarm,
-    required this.onSelectFarm,
     required this.fstart,
     required this.fdelta,
     required this.points,
@@ -66,7 +57,6 @@ class MeasurementSettingsSheet extends StatelessWidget {
     required this.uploadLogController,
     required this.uploadLogScrollController,
     required this.uploadPhase,
-    required this.lastGeoStatus,
   });
 
   bool get _disableDuringSession => isMeasuring || isUploading;
@@ -92,22 +82,9 @@ class MeasurementSettingsSheet extends StatelessWidget {
     );
   }
 
-  String? _geoStatusLabel(GeoFenceStatus? s) {
-    if (s == null) return null;
-    switch (s) {
-      case GeoFenceStatus.inside:
-        return '最新地点: inside';
-      case GeoFenceStatus.edge:
-        return '最新地点: edge';
-      case GeoFenceStatus.outside:
-        return '最新地点: outside';
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final geoLabel = _geoStatusLabel(lastGeoStatus);
 
     return SafeArea(
       child: Padding(
@@ -128,31 +105,7 @@ class MeasurementSettingsSheet extends StatelessWidget {
             Expanded(
               child: ListView(
                 children: [
-                  Text('圃場', style: theme.textTheme.titleSmall),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          selectedFarm == null
-                              ? '未選択'
-                              : '${selectedFarm!.farmName} (ID: ${selectedFarm!.id})',
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      OutlinedButton(
-                        onPressed: _disableDuringSession ? null : onSelectFarm,
-                        child: const Text('変更'),
-                      ),
-                    ],
-                  ),
-                  if (geoLabel != null) ...[
-                    const SizedBox(height: 6),
-                    Text(geoLabel, style: theme.textTheme.bodySmall),
-                  ],
-                  const SizedBox(height: 16),
+                  // ── 測定パラメータ ──
                   Text('測定パラメータ', style: theme.textTheme.titleSmall),
                   const SizedBox(height: 8),
                   Row(
@@ -181,7 +134,7 @@ class MeasurementSettingsSheet extends StatelessWidget {
                     children: [
                       Expanded(
                         child: _field(
-                          '積分[s]',
+                          '積分時間[s]',
                           integrate,
                           keyboardType: TextInputType.number,
                           enabled: !_disableDuringSession,
@@ -230,6 +183,7 @@ class MeasurementSettingsSheet extends StatelessWidget {
                     ],
                   ),
                   const SizedBox(height: 16),
+                  // ── メモ ──
                   Text('メモ', style: theme.textTheme.titleSmall),
                   const SizedBox(height: 8),
                   Row(
@@ -252,6 +206,7 @@ class MeasurementSettingsSheet extends StatelessWidget {
                     ],
                   ),
                   const SizedBox(height: 16),
+                  // ── センサー番号選択 ──
                   Text('センサー', style: theme.textTheme.titleSmall),
                   const SizedBox(height: 8),
                   Row(
@@ -269,6 +224,7 @@ class MeasurementSettingsSheet extends StatelessWidget {
                     ],
                   ),
                   const SizedBox(height: 8),
+                  // ── ID取得 / List / Store ──
                   Wrap(
                     spacing: 8,
                     runSpacing: 8,
@@ -285,55 +241,48 @@ class MeasurementSettingsSheet extends StatelessWidget {
                         onPressed: (!isConnected || _disableDuringSession) ? null : onSendStore,
                         child: const Text('Store'),
                       ),
-                      OutlinedButton(
-                        onPressed: (!isConnected || _disableDuringSession) ? null : onSendRecall,
-                        child: const Text('Recall'),
-                      ),
                     ],
                   ),
+                  const SizedBox(height: 24),
+                  // ── 応答ログ ──
+                  Text('応答ログ', style: theme.textTheme.titleSmall),
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    height: 200,
+                    child: TextField(
+                      controller: logController,
+                      scrollController: logScrollController,
+                      maxLines: null,
+                      expands: true,
+                      readOnly: true,
+                      style: const TextStyle(fontSize: AppConstants.standardFontSize),
+                      decoration: const InputDecoration(
+                        border: OutlineInputBorder(),
+                        contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  // ── アップロードログ ──
+                  Text('アップロードログ（${uploadPhase.name}）', style: theme.textTheme.titleSmall),
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    height: 200,
+                    child: TextField(
+                      controller: uploadLogController,
+                      scrollController: uploadLogScrollController,
+                      maxLines: null,
+                      expands: true,
+                      readOnly: true,
+                      style: const TextStyle(fontSize: AppConstants.standardFontSize),
+                      decoration: const InputDecoration(
+                        border: OutlineInputBorder(),
+                        contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
                 ],
-              ),
-            ),
-            const SizedBox(height: 12),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: Text('応答ログ（常時表示）', style: theme.textTheme.titleSmall),
-            ),
-            const SizedBox(height: 8),
-            SizedBox(
-              height: 180,
-              child: TextField(
-                controller: logController,
-                scrollController: logScrollController,
-                maxLines: null,
-                expands: true,
-                readOnly: true,
-                style: const TextStyle(fontSize: AppConstants.standardFontSize),
-                decoration: const InputDecoration(
-                  border: OutlineInputBorder(),
-                  contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                ),
-              ),
-            ),
-            const SizedBox(height: 12),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: Text('アップロードログ（${uploadPhase.name}）', style: theme.textTheme.titleSmall),
-            ),
-            const SizedBox(height: 8),
-            SizedBox(
-              height: 180,
-              child: TextField(
-                controller: uploadLogController,
-                scrollController: uploadLogScrollController,
-                maxLines: null,
-                expands: true,
-                readOnly: true,
-                style: const TextStyle(fontSize: AppConstants.standardFontSize),
-                decoration: const InputDecoration(
-                  border: OutlineInputBorder(),
-                  contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                ),
               ),
             ),
           ],
@@ -342,4 +291,3 @@ class MeasurementSettingsSheet extends StatelessWidget {
     );
   }
 }
-
