@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../services/geo_service.dart';
 import '../../farms/domain/farm.dart';
 import '../constants/app_constants.dart';
+import '../data/measurement_upload_service.dart';
 
 class MeasurementSettingsSheet extends StatelessWidget {
   final bool isConnected;
@@ -32,6 +33,9 @@ class MeasurementSettingsSheet extends StatelessWidget {
 
   final TextEditingController logController;
   final ScrollController logScrollController;
+  final TextEditingController uploadLogController;
+  final ScrollController uploadLogScrollController;
+  final UploadPhase uploadPhase;
 
   final GeoFenceStatus? lastGeoStatus;
 
@@ -59,6 +63,9 @@ class MeasurementSettingsSheet extends StatelessWidget {
     required this.onSendRecall,
     required this.logController,
     required this.logScrollController,
+    required this.uploadLogController,
+    required this.uploadLogScrollController,
+    required this.uploadPhase,
     required this.lastGeoStatus,
   });
 
@@ -298,6 +305,27 @@ class MeasurementSettingsSheet extends StatelessWidget {
               child: TextField(
                 controller: logController,
                 scrollController: logScrollController,
+                maxLines: null,
+                expands: true,
+                readOnly: true,
+                style: const TextStyle(fontSize: AppConstants.standardFontSize),
+                decoration: const InputDecoration(
+                  border: OutlineInputBorder(),
+                  contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text('アップロードログ（${uploadPhase.name}）', style: theme.textTheme.titleSmall),
+            ),
+            const SizedBox(height: 8),
+            SizedBox(
+              height: 180,
+              child: TextField(
+                controller: uploadLogController,
+                scrollController: uploadLogScrollController,
                 maxLines: null,
                 expands: true,
                 readOnly: true,

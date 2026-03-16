@@ -1,19 +1,23 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
+import 'dart:typed_data';
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:percent_indicator/linear_percent_indicator.dart';
 import 'package:provider/provider.dart';
 
 import '../../../providers/user_provider.dart';
-import '../../farms/domain/farm.dart';
 import '../../../services/geo_service.dart';
+import '../../../utils/polygon_area.dart';
+import '../../farms/domain/farm.dart';
 import '../constants/app_constants.dart';
+import '../data/measurement_local_paths.dart';
 import '../data/local_save_service.dart';
 import '../data/measurement_upload_service.dart';
+import '../data/pending_upload_store.dart';
 import '../data/serial_comm_android.dart';
 import '../domain/app_settings.dart';
 import '../domain/chart_data.dart';
@@ -22,10 +26,27 @@ import '../domain/measurement_parser.dart';
 import '../domain/measurement_service.dart';
 import 'farm_select_screen.dart';
 import 'measurement_settings_sheet.dart';
-import 'widgets/measurement_chart.dart';
 import 'widgets/step_indicator_bar.dart';
 
 enum SessionStep { connect, bg, measure }
+
+class _SpotProgress {
+  _SpotProgress({
+    required this.id,
+    required this.position,
+    required this.createdAt,
+  });
+
+  final String id;
+  final LatLng position;
+  final DateTime createdAt;
+  int percent = 0;
+  bool saveDone = false;
+  bool uploadDone = false;
+  bool failed = false;
+  int iconVersion = 0;
+  BitmapDescriptor? icon;
+}
 
 class MeasurementSessionScreen extends StatefulWidget {
   const MeasurementSessionScreen({super.key});
@@ -47,50 +68,58 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
   final _range = TextEditingController(text: MeasureSettings.defaults.range.toString());
   final _integrate = TextEditingController(text: MeasureSettings.defaults.integrate.toString());
   final _average = TextEditingController(text: MeasureSettings.defaults.average.toString());
-
   final _note1 = TextEditingController();
   final _note2 = TextEditingController();
-
   final AppSettings _settings = AppSettings();
+  final PendingUploadStore _pendingUploadStore = PendingUploadStore();
 
   bool _isConnected = false;
   bool _isMeasuring = false;
-  int receivedPoints = 0;
-  int totalPoints = AppConstants.defaultPointCount;
-  double _progress = 0.0;
+  bool _isFetchingCurrentLocation = false;
+  int _receivedPoints = 0;
+  int _totalPoints = AppConstants.defaultPointCount;
   String _selectedSensor = '0';
   String? _ampId;
 
-  final List<ChartData> _chartData = [];
-
   Farm? _selectedFarm;
-  UploadPhase _uploadPhase = UploadPhase.idle;
-  // NOTE: upload_id等はログ本文に出すため、UIでの表示用途は持たない
-  UploadResult? _lastUploadResult;
-
   LatLng? _confirmedLocation;
+  LatLng? _currentLocation;
   GeoFenceStatus? _lastGeoStatus;
+  GoogleMapController? _mapController;
 
+  UploadPhase _uploadPhase = UploadPhase.idle;
   SessionStep _currentStep = SessionStep.connect;
 
-  // Auto recall state (Step1 -> Step2 transition)
   bool _isRecalling = false;
   bool _recallDone = false;
   Timer? _recallTimeoutTimer;
-
-  // BG step state (UI-only; behavior matches BgScreen)
   bool _bgIsMeasuring = false;
   bool _bgDone = false;
   int _bgReceivedPoints = 0;
   int _bgTotalPoints = AppConstants.defaultPointCount;
   double _bgProgress = 0.0;
+  bool _isSelectingFarm = false;
+  bool _showMapHint = true;
 
-  TextStyle _getTextStyle() => const TextStyle(fontSize: AppConstants.standardFontSize);
+  final List<ChartData> _chartData = [];
+  final List<_SpotProgress> _spots = <_SpotProgress>[];
+  _SpotProgress? _activeSpot;
+  final Map<String, BitmapDescriptor> _markerIconCache = <String, BitmapDescriptor>{};
+  Completer<bool>? _execCompleter;
+
+  bool get _isUploading =>
+      _uploadPhase == UploadPhase.saving ||
+      _uploadPhase == UploadPhase.initCalling ||
+      _uploadPhase == UploadPhase.uploading ||
+      _uploadPhase == UploadPhase.completing;
+
+  List<LatLng> get _farmPolygon => (_selectedFarm?.boundaryPolygon ?? const [])
+      .map((e) => LatLng(e['lat'] ?? 0, e['lng'] ?? 0))
+      .toList();
 
   @override
   void initState() {
     super.initState();
-    // 受信は SerialComm（HomeScreen互換の onReceive(data)）で扱う
     SerialComm.init(_onReceive);
     SerialComm.addDisconnectListener(_onUsbDisconnected);
   }
@@ -116,49 +145,6 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
     super.dispose();
   }
 
-  void _onUsbDisconnected() {
-    if (!mounted) return;
-    _recallTimeoutTimer?.cancel();
-    setState(() {
-      _isConnected = false;
-      _currentStep = SessionStep.connect;
-
-      _isRecalling = false;
-      _recallDone = false;
-
-      _bgIsMeasuring = false;
-      _bgDone = false;
-
-      _isMeasuring = false;
-      _progress = 0.0;
-      _bgProgress = 0.0;
-    });
-    _appendLog('USBが切断されました。接続からやり直してください。\n');
-  }
-
-  void _appendLog(String text) {
-    setState(() {
-      _logController.text += text;
-    });
-  }
-
-  void _appendUploadLog(String text) {
-    setState(() {
-      _uploadLogController.text += text.endsWith('\n') ? text : '$text\n';
-    });
-    Future.delayed(const Duration(milliseconds: 100), () {
-      if (_uploadLogScrollController.hasClients) {
-        _uploadLogScrollController.jumpTo(_uploadLogScrollController.position.maxScrollExtent);
-      }
-    });
-  }
-
-  bool get _isUploading =>
-      _uploadPhase == UploadPhase.saving ||
-      _uploadPhase == UploadPhase.initCalling ||
-      _uploadPhase == UploadPhase.uploading ||
-      _uploadPhase == UploadPhase.completing;
-
   int _pointsValue() => int.tryParse(_points.text.trim()) ?? MeasureSettings.defaults.points;
   double _fstartValue() => double.tryParse(_fstart.text.trim()) ?? MeasureSettings.defaults.fstart;
   double _fdeltaValue() => double.tryParse(_fdelta.text.trim()) ?? MeasureSettings.defaults.fdelta;
@@ -179,10 +165,46 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
     );
   }
 
-  void _setupSerialComm() {
-    // connect後にlistenerを確実に有効化
-    SerialComm.init(_onReceive);
+  void _appendLog(String text) {
+    setState(() {
+      _logController.text += text;
+    });
+    Future.delayed(const Duration(milliseconds: 100), () {
+      if (_logScrollController.hasClients) {
+        _logScrollController.jumpTo(_logScrollController.position.maxScrollExtent);
+      }
+    });
   }
+
+  void _appendUploadLog(String text) {
+    final line = text.endsWith('\n') ? text.trimRight() : text;
+    setState(() {
+      _uploadLogController.text += '$line\n';
+    });
+    Future.delayed(const Duration(milliseconds: 100), () {
+      if (_uploadLogScrollController.hasClients) {
+        _uploadLogScrollController.jumpTo(_uploadLogScrollController.position.maxScrollExtent);
+      }
+    });
+  }
+
+  void _onUsbDisconnected() {
+    if (!mounted) return;
+    _recallTimeoutTimer?.cancel();
+    setState(() {
+      _isConnected = false;
+      _currentStep = SessionStep.connect;
+      _isRecalling = false;
+      _recallDone = false;
+      _bgIsMeasuring = false;
+      _bgDone = false;
+      _isMeasuring = false;
+      _bgProgress = 0.0;
+    });
+    _appendLog('USBが切断されました。接続からやり直してください。\n');
+  }
+
+  void _setupSerialComm() => SerialComm.init(_onReceive);
 
   Future<void> _connect() async {
     final success = await SerialComm.connect();
@@ -191,13 +213,11 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
     }
     setState(() {
       _isConnected = success;
-      // Step1 stays on connect; transition to BG happens after recall ok.
       _currentStep = SessionStep.connect;
     });
-    _appendLog(success
-        ? '${AppConstants.messageConnectionSuccess}\n'
-        : '${AppConstants.errorConnectionFailed}\n');
-
+    _appendLog(
+      success ? '${AppConstants.messageConnectionSuccess}\n' : '${AppConstants.errorConnectionFailed}\n',
+    );
     if (success) {
       _startAutoRecall();
     }
@@ -205,24 +225,17 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
 
   void _startAutoRecall() {
     if (!_isConnected) return;
-
-    // sensorNumber is fixed to 0 for now (spec)
     const sensorNumber = '0';
     _selectedSensor = sensorNumber;
-
     _recallTimeoutTimer?.cancel();
     setState(() {
       _isRecalling = true;
       _recallDone = false;
     });
-
     _appendLog('送信: condition recall $sensorNumber\n');
     MeasurementService.sendRecallCommand(sensorNumber);
-
     _recallTimeoutTimer = Timer(const Duration(seconds: 20), () {
-      if (!mounted) return;
-      if (!_isRecalling) return;
-
+      if (!mounted || !_isRecalling) return;
       setState(() {
         _isRecalling = false;
         _recallDone = false;
@@ -261,11 +274,9 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
     MeasurementService.sendStoreCommand(_selectedSensor);
   }
 
-  void _sendrecallCommand() {
+  void _sendRecallCommand() {
     if (!_isConnected || _isMeasuring) return;
     MeasurementService.sendListCommand();
-
-    // リスト応答を待って設定値を解析・適用
     Future.delayed(const Duration(milliseconds: 300), () {
       final lines = _logController.text.split('\n');
       for (final line in lines) {
@@ -288,13 +299,24 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
     });
   }
 
+  void _updateSettings() {
+    _settings.update(
+      fstart: double.tryParse(_fstart.text),
+      fdelta: double.tryParse(_fdelta.text),
+      points: int.tryParse(_points.text),
+      excite: double.tryParse(_excite.text),
+      range: double.tryParse(_range.text),
+      integrate: double.tryParse(_integrate.text),
+      average: int.tryParse(_average.text),
+    );
+  }
+
   void _startBg() {
     if (!_isConnected) {
       _appendLog('${AppConstants.errorConnectFirst}\n');
       return;
     }
     _updateSettings();
-
     setState(() {
       _logController.clear();
       _bgProgress = 0.0;
@@ -304,104 +326,181 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
       _bgDone = false;
       _currentStep = SessionStep.bg;
     });
-
-    _appendLog(
-      '送信: null ${_settings.excite} ${_settings.range} ${_settings.integrate} ${_settings.average}\n',
-    );
+    _appendLog('送信: null ${_settings.excite} ${_settings.range} ${_settings.integrate} ${_settings.average}\n');
     MeasurementService.sendBgMeasurementCommand(_settings);
   }
 
-  Future<void> _startExec() async {
+  Future<void> _openFarmSelection({required bool clearSpots}) async {
+    if (_isSelectingFarm) return;
+    _isSelectingFarm = true;
+    if (clearSpots) {
+      setState(() {
+        _spots.clear();
+        _activeSpot = null;
+      });
+    }
+    final result = await Navigator.push<FarmSelectResult>(
+      context,
+      MaterialPageRoute(builder: (_) => const FarmSelectScreen(mode: FarmSelectMode.farmOnly)),
+    );
+    if (!mounted) return;
+    final farm = result?.farm;
+    if (farm == null) {
+      _isSelectingFarm = false;
+      setState(() {
+        _selectedFarm = null;
+        _confirmedLocation = null;
+        _lastGeoStatus = null;
+        _currentStep = SessionStep.bg;
+      });
+      return;
+    }
+    final polygon = farm.boundaryPolygon.map((p) => LatLng(p['lat']!, p['lng']!)).toList();
+    final center = calculatePolygonCenter(polygon);
+    final status = GeoService.classifyLocation(point: center, polygon: polygon);
+    setState(() {
+      _selectedFarm = farm;
+      _confirmedLocation = center;
+      _lastGeoStatus = status;
+      _currentStep = SessionStep.measure;
+      _showMapHint = true;
+    });
+    _isSelectingFarm = false;
+    await _mapController?.animateCamera(
+      CameraUpdate.newCameraPosition(CameraPosition(target: center, zoom: 18)),
+    );
+  }
+
+  Future<void> _fetchCurrentLocation({bool moveCamera = true}) async {
+    setState(() => _isFetchingCurrentLocation = true);
+    try {
+      final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        _appendLog('位置情報サービスが無効です\n');
+        return;
+      }
+      var perm = await Geolocator.checkPermission();
+      if (perm == LocationPermission.denied) {
+        perm = await Geolocator.requestPermission();
+      }
+      if (perm == LocationPermission.denied || perm == LocationPermission.deniedForever) {
+        _appendLog('位置情報の権限がありません\n');
+        return;
+      }
+      final pos = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
+      );
+      final here = LatLng(pos.latitude, pos.longitude);
+      if (!mounted) return;
+      setState(() {
+        _currentLocation = here;
+        _confirmedLocation ??= here;
+      });
+      if (moveCamera) {
+        await _mapController?.animateCamera(
+          CameraUpdate.newCameraPosition(CameraPosition(target: here, zoom: 18)),
+        );
+      }
+    } catch (e) {
+      _appendLog('現在地取得エラー: $e\n');
+    } finally {
+      if (mounted) {
+        setState(() => _isFetchingCurrentLocation = false);
+      }
+    }
+  }
+
+  Future<bool> _startExecAndWait() async {
     if (!_isConnected) {
       _appendLog('${AppConstants.errorConnectFirst}\n');
-      return;
+      return false;
     }
     _updateSettings();
     final settings = _settings;
     if (settings.points <= 0) {
       _appendLog('${AppConstants.errorPointsInvalid}\n');
-      return;
+      return false;
     }
-
+    _execCompleter = Completer<bool>();
     setState(() {
       _chartData.clear();
       _logController.clear();
-      receivedPoints = 0;
-      _progress = 0.0;
+      _receivedPoints = 0;
+      _totalPoints = int.tryParse(_points.text.trim()) ?? AppConstants.defaultPointCount;
       _isMeasuring = true;
-      totalPoints = int.tryParse(_points.text) ?? AppConstants.defaultPointCount;
+      _uploadPhase = UploadPhase.idle;
     });
-
     MeasurementService.sendMeasurementCommand(settings);
+    return _execCompleter!.future;
   }
 
-  Future<Farm?> _selectFarm() async {
-    final result = await Navigator.push<FarmSelectResult>(
-      context,
-      MaterialPageRoute(
-        builder: (_) => const FarmSelectScreen(mode: FarmSelectMode.farmOnly),
-      ),
-    );
-    if (!mounted) return null;
-    final farm = result?.farm;
-    if (farm != null) {
-      setState(() => _selectedFarm = farm);
+  Future<void> _startMeasureSequence() async {
+    if (_isMeasuring || _selectedFarm == null) return;
+    var point = _confirmedLocation;
+    final polygon = _farmPolygon;
+    if (point == null && polygon.isNotEmpty) {
+      point = calculatePolygonCenter(polygon);
     }
-    return farm;
-  }
-
-  Future<void> _confirmLocationAndStartExec() async {
-    if (_isMeasuring) return;
-
-    // 画面スタックを「本測定 → 圃場選択 → 地点確定」にして、地点確定画面の戻る矢印で圃場選択へ戻れるようにする。
-    final flow = await Navigator.push<FarmSelectResult>(
-      context,
-      MaterialPageRoute(
-        builder: (_) => const FarmSelectScreen(mode: FarmSelectMode.farmAndLocationConfirm),
-      ),
-    );
-    if (!mounted) return;
-    if (flow == null) {
-      _appendLog('圃場選択がキャンセルされました\n');
+    if (point == null) return;
+    var status = GeoService.classifyLocation(point: point, polygon: polygon);
+    if (status == GeoFenceStatus.outside && _currentLocation != null) {
+      final currentStatus = GeoService.classifyLocation(point: _currentLocation!, polygon: polygon);
+      if (currentStatus != GeoFenceStatus.outside) {
+        point = _currentLocation!;
+        status = currentStatus;
+        _appendLog('補正: 現在地を測定地点として採用しました\n');
+      }
+    }
+    if (status == GeoFenceStatus.outside) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('圃場外のため測定できません。地点を補正してください。')),
+      );
       return;
     }
-    final result = flow.locationConfirmResult;
-    if (result == null) {
-      _appendLog('地点確定がキャンセルされました\n');
-      return;
-    }
-
     setState(() {
-      _selectedFarm = flow.farm;
-      _confirmedLocation = result.confirmedLocation;
-      _lastGeoStatus = result.status;
+      _confirmedLocation = point;
+      _lastGeoStatus = status;
     });
-
-    await _startExec();
+    final spot = _SpotProgress(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      position: point,
+      createdAt: DateTime.now(),
+    );
+    setState(() {
+      _spots.add(spot);
+      _activeSpot = spot;
+      _uploadLogController.clear();
+    });
+    await _refreshSpotIcon(spot);
+    final execOk = await _startExecAndWait();
+    if (!mounted) return;
+    if (!execOk) {
+      _appendUploadLog('error: exec failed');
+      await _markSpotFailed(spot);
+      return;
+    }
+    await _saveAndQueueThenUpload(spot);
   }
 
-  Future<String?> _save() async {
+  Future<String?> _save(int farmId) async {
     final userId = context.read<UserProvider>().userId;
     if (userId == null || userId.trim().isEmpty) {
       _appendLog('ユーザIDが未設定のため保存できません\n');
       return null;
     }
-
     final note1 = _note1.text.trim();
     final note2 = _note2.text.trim();
     if (!LocalSaveService.isValidMemo(note1) || !LocalSaveService.isValidMemo(note2)) {
       _appendLog('${AppConstants.errorInvalidMemoFormat}\n');
       return null;
     }
-
     try {
-      // CSV保存は「応答ログ」から `* freq real imag 0.000e+00 0.00` を150点復元して作る。
-      // 改行により `0.00` が別行に表示されても、ログ全体から復元できるようにする。
       final settings = _currentSettings();
       final chartDataForCsv = _buildExecChartDataForCsvFromResponseLog(settings);
       final fileBase = await LocalSaveService.saveMeasurement(
         chartData: chartDataForCsv,
         userId: userId,
+        farmId: farmId,
         note1: note1,
         note2: note2,
         settings: settings,
@@ -417,116 +516,41 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
     }
   }
 
-  /// 応答ログ全体から exec 測定の150レコードを復元し、CSV保存に使う ChartData を返す。
-  ///
-  /// 期待フォーマット（物理レコード）:
-  /// `* freq real imag 0.000e+00 0.00`
-  ///
-  /// - `0.00` がログ表示上で改行されても、`\s+` で吸収して復元する。
-  /// - 並びは fstart から fdelta 刻みで points 個に整列し、欠損があれば例外にする。
-  List<ChartData> _buildExecChartDataForCsvFromResponseLog(MeasureSettings settings) {
-    // Android OS / USB実装差などで、応答ログの「データ行」の列数が揺れることがある。
-    // 例:
-    // - `* freq real imag 0.000e+00 0.00`（5列）
-    // - `* freq real imag 0.000e+00`（4列: 末尾 0.00 が欠ける）
-    //
-    // ここでは行単位に `*` 行をパースし、freq/real/imag のみを採用する。
-
-    // 期待する周波数（settingsから生成）
-    final expectedFreqs = <int>[];
-    final expectedSet = <int>{};
-    for (var i = 0; i < settings.points; i++) {
-      final f = (settings.fstart + settings.fdelta * i).round();
-      expectedFreqs.add(f);
-      expectedSet.add(f);
+  Future<void> _saveAndQueueThenUpload(_SpotProgress spot) async {
+    final farm = _selectedFarm;
+    if (farm == null) return;
+    if (_isUploading) {
+      _appendUploadLog('upload: already running');
+      return;
     }
-
-    // freq をキーにして、受信順や重複に強くする（double誤差を避けて int に丸める）。
-    final byFreq = <int, ChartData>{};
-
-    for (final rawLine in _logController.text.split(RegExp(r'\r?\n'))) {
-      var line = rawLine.trim();
-      if (line.isEmpty) continue;
-
-      // 応答ログのデータ行は基本 '*' 開始。全角 '＊' も吸収する。
-      if (line.startsWith('*') || line.startsWith('＊')) {
-        line = line.substring(1).trim();
-      } else {
-        continue;
-      }
-
-      final parts = line.split(RegExp(r'\s+'));
-      // 4列（freq real imag unused）/ 5列（+ 0.00）を許容しつつ、最低限 freq real imag を読む。
-      if (parts.length < 4) continue;
-
-      final freqD = double.tryParse(parts[0]);
-      final real = double.tryParse(parts[1]);
-      final imag = double.tryParse(parts[2]);
-      if (freqD == null || real == null || imag == null) continue;
-
-      final freq = freqD.round();
-      if (!expectedSet.contains(freq)) continue;
-
-      byFreq[freq] = ChartData(real: real, imag: imag, frequency: freq.toDouble());
-    }
-
-    final missing = <int>[];
-    final ordered = <ChartData>[];
-    for (final f in expectedFreqs) {
-      final v = byFreq[f];
-      if (v == null) {
-        missing.add(f);
-      } else {
-        ordered.add(v);
-      }
-    }
-
-    if (missing.isNotEmpty) {
-      throw StateError(
-        'CSV用データ欠損: ${ordered.length}/${settings.points}点（missing freq=${missing.take(30).toList()}${missing.length > 30 ? '...' : ''}）',
-      );
-    }
-
-    return ordered;
-  }
-
-  Future<void> _saveAndUpload() async {
-    if (_isMeasuring || _isUploading) return;
-
     setState(() {
       _uploadPhase = UploadPhase.saving;
-      _lastUploadResult = null;
-      _uploadLogController.clear();
     });
-
+    String? fileBase;
+    String measurementDateForPending = DateTime.now().toIso8601String();
     try {
       _appendUploadLog('save: start');
-      final fileBase = await _save();
-      if (!mounted) return;
+      fileBase = await _save(farm.id);
       if (fileBase == null) {
+        if (!mounted) return;
         setState(() => _uploadPhase = UploadPhase.error);
         _appendUploadLog('save: error');
+        await _markSpotFailed(spot);
         return;
       }
       _appendUploadLog('save: ok $fileBase');
+      await _markSpotSaved(spot);
 
-      final farm = _selectedFarm ?? await _selectFarm();
-      if (!mounted) return;
-      if (farm == null) {
-        setState(() => _uploadPhase = UploadPhase.error);
-        _appendUploadLog('error: 圃場が未選択です');
-        return;
+      final csvFile = await MeasurementLocalPaths.csvFile(fileBase);
+      final jsonFile = await MeasurementLocalPaths.jsonFile(fileBase);
+      if (!await csvFile.exists() || !await jsonFile.exists()) {
+        throw StateError('保存済みファイルが見つかりません: $fileBase');
       }
-
-      final dir = await getApplicationDocumentsDirectory();
-      final csvFile = File('${dir.path}/$fileBase.csv');
-      final jsonFile = File('${dir.path}/$fileBase.json');
-
       final measurementParameters =
           jsonDecode(await jsonFile.readAsString()) as Map<String, dynamic>;
       final measurementDate =
           (measurementParameters['timestamp'] as String?) ?? DateTime.now().toIso8601String();
-
+      measurementDateForPending = measurementDate;
       final note1 = _note1.text.trim();
       final note2 = _note2.text.trim();
       final uploader = MeasurementUploadService();
@@ -547,29 +571,130 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
           _appendUploadLog(m);
         },
       );
-
       if (!mounted) return;
-      setState(() {
-        _lastUploadResult = result;
-        _uploadPhase = UploadPhase.done;
-      });
+      await _markSpotUploaded(spot);
+      setState(() => _uploadPhase = UploadPhase.done);
       _appendUploadLog('done: upload_id=${result.uploadId} (受付完了: 処理中)');
-    } catch (e) {
+      try {
+        await _pendingUploadStore.removeByFileBase(fileBase);
+      } catch (e) {
+        _appendUploadLog('pending: remove failed $e');
+      }
+    } on MeasurementUploadException catch (e) {
+      var queued = false;
+      if (fileBase != null) {
+        queued = await _queuePendingUpload(
+          PendingUploadItem(
+            fileBase: fileBase,
+            farmId: farm.id,
+            note1: _note1.text.trim().isEmpty ? null : _note1.text.trim(),
+            note2: _note2.text.trim().isEmpty ? null : _note2.text.trim(),
+            measurementDate: measurementDateForPending,
+            failedPhase: e.phase.name,
+            lastError: e.toString(),
+            createdAt: DateTime.now(),
+            updatedAt: DateTime.now(),
+          ),
+        );
+      }
       if (!mounted) return;
+      await _markSpotFailed(spot);
       setState(() => _uploadPhase = UploadPhase.error);
       _appendUploadLog('error: $e');
+      if (fileBase != null) {
+        _appendUploadLog(queued ? 'pending: queued $fileBase' : 'pending: queue failed $fileBase');
+      }
+    } catch (e) {
+      var queued = false;
+      if (fileBase != null) {
+        queued = await _queuePendingUpload(
+          PendingUploadItem(
+            fileBase: fileBase,
+            farmId: farm.id,
+            note1: _note1.text.trim().isEmpty ? null : _note1.text.trim(),
+            note2: _note2.text.trim().isEmpty ? null : _note2.text.trim(),
+            measurementDate: measurementDateForPending,
+            failedPhase: _uploadPhase == UploadPhase.idle ? UploadPhase.error.name : _uploadPhase.name,
+            lastError: e.toString(),
+            createdAt: DateTime.now(),
+            updatedAt: DateTime.now(),
+          ),
+        );
+      }
+      if (!mounted) return;
+      await _markSpotFailed(spot);
+      setState(() => _uploadPhase = UploadPhase.error);
+      _appendUploadLog('error: $e');
+      if (fileBase != null) {
+        _appendUploadLog(queued ? 'pending: queued $fileBase' : 'pending: queue failed $fileBase');
+      }
+    } finally {
+      if (mounted && _uploadPhase != UploadPhase.done && _uploadPhase != UploadPhase.error) {
+        setState(() => _uploadPhase = UploadPhase.idle);
+      }
     }
   }
 
-  // ignore: unused_element
-  UploadResult? get _unusedLastUploadResult => _lastUploadResult;
+  Future<bool> _queuePendingUpload(PendingUploadItem item) async {
+    try {
+      await _pendingUploadStore.addOrUpdate(item);
+      return true;
+    } catch (e) {
+      _appendUploadLog('pending: save failed $e');
+      return false;
+    }
+  }
+
+  List<ChartData> _buildExecChartDataForCsvFromResponseLog(MeasureSettings settings) {
+    final expectedFreqs = <int>[];
+    final expectedSet = <int>{};
+    for (var i = 0; i < settings.points; i++) {
+      final f = (settings.fstart + settings.fdelta * i).round();
+      expectedFreqs.add(f);
+      expectedSet.add(f);
+    }
+    final byFreq = <int, ChartData>{};
+    for (final rawLine in _logController.text.split(RegExp(r'\r?\n'))) {
+      var line = rawLine.trim();
+      if (line.isEmpty) continue;
+      if (line.startsWith('*') || line.startsWith('＊')) {
+        line = line.substring(1).trim();
+      } else {
+        continue;
+      }
+      final parts = line.split(RegExp(r'\s+'));
+      if (parts.length < 4) continue;
+      final freqD = double.tryParse(parts[0]);
+      final real = double.tryParse(parts[1]);
+      final imag = double.tryParse(parts[2]);
+      if (freqD == null || real == null || imag == null) continue;
+      final freq = freqD.round();
+      if (!expectedSet.contains(freq)) continue;
+      byFreq[freq] = ChartData(real: real, imag: imag, frequency: freq.toDouble());
+    }
+    final missing = <int>[];
+    final ordered = <ChartData>[];
+    for (final f in expectedFreqs) {
+      final v = byFreq[f];
+      if (v == null) {
+        missing.add(f);
+      } else {
+        ordered.add(v);
+      }
+    }
+    if (missing.isNotEmpty) {
+      throw StateError(
+        'CSV用データ欠損: ${ordered.length}/${settings.points}点（missing freq=${missing.take(30).toList()}${missing.length > 30 ? '...' : ''}）',
+      );
+    }
+    return ordered;
+  }
 
   void _onReceive(String data) {
     if (!mounted) return;
-
+    bool shouldOpenFarmSelect = false;
     setState(() {
       _logController.text += data;
-
       final newLines = data.split('\n');
       for (var line in newLines) {
         line = line.trim();
@@ -582,7 +707,6 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
         }
 
         if (MeasurementParser.isOkLine(line)) {
-          // Step1: auto recall completed -> move to BG
           if (_isRecalling) {
             _recallTimeoutTimer?.cancel();
             _isRecalling = false;
@@ -590,20 +714,17 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
             _currentStep = SessionStep.bg;
             continue;
           }
-
-          // Step2: BG completed -> move to measure
           if (_currentStep == SessionStep.bg && _bgIsMeasuring) {
             _bgIsMeasuring = false;
             _bgDone = true;
-            _currentStep = SessionStep.measure;
+            shouldOpenFarmSelect = true;
             continue;
           }
-
-          // Step3: exec completed
-          if (_currentStep == SessionStep.measure && _isMeasuring) {
+          if (_isMeasuring) {
             _isMeasuring = false;
-            _progress = 1.0;
-            receivedPoints = totalPoints;
+            _receivedPoints = _totalPoints;
+            _setActiveSpotProgress(100);
+            _execCompleter?.complete(true);
             continue;
           }
         } else if (MeasurementParser.isErrorLine(line)) {
@@ -615,58 +736,179 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
             _logController.text += 'Recallに失敗しました\n';
             continue;
           }
-
           if (_currentStep == SessionStep.bg && _bgIsMeasuring) {
             _bgIsMeasuring = false;
             _logController.text += 'BG測定中にエラーが発生しました\n';
             continue;
           }
-
-          if (_currentStep == SessionStep.measure && _isMeasuring) {
+          if (_isMeasuring) {
             _isMeasuring = false;
             _logController.text += '測定中にエラーが発生しました\n';
+            _execCompleter?.complete(false);
             continue;
           }
         }
 
-        // BG progress (required)
         if (_currentStep == SessionStep.bg && _bgIsMeasuring && line.startsWith('*')) {
           _bgReceivedPoints++;
           _bgProgress = (_bgReceivedPoints / _bgTotalPoints).clamp(0.0, 1.0);
           continue;
         }
 
-        // Exec progress + plot
-        if (_currentStep == SessionStep.measure && _isMeasuring && line.startsWith('*')) {
-          final idx = receivedPoints;
+        if (_isMeasuring && line.startsWith('*')) {
+          final idx = _receivedPoints;
           final freq = _fstartValue() + (_fdeltaValue() * idx);
           final point = MeasurementParser.tryParseExecDataLine(line, frequency: freq);
           if (point != null) {
             _chartData.add(point);
           }
-          receivedPoints++;
-          _progress = (receivedPoints / totalPoints).clamp(0.0, 1.0);
+          _receivedPoints++;
+          final p = ((_receivedPoints / _totalPoints) * 100).clamp(0, 100).toInt();
+          _setActiveSpotProgress(p);
         }
       }
     });
-
-    Future.delayed(const Duration(milliseconds: 100), () {
-      if (_logScrollController.hasClients) {
-        _logScrollController.jumpTo(_logScrollController.position.maxScrollExtent);
-      }
-    });
+    if (shouldOpenFarmSelect) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          _openFarmSelection(clearSpots: true);
+        }
+      });
+    }
   }
 
-  void _updateSettings() {
-    _settings.update(
-      fstart: double.tryParse(_fstart.text),
-      fdelta: double.tryParse(_fdelta.text),
-      points: int.tryParse(_points.text),
-      excite: double.tryParse(_excite.text),
-      range: double.tryParse(_range.text),
-      integrate: double.tryParse(_integrate.text),
-      average: int.tryParse(_average.text),
-    );
+  Future<void> _refreshSpotIcon(_SpotProgress spot) async {
+    final requestVersion = ++spot.iconVersion;
+    final String label;
+    final Color color;
+    final bool check;
+    if (spot.uploadDone) {
+      label = '✓';
+      color = Colors.green;
+      check = true;
+    } else if (spot.saveDone) {
+      label = '✓';
+      color = Colors.grey;
+      check = true;
+    } else if (spot.failed) {
+      label = '!';
+      color = Colors.red;
+      check = false;
+    } else {
+      label = '${spot.percent}%';
+      color = Colors.red;
+      check = false;
+    }
+    final key = '$label-${color.toARGB32()}-$check';
+    final cached = _markerIconCache[key];
+    if (cached != null) {
+      if (requestVersion != spot.iconVersion) return;
+      setState(() => spot.icon = cached);
+      return;
+    }
+    final icon = await _buildMarkerIcon(label: label, color: color, check: check);
+    _markerIconCache[key] = icon;
+    if (!mounted) return;
+    if (requestVersion != spot.iconVersion) return;
+    setState(() => spot.icon = icon);
+  }
+
+  Future<BitmapDescriptor> _buildMarkerIcon({
+    required String label,
+    required Color color,
+    required bool check,
+  }) async {
+    const size = 112.0;
+    final recorder = ui.PictureRecorder();
+    final canvas = Canvas(recorder);
+    final center = const Offset(size / 2, size / 2);
+    final paint = Paint()..color = color;
+    canvas.drawCircle(center, 40, paint);
+    if (check) {
+      final path = Path()
+        ..moveTo(38, 57)
+        ..lineTo(49, 68)
+        ..lineTo(74, 43);
+      final checkPaint = Paint()
+        ..color = Colors.white
+        ..strokeCap = StrokeCap.round
+        ..strokeWidth = 9
+        ..style = PaintingStyle.stroke;
+      canvas.drawPath(path, checkPaint);
+    } else {
+      final tp = TextPainter(textDirection: TextDirection.ltr);
+      tp.text = TextSpan(
+        text: label,
+        style: const TextStyle(
+          color: Colors.white,
+          fontWeight: FontWeight.w700,
+          fontSize: 28,
+        ),
+      );
+      tp.layout();
+      tp.paint(canvas, Offset((size - tp.width) / 2, (size - tp.height) / 2));
+    }
+    final picture = recorder.endRecording();
+    final img = await picture.toImage(size.toInt(), size.toInt());
+    final bytes = await img.toByteData(format: ui.ImageByteFormat.png);
+    return BitmapDescriptor.bytes(Uint8List.view(bytes!.buffer));
+  }
+
+  void _setActiveSpotProgress(int percent) {
+    final spot = _activeSpot;
+    if (spot == null) return;
+    spot.percent = percent.clamp(0, 100);
+    _refreshSpotIcon(spot);
+  }
+
+  Future<void> _markSpotSaved(_SpotProgress spot) async {
+    spot.saveDone = true;
+    await _refreshSpotIcon(spot);
+  }
+
+  Future<void> _markSpotUploaded(_SpotProgress spot) async {
+    spot.saveDone = true;
+    spot.failed = false;
+    spot.uploadDone = true;
+    await _refreshSpotIcon(spot);
+  }
+
+  Future<void> _markSpotFailed(_SpotProgress spot) async {
+    if (!spot.saveDone) {
+      spot.failed = true;
+    }
+    await _refreshSpotIcon(spot);
+  }
+
+  Set<Marker> _buildMarkers() {
+    final markers = <Marker>{};
+    for (final spot in _spots) {
+      markers.add(
+        Marker(
+          markerId: MarkerId('spot_${spot.id}'),
+          position: spot.position,
+          icon: spot.icon ?? BitmapDescriptor.defaultMarker,
+          anchor: const Offset(0.5, 0.5),
+          infoWindow: InfoWindow(
+            title: spot.uploadDone
+                ? 'アップロード完了'
+                : spot.saveDone
+                    ? '保存完了'
+                    : '${spot.percent}%',
+          ),
+        ),
+      );
+    }
+    if (_confirmedLocation != null) {
+      markers.add(
+        Marker(
+          markerId: const MarkerId('confirmed'),
+          position: _confirmedLocation!,
+          icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
+        ),
+      );
+    }
+    return markers;
   }
 
   void _openSettings() {
@@ -684,7 +926,7 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
             selectedFarm: _selectedFarm,
             onSelectFarm: () {
               Navigator.pop(sheetContext);
-              _selectFarm();
+              _openFarmSelection(clearSpots: true);
             },
             fstart: _fstart,
             fdelta: _fdelta,
@@ -700,9 +942,12 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
             onSendId: _sendIDCommand,
             onSendList: _sendListCommand,
             onSendStore: _sendStoreCommand,
-            onSendRecall: _sendrecallCommand,
+            onSendRecall: _sendRecallCommand,
             logController: _logController,
             logScrollController: _logScrollController,
+            uploadLogController: _uploadLogController,
+            uploadLogScrollController: _uploadLogScrollController,
+            uploadPhase: _uploadPhase,
             lastGeoStatus: _lastGeoStatus,
           ),
         );
@@ -735,17 +980,125 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
       scrollController: scrollController,
       readOnly: true,
       maxLines: AppConstants.logAreaMaxLines,
-      style: _getTextStyle(),
+      style: const TextStyle(fontSize: AppConstants.standardFontSize),
       decoration: InputDecoration(
         labelText: label,
-        labelStyle: _getTextStyle(),
         border: const OutlineInputBorder(),
         contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
       ),
     );
   }
 
-  // upload log UI is rendered via the same TextField design as response log
+  Widget _buildMeasureBody() {
+    if (_selectedFarm == null) {
+      return Center(
+        child: FilledButton(
+          onPressed: _isMeasuring ? null : () => _openFarmSelection(clearSpots: true),
+          child: const Text('圃場を選択'),
+        ),
+      );
+    }
+    final polygon = _farmPolygon;
+    final initialTarget = _confirmedLocation ?? calculatePolygonCenter(polygon);
+    return Stack(
+      children: [
+        GoogleMap(
+          initialCameraPosition: CameraPosition(target: initialTarget, zoom: 17),
+          onMapCreated: (c) => _mapController = c,
+          mapType: MapType.satellite,
+          myLocationEnabled: true,
+          myLocationButtonEnabled: false,
+          zoomControlsEnabled: false,
+          polygons: {
+            if (polygon.length >= 3)
+              Polygon(
+                polygonId: const PolygonId('farm_polygon'),
+                points: polygon,
+                strokeColor: Colors.red,
+                strokeWidth: 3,
+                fillColor: Colors.transparent,
+              ),
+          },
+          markers: _buildMarkers(),
+          onTap: (p) {
+            final status = GeoService.classifyLocation(point: p, polygon: polygon);
+            setState(() {
+              _confirmedLocation = p;
+              _lastGeoStatus = status;
+            });
+          },
+        ),
+        Positioned(
+          top: 12,
+          left: 12,
+          child: FilledButton.tonal(
+            onPressed: _isMeasuring
+                ? null
+                : () async {
+                    await _openFarmSelection(clearSpots: true);
+                  },
+            child: const Icon(Icons.arrow_back),
+          ),
+        ),
+        if (_showMapHint)
+          Positioned(
+            top: 16,
+            left: 72,
+            right: 12,
+            child: Container(
+              padding: const EdgeInsets.only(left: 10, top: 6, bottom: 6, right: 4),
+              decoration: BoxDecoration(
+                color: Colors.black54,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                children: [
+                  const Expanded(
+                    child: Text(
+                      '地図をタップして測定地点を補正できます',
+                      style: TextStyle(color: Colors.white, fontSize: 13),
+                    ),
+                  ),
+                  GestureDetector(
+                    onTap: () => setState(() => _showMapHint = false),
+                    child: const Padding(
+                      padding: EdgeInsets.all(4),
+                      child: Icon(Icons.close, color: Colors.white, size: 18),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        Positioned(
+          right: 12,
+          bottom: 18,
+          child: FloatingActionButton(
+            heroTag: 'current_location_button',
+            onPressed: _isFetchingCurrentLocation ? null : () => _fetchCurrentLocation(moveCamera: true),
+            child: _isFetchingCurrentLocation
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.my_location),
+          ),
+        ),
+        Positioned(
+          left: 0,
+          right: 0,
+          bottom: 24,
+          child: Center(
+            child: FilledButton(
+              onPressed: _isMeasuring ? null : _startMeasureSequence,
+              child: Text(_isMeasuring ? '測定中...' : '測定開始'),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -755,7 +1108,7 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
         leading: Navigator.canPop(context) ? null : const SizedBox.shrink(),
         actions: [
           IconButton(
-            onPressed: (_isMeasuring || _bgIsMeasuring || _isUploading || _isRecalling) ? null : _openSettings,
+            onPressed: (_isMeasuring || _bgIsMeasuring || _isRecalling) ? null : _openSettings,
             icon: const Icon(Icons.settings),
             tooltip: '設定',
           ),
@@ -768,9 +1121,7 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
             isStep1Done: _isConnected && _recallDone,
             isBgDone: _bgDone,
           ),
-
-          // Step bodies (only one visible)
-          if (_currentStep == SessionStep.connect) ...[
+          if (_currentStep == SessionStep.connect)
             Expanded(
               child: Column(
                 children: [
@@ -801,7 +1152,7 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
                             ],
                           ),
                           const SizedBox(height: 8),
-                          if (_isConnected) ...[
+                          if (_isConnected)
                             Text(
                               _isRecalling
                                   ? 'Recall実行中…（最大20秒）'
@@ -809,7 +1160,6 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
                                       ? 'Recall完了（OK）'
                                       : 'Recall未完了',
                             ),
-                          ],
                         ],
                       ),
                     ),
@@ -827,9 +1177,7 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
                 ],
               ),
             ),
-          ],
-
-          if (_currentStep == SessionStep.bg) ...[
+          if (_currentStep == SessionStep.bg)
             Expanded(
               child: Column(
                 children: [
@@ -840,7 +1188,7 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          _stepBodyTitle(context, 'Step 2: BG測定（必須）', '完了後に本測定へ進みます。'),
+                          _stepBodyTitle(context, 'Step 2: BG測定（必須）', '完了後に圃場選択へ進みます。'),
                           Wrap(
                             spacing: 8,
                             runSpacing: 8,
@@ -848,6 +1196,10 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
                               ElevatedButton(
                                 onPressed: _bgIsMeasuring ? null : _startBg,
                                 child: const Text('BG測定開始'),
+                              ),
+                              OutlinedButton(
+                                onPressed: (_bgDone && !_bgIsMeasuring) ? () => _openFarmSelection(clearSpots: true) : null,
+                                child: const Text('圃場選択へ'),
                               ),
                             ],
                           ),
@@ -866,7 +1218,7 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
                   ),
                   Expanded(
                     child: Padding(
-                      padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+                      padding: const EdgeInsets.all(12),
                       child: _standardLogField(
                         controller: _logController,
                         scrollController: _logScrollController,
@@ -877,105 +1229,7 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
                 ],
               ),
             ),
-          ],
-
-          if (_currentStep == SessionStep.measure) ...[
-            Expanded(
-              child: Column(
-                children: [
-                  // 上部の説明/開始/進捗（必要ならスクロール可）
-                  Flexible(
-                    fit: FlexFit.loose,
-                    child: SingleChildScrollView(
-                      padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          _stepBodyTitle(context, 'Step 3: 本測定', '地点確定のあと測定を開始し、アップロードできます。'),
-                          Wrap(
-                            spacing: 8,
-                            runSpacing: 8,
-                            children: [
-                              ElevatedButton(
-                                onPressed: _isMeasuring ? null : _confirmLocationAndStartExec,
-                                child: const Text('測定地点選択'),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 12),
-                          LinearPercentIndicator(
-                            lineHeight: AppConstants.progressBarHeight,
-                            percent: _progress.clamp(0.0, 1.0),
-                            center: Text('${(_progress * 100).toStringAsFixed(0)}%'),
-                            backgroundColor: Colors.grey[300],
-                            progressColor: Theme.of(context).colorScheme.primary,
-                          ),
-                          const SizedBox(height: 16),
-                        ],
-                      ),
-                    ),
-                  ),
-                  // 保存/アップロードはタブ（Log/Plot）に関係なく常に見える位置に固定
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: [
-                            ElevatedButton(
-                              onPressed: (_chartData.isNotEmpty && !_isMeasuring && !_isUploading)
-                                  ? _saveAndUpload
-                                  : null,
-                              child: const Text('アップロード'),
-                            ),
-                          ],
-                        ),
-                        if (_uploadPhase == UploadPhase.done) ...[
-                          const SizedBox(height: 8),
-                          OutlinedButton(
-                            onPressed: (_isMeasuring || _isUploading) ? null : _confirmLocationAndStartExec,
-                            child: const Text('続けて測定'),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                  Expanded(
-                    child: SingleChildScrollView(
-                      padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          _standardLogField(
-                            controller: _logController,
-                            scrollController: _logScrollController,
-                            label: '応答ログ',
-                          ),
-                          const SizedBox(height: 12),
-                          _standardLogField(
-                            controller: _uploadLogController,
-                            scrollController: _uploadLogScrollController,
-                            label: 'アップロードログ',
-                          ),
-                          const SizedBox(height: 12),
-                          SizedBox(
-                            height: 420,
-                            child: MeasurementChart(
-                              chartData: _chartData,
-                              initialMode: GraphMode.complex,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
+          if (_currentStep == SessionStep.measure) Expanded(child: _buildMeasureBody()),
         ],
       ),
     );
