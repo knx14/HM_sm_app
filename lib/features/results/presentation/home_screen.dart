@@ -4,6 +4,8 @@ import 'package:provider/provider.dart';
 import 'providers/results_top_notifier.dart';
 import 'farm_results_dates_screen.dart';
 import 'result_map_screen.dart';
+import '../../measure/data/pending_upload_store.dart';
+import '../../measure/presentation/pending_uploads_screen.dart';
 import '../utils/result_formatters.dart';
 import '../utils/result_formatters.dart' as fmt;
 import '../../../features/auth/data/amplify_auth_service.dart';
@@ -59,12 +61,11 @@ class _ResultsTopView extends StatelessWidget {
     try {
       final authRepo = AuthRepository(AmplifyAuthService());
       await authRepo.signOut();
-      
+
+      if (!context.mounted) return;
       final userProvider = Provider.of<UserProvider>(context, listen: false);
       userProvider.clearUserId();
-      
-      if (!context.mounted) return;
-      
+
       // ログインと新規登録画面に遷移（SplashScreen経由でWelcomeViewを表示）
       Navigator.pushNamedAndRemoveUntil(
         context,
@@ -100,6 +101,16 @@ class _ResultsTopView extends StatelessWidget {
         foregroundColor: cs.onSurface,
         actions: [
           IconButton(
+            icon: const Icon(Icons.cloud_upload_outlined),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const PendingUploadsScreen()),
+              );
+            },
+            tooltip: '未アップロード一覧',
+          ),
+          IconButton(
             icon: const Icon(Icons.logout),
             onPressed: () => _showLogoutDialog(context),
             tooltip: 'ログアウト',
@@ -115,6 +126,35 @@ class _ResultsTopView extends StatelessWidget {
             child: ListView(
               padding: _pagePadding,
               children: [
+                FutureBuilder<int>(
+                  future: PendingUploadStore().count(),
+                  builder: (context, snapshot) {
+                    final count = snapshot.data ?? 0;
+                    if (count <= 0) return const SizedBox.shrink();
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 16),
+                      child: Card(
+                        color: cs.errorContainer,
+                        child: ListTile(
+                          leading: Icon(Icons.cloud_off, color: cs.onErrorContainer),
+                          title: Text(
+                            'アップロードに失敗したデータがあります（$count件）',
+                            style: TextStyle(color: cs.onErrorContainer),
+                          ),
+                          trailing: Icon(Icons.chevron_right, color: cs.onErrorContainer),
+                          onTap: () async {
+                            await Navigator.push(
+                              context,
+                              MaterialPageRoute(builder: (_) => const PendingUploadsScreen()),
+                            );
+                            if (!context.mounted) return;
+                            state.reloadFeed();
+                          },
+                        ),
+                      ),
+                    );
+                  },
+                ),
                 _sectionTitle(context, title: '最新結果', icon: Icons.insights_rounded),
                 const SizedBox(height: 12),
                 _buildLatestFeedSection(context, state),
