@@ -12,33 +12,22 @@ class SplashScreen extends StatefulWidget {
   State<SplashScreen> createState() => _SplashScreenState();
 }
 
-class _SplashScreenState extends State<SplashScreen> 
- with SingleTickerProviderStateMixin{
-  late AnimationController _controller;
-  late Animation<double> _fadeAnimation;
+class _SplashScreenState extends State<SplashScreen> {
   final _repo = AuthRepository(AmplifyAuthService());
   final _authService = AmplifyAuthService();
+
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 2),
-      );
-    _fadeAnimation = CurvedAnimation(parent: _controller, curve: Curves.easeIn);
-    _controller.forward();
     _checkAuthState();
   }
 
   Future<void> _checkAuthState() async {
-    await Future.delayed(const Duration(seconds: 1));
-    
     try {
       final isSignedIn = await _repo.isSignedIn();
       if (isSignedIn) {
-        // ログイン済みの場合、ユーザIDを取得してProviderに設定
         final userProvider = Provider.of<UserProvider>(context, listen: false);
-        
+
         try {
           final userId = await _authService.userSub();
           if (userId != null) {
@@ -65,48 +54,17 @@ class _SplashScreenState extends State<SplashScreen>
         );
       }
     } catch (e) {
-      // 認証状態の確認でエラーが発生した場合
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (_) => const _WelcomeView()),
       );
     }
   }
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFF2E7D32), // 深緑（自然感）
-      body: FadeTransition(
-        opacity: _fadeAnimation,
-        child: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: const [
-              Icon(Icons.eco, size: 90, color: Colors.white),
-              SizedBox(height: 24),
-              Text(
-                'HenryMonitor',
-                style: TextStyle(
-                  fontSize: 26,
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 1.2,
-                ),
-              ),
-              SizedBox(height: 8),
-              Text(
-                '磁気センサーで、土壌を科学する。',
-                style: TextStyle(color: Colors.white70, fontSize: 14),
-              ),
-            ],
-          ),
-        ),
-      ),
+    return const Scaffold(
+      backgroundColor: Colors.white,
     );
   }
 }

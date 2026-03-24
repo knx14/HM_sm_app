@@ -147,7 +147,7 @@ class _BgScreenState extends State<BgScreen> {
                 children: [
                   Expanded(child: _field('測定点数(points)', _points, keyboardType: TextInputType.number)),
                   const SizedBox(width: 8),
-                  Expanded(child: _field('積分[s]', _integrate, keyboardType: TextInputType.number)),
+                  Expanded(child: _field('積分時間[s]', _integrate, keyboardType: TextInputType.number)),
                   const SizedBox(width: 8),
                   Expanded(child: _field('平均回数', _average, keyboardType: TextInputType.number)),
                 ],
