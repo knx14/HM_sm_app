@@ -83,8 +83,6 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
 
   Farm? _selectedFarm;
   LatLng? _confirmedLocation;
-  LatLng? _currentLocation;
-  GeoFenceStatus? _lastGeoStatus;
   GoogleMapController? _mapController;
 
   UploadPhase _uploadPhase = UploadPhase.idle;
@@ -116,6 +114,16 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
   List<LatLng> get _farmPolygon => (_selectedFarm?.boundaryPolygon ?? const [])
       .map((e) => LatLng(e['lat'] ?? 0, e['lng'] ?? 0))
       .toList();
+
+  /// 赤マーカー（_confirmedLocation）が圃場ポリゴン内にあるかを毎回計算で判定する。
+  /// キャッシュせず常に最新の _confirmedLocation と _farmPolygon から算出するため
+  /// 同期ずれが原理的に発生しない。通信環境には一切依存しない純粋な数学演算。
+  GeoFenceStatus? get _markerGeoStatus {
+    final point = _confirmedLocation;
+    final polygon = _farmPolygon;
+    if (point == null || polygon.length < 3) return null;
+    return GeoService.classifyLocation(point: point, polygon: polygon);
+  }
 
   @override
   void initState() {
@@ -350,18 +358,17 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
       setState(() {
         _selectedFarm = null;
         _confirmedLocation = null;
-        _lastGeoStatus = null;
         _currentStep = SessionStep.bg;
       });
       return;
     }
     final polygon = farm.boundaryPolygon.map((p) => LatLng(p['lat']!, p['lng']!)).toList();
     final center = calculatePolygonCenter(polygon);
-    final status = GeoService.classifyLocation(point: center, polygon: polygon);
+    // まずポリゴン中心をフォールバックとして設定
+    // ステータスは _markerGeoStatus getter で自動計算されるため手動設定不要
     setState(() {
       _selectedFarm = farm;
       _confirmedLocation = center;
-      _lastGeoStatus = status;
       _currentStep = SessionStep.measure;
       _showMapHint = true;
     });
@@ -369,6 +376,9 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
     await _mapController?.animateCamera(
       CameraUpdate.newCameraPosition(CameraPosition(target: center, zoom: 18)),
     );
+    // GPS現在位置を取得して赤マーカーの初期位置を現在地に設定する。
+    // GPS取得に失敗した場合はポリゴン中心のまま残る。
+    await _fetchCurrentLocation(moveCamera: true);
   }
 
   Future<void> _fetchCurrentLocation({bool moveCamera = true}) async {
@@ -392,9 +402,10 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
       );
       final here = LatLng(pos.latitude, pos.longitude);
       if (!mounted) return;
+      // 赤マーカー位置を現在地に更新。
+      // ステータスは _markerGeoStatus getter で自動計算される。
       setState(() {
-        _currentLocation = here;
-        _confirmedLocation ??= here;
+        _confirmedLocation = here;
       });
       if (moveCamera) {
         await _mapController?.animateCamera(
@@ -440,27 +451,19 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
     final polygon = _farmPolygon;
     if (point == null && polygon.isNotEmpty) {
       point = calculatePolygonCenter(polygon);
+      setState(() => _confirmedLocation = point);
     }
     if (point == null) return;
-    var status = GeoService.classifyLocation(point: point, polygon: polygon);
-    if (status == GeoFenceStatus.outside && _currentLocation != null) {
-      final currentStatus = GeoService.classifyLocation(point: _currentLocation!, polygon: polygon);
-      if (currentStatus != GeoFenceStatus.outside) {
-        point = _currentLocation!;
-        status = currentStatus;
-        _appendLog('補正: 現在地を測定地点として採用しました\n');
-      }
-    }
+
+    // _markerGeoStatus getter で赤マーカーの圃場内外を判定（安全弁）。
+    // maps_toolkit による純粋な数学演算のため通信環境に一切依存しない。
+    final status = _markerGeoStatus;
     if (status == GeoFenceStatus.outside) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('圃場外のため測定できません。地点を補正してください。')),
+        const SnackBar(content: Text('圃場外のため測定できません。地点を圃場内に調整してください。')),
       );
       return;
     }
-    setState(() {
-      _confirmedLocation = point;
-      _lastGeoStatus = status;
-    });
     final spot = _SpotProgress(
       id: DateTime.now().millisecondsSinceEpoch.toString(),
       position: point,
@@ -1015,10 +1018,10 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
           },
           markers: _buildMarkers(),
           onTap: (p) {
-            final status = GeoService.classifyLocation(point: p, polygon: polygon);
+            // 赤マーカー位置を更新。ステータスは _markerGeoStatus getter で
+            // rebuild 時に自動計算されるため、同期ずれが原理的に起きない。
             setState(() {
               _confirmedLocation = p;
-              _lastGeoStatus = status;
             });
           },
         ),
@@ -1079,13 +1082,44 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
                 : const Icon(Icons.my_location),
           ),
         ),
+        // 圃場内外ステータスの視覚フィードバック
+        // _markerGeoStatus は毎回 _confirmedLocation から計算されるため常に正確
+        if (_markerGeoStatus != null)
+          Positioned(
+            left: 12,
+            right: 72,
+            bottom: 72,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: _markerGeoStatus == GeoFenceStatus.outside
+                    ? Colors.red.withOpacity(0.85)
+                    : _markerGeoStatus == GeoFenceStatus.edge
+                        ? Colors.orange.withOpacity(0.85)
+                        : Colors.green.withOpacity(0.85),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                _markerGeoStatus == GeoFenceStatus.outside
+                    ? '圃場外です。地点を圃場内に調整してください。'
+                    : _markerGeoStatus == GeoFenceStatus.edge
+                        ? '境界付近です。測定は可能です。'
+                        : '圃場内',
+                style: const TextStyle(color: Colors.white, fontSize: 13),
+                textAlign: TextAlign.center,
+              ),
+            ),
+          ),
         Positioned(
           left: 0,
           right: 0,
           bottom: 24,
           child: Center(
             child: FilledButton(
-              onPressed: _isMeasuring ? null : _startMeasureSequence,
+              // 赤マーカーが圃場外の場合はボタンを無効化
+              onPressed: (_isMeasuring || _markerGeoStatus == GeoFenceStatus.outside)
+                  ? null
+                  : _startMeasureSequence,
               child: Text(_isMeasuring ? '測定中...' : '測定開始'),
             ),
           ),

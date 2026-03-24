@@ -21,16 +21,18 @@ class GeoService {
     final p = mt.LatLng(point.latitude, point.longitude);
     final poly = polygon.map((v) => mt.LatLng(v.latitude, v.longitude)).toList();
 
+    // 1. まずポリゴン内外を判定（最優先）
+    final isInside = mt.PolygonUtil.containsLocation(p, poly, geodesic);
+    if (!isInside) return GeoFenceStatus.outside;
+
+    // 2. 内側にいる場合のみ、辺の近傍かどうかを判定
     final isEdge = mt.PolygonUtil.isLocationOnEdge(
       p,
       poly,
       geodesic,
       tolerance: toleranceMeters,
     );
-    if (isEdge) return GeoFenceStatus.edge;
-
-    final isInside = mt.PolygonUtil.containsLocation(p, poly, geodesic);
-    return isInside ? GeoFenceStatus.inside : GeoFenceStatus.outside;
+    return isEdge ? GeoFenceStatus.edge : GeoFenceStatus.inside;
   }
 }
 
