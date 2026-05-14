@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'dart:io';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:provider/provider.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 import '../../../providers/user_provider.dart';
 import '../../../core/api/api_client.dart';
 import '../../../utils/static_maps.dart';
@@ -30,7 +30,7 @@ class _FarmScreenState extends State<FarmScreen> {
 
   static const double _cardRadius = 18;
   
-  static const MethodChannel _channel = MethodChannel('com.example.hmapp_smartphone/google_maps_api_key');
+  static const MethodChannel _channel = MethodChannel('com.henrymonitor.testapp/google_maps_api_key');
 
   @override
   void initState() {
@@ -63,14 +63,16 @@ class _FarmScreenState extends State<FarmScreen> {
           _googleMapsApiKey = apiKey;
         });
         if (kDebugMode) {
-          debugPrint('Google Maps APIキーを取得しました: ${apiKey.substring(0, 10)}... (長さ: ${apiKey.length})');
+          debugPrint('Google Maps APIキーを取得しました');
         }
       } else {
         if (kDebugMode) {
           debugPrint('Google Maps APIキーが取得できませんでした（nullまたは空）');
         }
         // フォールバック: local.propertiesから直接読み込む（開発用）
-        await _loadApiKeyFromLocalProperties();
+        if (kDebugMode) {
+          await _loadApiKeyFromLocalProperties();
+        }
       }
     } on PlatformException catch (e) {
       if (kDebugMode) {
@@ -78,13 +80,17 @@ class _FarmScreenState extends State<FarmScreen> {
         debugPrint('エラーコード: ${e.code}');
       }
       // フォールバック: local.propertiesから直接読み込む（開発用）
-      await _loadApiKeyFromLocalProperties();
+      if (kDebugMode) {
+        await _loadApiKeyFromLocalProperties();
+      }
     } catch (e) {
       if (kDebugMode) {
         debugPrint('Google Maps APIキーの取得に失敗: $e');
       }
       // フォールバック: local.propertiesから直接読み込む（開発用）
-      await _loadApiKeyFromLocalProperties();
+      if (kDebugMode) {
+        await _loadApiKeyFromLocalProperties();
+      }
     }
   }
 
@@ -103,7 +109,7 @@ class _FarmScreenState extends State<FarmScreen> {
                 _googleMapsApiKey = apiKey;
               });
               if (kDebugMode) {
-                debugPrint('local.propertiesからAPIキーを読み込みました: ${apiKey.substring(0, 10)}...');
+                debugPrint('local.propertiesからAPIキーを読み込みました');
               }
               return;
             }
@@ -146,9 +152,6 @@ class _FarmScreenState extends State<FarmScreen> {
   /// 圃場カードウィジェット
   Widget _buildFarmCard(Farm farm, ThemeData theme, ColorScheme colorScheme) {
     final boundaryPoints = _boundaryPolygonToLatLng(farm.boundaryPolygon);
-    final center = boundaryPoints.isNotEmpty
-        ? _calculateCenter(boundaryPoints)
-        : const LatLng(35.6812, 139.7671);
     final area = boundaryPoints.length >= 3
         ? calculatePolygonArea(boundaryPoints)
         : 0.0;
@@ -180,7 +183,6 @@ class _FarmScreenState extends State<FarmScreen> {
                   _buildMapThumbnail(
                     farm: farm,
                     boundaryPoints: boundaryPoints,
-                    center: center,
                     colorScheme: colorScheme,
                   ),
                   const SizedBox(width: 12),
@@ -255,7 +257,6 @@ class _FarmScreenState extends State<FarmScreen> {
   Widget _buildMapThumbnail({
     required Farm farm,
     required List<LatLng> boundaryPoints,
-    required LatLng center,
     required ColorScheme colorScheme,
   }) {
     // カードの3分の1程度のサイズに調整
@@ -265,6 +266,15 @@ class _FarmScreenState extends State<FarmScreen> {
 
     // APIキーがない場合はプレースホルダー
     if (_googleMapsApiKey == null || _googleMapsApiKey!.isEmpty) {
+      return _buildMapPlaceholder(
+        width: thumbnailWidth,
+        height: thumbnailHeight,
+        borderRadius: borderRadius,
+        colorScheme: colorScheme,
+      );
+    }
+
+    if (boundaryPoints.isEmpty) {
       return _buildMapPlaceholder(
         width: thumbnailWidth,
         height: thumbnailHeight,
@@ -296,24 +306,18 @@ class _FarmScreenState extends State<FarmScreen> {
         ),
         child: CachedNetworkImage(
           imageUrl: mapUrl,
-          key: ValueKey(mapUrl), // URLが変わったら必ず再描画されるように
+          key: ValueKey(mapUrl),
           fit: BoxFit.cover,
-          filterQuality: FilterQuality.high, // 高品質フィルタリング
-          // メモリキャッシュサイズ（高解像度画像用）
+          filterQuality: FilterQuality.high,
           memCacheWidth: (thumbnailWidth * 2).toInt(),
           memCacheHeight: (thumbnailHeight * 2).toInt(),
-          // ローディング中
           placeholder: (context, url) => _buildMapSkeleton(
             width: thumbnailWidth,
             height: thumbnailHeight,
             colorScheme: colorScheme,
           ),
-          // エラー時
           errorWidget: (context, url, error) {
-            if (kDebugMode) {
-              debugPrint('地図画像の読み込みエラー: $error');
-              debugPrint('URL: ${mapUrl.replaceAll(_googleMapsApiKey ?? '', '***')}');
-            }
+            _logStaticMapFailure(farmId: farm.id, error: error);
             return _buildMapPlaceholder(
               width: thumbnailWidth,
               height: thumbnailHeight,
@@ -323,6 +327,16 @@ class _FarmScreenState extends State<FarmScreen> {
           },
         ),
       ),
+    );
+  }
+
+  void _logStaticMapFailure({
+    required int farmId,
+    required Object error,
+  }) {
+    debugPrint(
+      'Static map thumbnail load failed '
+      '(farmId=$farmId, errorType=${error.runtimeType})',
     );
   }
 
@@ -458,26 +472,6 @@ class _FarmScreenState extends State<FarmScreen> {
     );
   }
 
-  /// 中心座標を計算
-  LatLng _calculateCenter(List<LatLng> points) {
-    if (points.isEmpty) {
-      return const LatLng(35.6812, 139.7671);
-    }
-
-    double sumLat = 0.0;
-    double sumLng = 0.0;
-
-    for (final point in points) {
-      sumLat += point.latitude;
-      sumLng += point.longitude;
-    }
-
-    return LatLng(
-      sumLat / points.length,
-      sumLng / points.length,
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -531,7 +525,7 @@ class _FarmScreenState extends State<FarmScreen> {
                       _error!,
                       textAlign: TextAlign.center,
                       style: theme.textTheme.bodyMedium?.copyWith(
-                        color: colorScheme.onSurface.withOpacity(0.7),
+                        color: colorScheme.onSurface.withValues(alpha: 0.7),
                       ),
                     ),
                     const SizedBox(height: 24),
@@ -563,7 +557,7 @@ class _FarmScreenState extends State<FarmScreen> {
                     Text(
                       '新しい圃場を登録してください',
                       style: theme.textTheme.bodyMedium?.copyWith(
-                        color: colorScheme.onSurface.withOpacity(0.7),
+                        color: colorScheme.onSurface.withValues(alpha: 0.7),
                       ),
                       textAlign: TextAlign.center,
                     ),
@@ -604,8 +598,8 @@ class _FarmScreenState extends State<FarmScreen> {
         },
         backgroundColor: colorScheme.primary,
         foregroundColor: colorScheme.onPrimary,
-        child: const Icon(Icons.add),
         tooltip: '圃場を登録',
+        child: const Icon(Icons.add),
       ),
     );
   }
