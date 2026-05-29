@@ -5,6 +5,8 @@ import '../domain/farm_result_date.dart';
 import '../domain/latest_results.dart';
 import '../domain/result_map.dart';
 import '../domain/result_map_diff.dart';
+import '../domain/timeline_item.dart';
+import '../domain/timeseries_result.dart';
 
 class PreviousNotFoundException implements Exception {
   const PreviousNotFoundException();
@@ -64,6 +66,28 @@ class ResultsRepository {
       }
       rethrow;
     }
+  }
+
+  Future<TimeseriesResult> fetchFarmTimeseries({
+    required int farmId,
+    required String parameter,
+  }) async {
+    final response = await apiClient.dio.get(
+      '/api/farms/$farmId/results/timeseries',
+      queryParameters: {'parameter': parameter},
+    );
+    return TimeseriesResult.fromJson(response.data as Map<String, dynamic>);
+  }
+
+  Future<List<TimelineItem>> fetchFarmTimeline(int farmId) async {
+    final response = await apiClient.dio.get('/api/farms/$farmId/timeline');
+    final body = response.data;
+    final data = body is Map ? body['items'] as List<dynamic>? : body as List<dynamic>?;
+    final items = data ?? const <dynamic>[];
+    return items
+        .map((e) => TimelineItem.fromJson(e as Map<String, dynamic>))
+        .where((item) => item is! UnknownTimelineItem)
+        .toList(growable: false);
   }
 }
 
