@@ -60,11 +60,7 @@ class WorkLogMark {
   final String workType;
   final String? title;
 
-  const WorkLogMark({
-    required this.date,
-    required this.workType,
-    this.title,
-  });
+  const WorkLogMark({required this.date, required this.workType, this.title});
 
   factory WorkLogMark.fromJson(Map<String, dynamic> json) {
     return WorkLogMark(
