@@ -109,8 +109,8 @@ class _FarmDetailScreenState extends State<FarmDetailScreen> {
                     onDateSelected: (date) =>
                         setState(() => _selectedDate = date),
                   ),
-                  const FarmTimeseriesTab(),
-                  const FarmTimelineTab(),
+                  FarmTimeseriesTab(farmId: widget.farm.id),
+                  FarmTimelineTab(farmId: widget.farm.id),
                 ],
               ),
             ),
