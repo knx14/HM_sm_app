@@ -1,5 +1,6 @@
 package com.henrymonitor.testapp
 
+import android.content.pm.ApplicationInfo
 import android.util.Log
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
@@ -17,7 +18,7 @@ class MainActivity : FlutterActivity() {
                 try {
                     val apiKey = getGoogleMapsApiKey()
                     if (apiKey != null && apiKey.isNotEmpty()) {
-                        if (BuildConfig.DEBUG) {
+                        if (isDebuggable()) {
                             Log.d(TAG, "Google Maps API key is available")
                         }
                         result.success(apiKey)
@@ -47,5 +48,9 @@ class MainActivity : FlutterActivity() {
             Log.e(TAG, "Exception in getGoogleMapsApiKey: ${e.message}", e)
             null
         }
+    }
+
+    private fun isDebuggable(): Boolean {
+        return (applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0
     }
 }
