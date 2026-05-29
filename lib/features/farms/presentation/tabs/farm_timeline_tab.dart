@@ -3,12 +3,10 @@ import 'package:provider/provider.dart';
 
 import '../../../results/domain/timeline_item.dart';
 import '../../../results/presentation/providers/timeline_notifier.dart';
+import '../../../work_logs/presentation/work_log_edit_screen.dart';
 
 class FarmTimelineTab extends StatelessWidget {
-  const FarmTimelineTab({
-    super.key,
-    required this.farmId,
-  });
+  const FarmTimelineTab({super.key, required this.farmId});
 
   final int farmId;
 
@@ -28,35 +26,71 @@ class _TimelineView extends StatelessWidget {
   Widget build(BuildContext context) {
     final state = context.watch<TimelineNotifier>();
 
+    final Widget body;
     if (state.isLoading && state.items.isEmpty) {
-      return const Center(child: CircularProgressIndicator());
-    }
-    if (state.error != null && state.items.isEmpty) {
-      return _ErrorState(message: state.error!, onRetry: state.reload);
-    }
-    if (state.items.isEmpty) {
-      return const Center(child: Text('測定データ・作業ログがありません'));
+      body = const Center(child: CircularProgressIndicator());
+    } else if (state.error != null && state.items.isEmpty) {
+      body = _ErrorState(message: state.error!, onRetry: state.reload);
+    } else if (state.items.isEmpty) {
+      body = RefreshIndicator(
+        onRefresh: state.reload,
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          children: const [
+            SizedBox(height: 180),
+            Center(child: Text('測定データ・作業ログがありません')),
+          ],
+        ),
+      );
+    } else {
+      body = RefreshIndicator(
+        onRefresh: state.reload,
+        child: ListView.separated(
+          padding: const EdgeInsets.fromLTRB(12, 12, 12, 96),
+          itemCount: state.items.length + (state.isLoading ? 1 : 0),
+          separatorBuilder: (_, __) => const SizedBox(height: 10),
+          itemBuilder: (context, index) {
+            if (index == 0 && state.isLoading) {
+              return const LinearProgressIndicator(minHeight: 2);
+            }
+            final item = state.items[index - (state.isLoading ? 1 : 0)];
+            return switch (item) {
+              MeasurementTimelineItem() => _MeasurementCard(item: item),
+              WorkLogTimelineItem() => _WorkLogCard(item: item),
+              UnknownTimelineItem() => const SizedBox.shrink(),
+            };
+          },
+        ),
+      );
     }
 
-    return RefreshIndicator(
-      onRefresh: state.reload,
-      child: ListView.separated(
-        padding: const EdgeInsets.all(12),
-        itemCount: state.items.length + (state.isLoading ? 1 : 0),
-        separatorBuilder: (_, __) => const SizedBox(height: 10),
-        itemBuilder: (context, index) {
-          if (index == 0 && state.isLoading) {
-            return const LinearProgressIndicator(minHeight: 2);
-          }
-          final item = state.items[index - (state.isLoading ? 1 : 0)];
-          return switch (item) {
-            MeasurementTimelineItem() => _MeasurementCard(item: item),
-            WorkLogTimelineItem() => _WorkLogCard(item: item),
-            UnknownTimelineItem() => const SizedBox.shrink(),
-          };
-        },
-      ),
+    return Stack(
+      children: [
+        Positioned.fill(child: body),
+        Positioned(
+          right: 16,
+          bottom: 16,
+          child: FloatingActionButton.extended(
+            heroTag: 'work_log_fab_${state.farmId}',
+            backgroundColor: const Color(0xFF2E5C39),
+            foregroundColor: Colors.white,
+            onPressed: () => _addWorkLog(context, state),
+            icon: const Icon(Icons.add),
+            label: const Text('作業記録'),
+          ),
+        ),
+      ],
     );
+  }
+
+  Future<void> _addWorkLog(BuildContext context, TimelineNotifier state) async {
+    final saved = await WorkLogEditScreen.show(context, farmId: state.farmId);
+    if (!saved || !context.mounted) return;
+    await state.reload();
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('作業記録を保存しました')));
   }
 }
 
@@ -70,7 +104,9 @@ class _MeasurementCard extends StatelessWidget {
     final colorScheme = Theme.of(context).colorScheme;
     final cec = item.values['CEC'];
     final delta = item.deltaCec;
-    final deltaColor = (delta ?? 0) >= 0 ? Colors.green.shade700 : colorScheme.error;
+    final deltaColor = (delta ?? 0) >= 0
+        ? Colors.green.shade700
+        : colorScheme.error;
 
     return Card(
       elevation: 0,
@@ -85,7 +121,9 @@ class _MeasurementCard extends StatelessWidget {
               width: 5,
               decoration: const BoxDecoration(
                 color: Color(0xFF2E5C39),
-                borderRadius: BorderRadius.horizontal(left: Radius.circular(12)),
+                borderRadius: BorderRadius.horizontal(
+                  left: Radius.circular(12),
+                ),
               ),
             ),
             Expanded(
@@ -96,15 +134,24 @@ class _MeasurementCard extends StatelessWidget {
                   children: [
                     Row(
                       children: [
-                        const Icon(Icons.analytics_outlined, size: 18, color: Color(0xFF2E5C39)),
+                        const Icon(
+                          Icons.analytics_outlined,
+                          size: 18,
+                          color: Color(0xFF2E5C39),
+                        ),
                         const SizedBox(width: 6),
-                        const Text('測定結果', style: TextStyle(fontWeight: FontWeight.w800)),
+                        const Text(
+                          '測定結果',
+                          style: TextStyle(fontWeight: FontWeight.w800),
+                        ),
                         const Spacer(),
                         Text(
                           '${_shortDate(item.date)} / ${item.countPoints}点',
                           style: TextStyle(
                             fontSize: 12,
-                            color: colorScheme.onSurface.withValues(alpha: 0.62),
+                            color: colorScheme.onSurface.withValues(
+                              alpha: 0.62,
+                            ),
                           ),
                         ),
                       ],
@@ -121,27 +168,38 @@ class _MeasurementCard extends StatelessWidget {
                                 'CEC平均（圃場）',
                                 style: TextStyle(
                                   fontSize: 12,
-                                  color: colorScheme.onSurface.withValues(alpha: 0.62),
+                                  color: colorScheme.onSurface.withValues(
+                                    alpha: 0.62,
+                                  ),
                                 ),
                               ),
                               const SizedBox(height: 2),
                               Text(
                                 _formatStat(cec),
-                                style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w800),
+                                style: const TextStyle(
+                                  fontSize: 24,
+                                  fontWeight: FontWeight.w800,
+                                ),
                               ),
                             ],
                           ),
                         ),
                         if (delta != null)
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 5,
+                            ),
                             decoration: BoxDecoration(
                               color: deltaColor.withValues(alpha: 0.10),
                               borderRadius: BorderRadius.circular(999),
                             ),
                             child: Text(
                               '${delta >= 0 ? '+' : ''}${delta.toStringAsFixed(1)}',
-                              style: TextStyle(color: deltaColor, fontWeight: FontWeight.w800),
+                              style: TextStyle(
+                                color: deltaColor,
+                                fontWeight: FontWeight.w800,
+                              ),
                             ),
                           ),
                       ],
@@ -151,7 +209,12 @@ class _MeasurementCard extends StatelessWidget {
                       spacing: 8,
                       runSpacing: 8,
                       children: const ['CaO', 'K2O', 'MgO']
-                          .map((key) => _ParameterChip(label: key, stat: item.values[key]))
+                          .map(
+                            (key) => _ParameterChip(
+                              label: key,
+                              stat: item.values[key],
+                            ),
+                          )
                           .toList(),
                     ),
                   ],
@@ -168,15 +231,14 @@ class _MeasurementCard extends StatelessWidget {
     final avg = stat?.avg;
     if (avg == null) return '--';
     final unit = stat?.unit;
-    return unit == null ? avg.toStringAsFixed(1) : '${avg.toStringAsFixed(1)} $unit';
+    return unit == null
+        ? avg.toStringAsFixed(1)
+        : '${avg.toStringAsFixed(1)} $unit';
   }
 }
 
 class _ParameterChip extends StatelessWidget {
-  const _ParameterChip({
-    required this.label,
-    required this.stat,
-  });
+  const _ParameterChip({required this.label, required this.stat});
 
   final String label;
   final ParameterStat? stat;
@@ -187,7 +249,9 @@ class _ParameterChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.62),
+        color: Theme.of(
+          context,
+        ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.62),
         borderRadius: BorderRadius.circular(999),
       ),
       child: Text('$label ${avg == null ? '--' : avg.toStringAsFixed(1)}'),
@@ -235,7 +299,9 @@ class _WorkLogCard extends StatelessWidget {
               width: 5,
               decoration: BoxDecoration(
                 color: color,
-                borderRadius: const BorderRadius.horizontal(left: Radius.circular(12)),
+                borderRadius: const BorderRadius.horizontal(
+                  left: Radius.circular(12),
+                ),
               ),
             ),
             Expanded(
@@ -245,14 +311,21 @@ class _WorkLogCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 5,
+                      ),
                       decoration: BoxDecoration(
                         color: color.withValues(alpha: 0.12),
                         borderRadius: BorderRadius.circular(999),
                       ),
                       child: Text(
                         label,
-                        style: TextStyle(color: color, fontWeight: FontWeight.w800, fontSize: 12),
+                        style: TextStyle(
+                          color: color,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 12,
+                        ),
                       ),
                     ),
                     const SizedBox(width: 10),
@@ -264,12 +337,15 @@ class _WorkLogCard extends StatelessWidget {
                             item.title ?? '作業記録',
                             style: const TextStyle(fontWeight: FontWeight.w800),
                           ),
-                          if (item.detail != null && item.detail!.isNotEmpty) ...[
+                          if (item.detail != null &&
+                              item.detail!.isNotEmpty) ...[
                             const SizedBox(height: 4),
                             Text(
                               item.detail!,
                               style: TextStyle(
-                                color: colorScheme.onSurface.withValues(alpha: 0.68),
+                                color: colorScheme.onSurface.withValues(
+                                  alpha: 0.68,
+                                ),
                               ),
                             ),
                           ],
@@ -279,7 +355,9 @@ class _WorkLogCard extends StatelessWidget {
                               '${item.amountValue!.toStringAsFixed(1)} ${item.amountUnit ?? ''}',
                               style: TextStyle(
                                 fontSize: 12,
-                                color: colorScheme.onSurface.withValues(alpha: 0.62),
+                                color: colorScheme.onSurface.withValues(
+                                  alpha: 0.62,
+                                ),
                               ),
                             ),
                           ],
@@ -306,10 +384,7 @@ class _WorkLogCard extends StatelessWidget {
 }
 
 class _ErrorState extends StatelessWidget {
-  const _ErrorState({
-    required this.message,
-    required this.onRetry,
-  });
+  const _ErrorState({required this.message, required this.onRetry});
 
   final String message;
   final Future<void> Function() onRetry;
@@ -330,6 +405,8 @@ class _ErrorState extends StatelessWidget {
 }
 
 String _shortDate(String date) {
-  if (date.length >= 10) return '${date.substring(5, 7)}/${date.substring(8, 10)}';
+  if (date.length >= 10) {
+    return '${date.substring(5, 7)}/${date.substring(8, 10)}';
+  }
   return date;
 }

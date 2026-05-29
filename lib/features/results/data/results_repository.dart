@@ -22,19 +22,27 @@ class ResultsRepository {
   Future<List<LatestResultFeedItem>> fetchLatestResults() async {
     final response = await apiClient.dio.get('/api/results/latest');
     final data = response.data as List<dynamic>;
-    return data.map((e) => LatestResultFeedItem.fromJson(e as Map<String, dynamic>)).toList();
+    return data
+        .map((e) => LatestResultFeedItem.fromJson(e as Map<String, dynamic>))
+        .toList();
   }
 
   Future<List<FarmWithLatestResult>> fetchFarmsWithLatestResult() async {
     final response = await apiClient.dio.get('/api/farms/with-latest-result');
     final data = response.data as List<dynamic>;
-    return data.map((e) => FarmWithLatestResult.fromJson(e as Map<String, dynamic>)).toList();
+    return data
+        .map((e) => FarmWithLatestResult.fromJson(e as Map<String, dynamic>))
+        .toList();
   }
 
   Future<List<FarmResultDateItem>> fetchFarmResultDates(int farmId) async {
-    final response = await apiClient.dio.get('/api/farms/$farmId/results/dates');
+    final response = await apiClient.dio.get(
+      '/api/farms/$farmId/results/dates',
+    );
     final data = response.data as List<dynamic>;
-    return data.map((e) => FarmResultDateItem.fromJson(e as Map<String, dynamic>)).toList();
+    return data
+        .map((e) => FarmResultDateItem.fromJson(e as Map<String, dynamic>))
+        .toList();
   }
 
   Future<ResultMapResponse> fetchFarmResultMap({
@@ -57,11 +65,15 @@ class ResultsRepository {
         '/api/farms/$farmId/results/map-diff',
         queryParameters: {'date': dateIso},
       );
-      return ResultMapDiffResponse.fromJson(response.data as Map<String, dynamic>);
+      return ResultMapDiffResponse.fromJson(
+        response.data as Map<String, dynamic>,
+      );
     } on DioException catch (e) {
       final status = e.response?.statusCode;
       final body = e.response?.data;
-      if (status == 404 && body is Map && body['message'] == 'previous_not_found') {
+      if (status == 404 &&
+          body is Map &&
+          body['message'] == 'previous_not_found') {
         throw const PreviousNotFoundException();
       }
       rethrow;
@@ -82,7 +94,9 @@ class ResultsRepository {
   Future<List<TimelineItem>> fetchFarmTimeline(int farmId) async {
     final response = await apiClient.dio.get('/api/farms/$farmId/timeline');
     final body = response.data;
-    final data = body is Map ? body['items'] as List<dynamic>? : body as List<dynamic>?;
+    final data = body is Map
+        ? body['items'] as List<dynamic>?
+        : body as List<dynamic>?;
     final items = data ?? const <dynamic>[];
     return items
         .map((e) => TimelineItem.fromJson(e as Map<String, dynamic>))
@@ -90,4 +104,3 @@ class ResultsRepository {
         .toList(growable: false);
   }
 }
-

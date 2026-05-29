@@ -8,10 +8,7 @@ import '../../../results/domain/timeseries_result.dart';
 import '../../../results/presentation/providers/timeseries_notifier.dart';
 
 class FarmTimeseriesTab extends StatelessWidget {
-  const FarmTimeseriesTab({
-    super.key,
-    required this.farmId,
-  });
+  const FarmTimeseriesTab({super.key, required this.farmId});
 
   final int farmId;
 
@@ -42,7 +39,9 @@ class _TimeseriesView extends StatelessWidget {
         if (state.isLoading && data == null)
           const Expanded(child: Center(child: CircularProgressIndicator()))
         else if (state.error != null && data == null)
-          Expanded(child: _ErrorState(message: state.error!, onRetry: state.reload))
+          Expanded(
+            child: _ErrorState(message: state.error!, onRetry: state.reload),
+          )
         else if (data == null || data.points.isEmpty)
           const Expanded(child: Center(child: Text('測定データがありません')))
         else
@@ -57,10 +56,11 @@ class _TimeseriesView extends StatelessWidget {
                   SizedBox(height: 280, child: _TimeseriesChart(data: data)),
                   const SizedBox(height: 12),
                   const _LegendRow(),
-                  if (state.isLoading) const Padding(
-                    padding: EdgeInsets.only(top: 8),
-                    child: LinearProgressIndicator(minHeight: 2),
-                  ),
+                  if (state.isLoading)
+                    const Padding(
+                      padding: EdgeInsets.only(top: 8),
+                      child: LinearProgressIndicator(minHeight: 2),
+                    ),
                 ],
               ),
             ),
@@ -98,7 +98,9 @@ class _ParameterSelector extends StatelessWidget {
             ],
             selected: {selected},
             showSelectedIcon: false,
-            onSelectionChanged: isLoading ? null : (values) => onChanged(values.first),
+            onSelectionChanged: isLoading
+                ? null
+                : (values) => onChanged(values.first),
           ),
         ),
       ),
@@ -129,12 +131,17 @@ class _LatestAverageCard extends StatelessWidget {
                 children: [
                   Text(
                     '圃場平均（${data.parameter}）',
-                    style: TextStyle(color: colorScheme.onSurface.withValues(alpha: 0.62)),
+                    style: TextStyle(
+                      color: colorScheme.onSurface.withValues(alpha: 0.62),
+                    ),
                   ),
                   const SizedBox(height: 4),
                   Text(
                     latest.date,
-                    style: TextStyle(fontSize: 12, color: colorScheme.onSurface.withValues(alpha: 0.62)),
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: colorScheme.onSurface.withValues(alpha: 0.62),
+                    ),
                   ),
                 ],
               ),
@@ -201,7 +208,12 @@ class _TimeseriesChartPainter extends CustomPainter {
     const right = 10.0;
     const top = 12.0;
     const bottom = 38.0;
-    final chart = Rect.fromLTWH(left, top, size.width - left - right, size.height - top - bottom);
+    final chart = Rect.fromLTWH(
+      left,
+      top,
+      size.width - left - right,
+      size.height - top - bottom,
+    );
     if (chart.width <= 0 || chart.height <= 0) return;
 
     final minY = points.map((p) => p.min).reduce(math.min);
@@ -235,7 +247,9 @@ class _TimeseriesChartPainter extends CustomPainter {
       );
     }
 
-    final workDates = {for (var i = 0; i < points.length; i++) points[i].date: i};
+    final workDates = {
+      for (var i = 0; i < points.length; i++) points[i].date: i,
+    };
     final workPaint = Paint()
       ..color = Colors.orange.withValues(alpha: 0.75)
       ..strokeWidth = 1.4;
@@ -243,7 +257,12 @@ class _TimeseriesChartPainter extends CustomPainter {
       final index = workDates[mark.date];
       if (index == null) continue;
       final x = xFor(index);
-      _drawDashedLine(canvas, Offset(x, chart.top), Offset(x, chart.bottom), workPaint);
+      _drawDashedLine(
+        canvas,
+        Offset(x, chart.top),
+        Offset(x, chart.bottom),
+        workPaint,
+      );
     }
 
     final bandPath = Path();
@@ -323,14 +342,19 @@ class _TimeseriesChartPainter extends CustomPainter {
     required Color color,
   }) {
     final painter = TextPainter(
-      text: TextSpan(style: TextStyle(fontSize: fontSize, color: color), text: text),
+      text: TextSpan(
+        style: TextStyle(fontSize: fontSize, color: color),
+        text: text,
+      ),
       textDirection: TextDirection.ltr,
     )..layout();
     painter.paint(canvas, offset);
   }
 
   String _shortDate(String date) {
-    if (date.length >= 10) return '${date.substring(5, 7)}/${date.substring(8, 10)}';
+    if (date.length >= 10) {
+      return '${date.substring(5, 7)}/${date.substring(8, 10)}';
+    }
     return date;
   }
 
@@ -360,10 +384,7 @@ class _LegendRow extends StatelessWidget {
 }
 
 class _LegendItem extends StatelessWidget {
-  const _LegendItem({
-    required this.color,
-    required this.label,
-  });
+  const _LegendItem({required this.color, required this.label});
 
   final Color color;
   final String label;
@@ -382,10 +403,7 @@ class _LegendItem extends StatelessWidget {
 }
 
 class _ErrorState extends StatelessWidget {
-  const _ErrorState({
-    required this.message,
-    required this.onRetry,
-  });
+  const _ErrorState({required this.message, required this.onRetry});
 
   final String message;
   final Future<void> Function() onRetry;
