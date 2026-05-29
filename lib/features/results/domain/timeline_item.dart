@@ -2,10 +2,7 @@ sealed class TimelineItem {
   final String date;
   final String type;
 
-  const TimelineItem({
-    required this.date,
-    required this.type,
-  });
+  const TimelineItem({required this.date, required this.type});
 
   factory TimelineItem.fromJson(Map<String, dynamic> json) {
     final type = json['type'] as String?;
@@ -98,10 +95,7 @@ final class WorkLogTimelineItem extends TimelineItem {
 }
 
 final class UnknownTimelineItem extends TimelineItem {
-  const UnknownTimelineItem({
-    required super.date,
-    required super.type,
-  });
+  const UnknownTimelineItem({required super.date, required super.type});
 
   factory UnknownTimelineItem.fromJson(Map<String, dynamic> json) {
     return UnknownTimelineItem(
