@@ -52,7 +52,8 @@ class MeasurementSessionScreen extends StatefulWidget {
   const MeasurementSessionScreen({super.key});
 
   @override
-  State<MeasurementSessionScreen> createState() => _MeasurementSessionScreenState();
+  State<MeasurementSessionScreen> createState() =>
+      _MeasurementSessionScreenState();
 }
 
 class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
@@ -61,13 +62,27 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
   final _uploadLogController = TextEditingController();
   final _uploadLogScrollController = ScrollController();
 
-  final _fstart = TextEditingController(text: MeasureSettings.defaults.fstart.toString());
-  final _fdelta = TextEditingController(text: MeasureSettings.defaults.fdelta.toString());
-  final _points = TextEditingController(text: MeasureSettings.defaults.points.toString());
-  final _excite = TextEditingController(text: MeasureSettings.defaults.excite.toString());
-  final _range = TextEditingController(text: MeasureSettings.defaults.range.toString());
-  final _integrate = TextEditingController(text: MeasureSettings.defaults.integrate.toString());
-  final _average = TextEditingController(text: MeasureSettings.defaults.average.toString());
+  final _fstart = TextEditingController(
+    text: MeasureSettings.defaults.fstart.toString(),
+  );
+  final _fdelta = TextEditingController(
+    text: MeasureSettings.defaults.fdelta.toString(),
+  );
+  final _points = TextEditingController(
+    text: MeasureSettings.defaults.points.toString(),
+  );
+  final _excite = TextEditingController(
+    text: MeasureSettings.defaults.excite.toString(),
+  );
+  final _range = TextEditingController(
+    text: MeasureSettings.defaults.range.toString(),
+  );
+  final _integrate = TextEditingController(
+    text: MeasureSettings.defaults.integrate.toString(),
+  );
+  final _average = TextEditingController(
+    text: MeasureSettings.defaults.average.toString(),
+  );
   final _note1 = TextEditingController();
   final _note2 = TextEditingController();
   final AppSettings _settings = AppSettings();
@@ -102,7 +117,8 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
   final List<ChartData> _chartData = [];
   final List<_SpotProgress> _spots = <_SpotProgress>[];
   _SpotProgress? _activeSpot;
-  final Map<String, BitmapDescriptor> _markerIconCache = <String, BitmapDescriptor>{};
+  final Map<String, BitmapDescriptor> _markerIconCache =
+      <String, BitmapDescriptor>{};
   Completer<bool>? _execCompleter;
 
   bool get _isUploading =>
@@ -153,13 +169,21 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
     super.dispose();
   }
 
-  int _pointsValue() => int.tryParse(_points.text.trim()) ?? MeasureSettings.defaults.points;
-  double _fstartValue() => double.tryParse(_fstart.text.trim()) ?? MeasureSettings.defaults.fstart;
-  double _fdeltaValue() => double.tryParse(_fdelta.text.trim()) ?? MeasureSettings.defaults.fdelta;
-  double _exciteValue() => double.tryParse(_excite.text.trim()) ?? MeasureSettings.defaults.excite;
-  double _rangeValue() => double.tryParse(_range.text.trim()) ?? MeasureSettings.defaults.range;
-  double _integrateValue() => double.tryParse(_integrate.text.trim()) ?? MeasureSettings.defaults.integrate;
-  int _averageValue() => int.tryParse(_average.text.trim()) ?? MeasureSettings.defaults.average;
+  int _pointsValue() =>
+      int.tryParse(_points.text.trim()) ?? MeasureSettings.defaults.points;
+  double _fstartValue() =>
+      double.tryParse(_fstart.text.trim()) ?? MeasureSettings.defaults.fstart;
+  double _fdeltaValue() =>
+      double.tryParse(_fdelta.text.trim()) ?? MeasureSettings.defaults.fdelta;
+  double _exciteValue() =>
+      double.tryParse(_excite.text.trim()) ?? MeasureSettings.defaults.excite;
+  double _rangeValue() =>
+      double.tryParse(_range.text.trim()) ?? MeasureSettings.defaults.range;
+  double _integrateValue() =>
+      double.tryParse(_integrate.text.trim()) ??
+      MeasureSettings.defaults.integrate;
+  int _averageValue() =>
+      int.tryParse(_average.text.trim()) ?? MeasureSettings.defaults.average;
 
   MeasureSettings _currentSettings() {
     return MeasureSettings(
@@ -179,7 +203,9 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
     });
     Future.delayed(const Duration(milliseconds: 100), () {
       if (_logScrollController.hasClients) {
-        _logScrollController.jumpTo(_logScrollController.position.maxScrollExtent);
+        _logScrollController.jumpTo(
+          _logScrollController.position.maxScrollExtent,
+        );
       }
     });
   }
@@ -191,7 +217,9 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
     });
     Future.delayed(const Duration(milliseconds: 100), () {
       if (_uploadLogScrollController.hasClients) {
-        _uploadLogScrollController.jumpTo(_uploadLogScrollController.position.maxScrollExtent);
+        _uploadLogScrollController.jumpTo(
+          _uploadLogScrollController.position.maxScrollExtent,
+        );
       }
     });
   }
@@ -224,7 +252,9 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
       _currentStep = SessionStep.connect;
     });
     _appendLog(
-      success ? '${AppConstants.messageConnectionSuccess}\n' : '${AppConstants.errorConnectionFailed}\n',
+      success
+          ? '${AppConstants.messageConnectionSuccess}\n'
+          : '${AppConstants.errorConnectionFailed}\n',
     );
     if (success) {
       _startAutoRecall();
@@ -334,7 +364,9 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
       _bgDone = false;
       _currentStep = SessionStep.bg;
     });
-    _appendLog('送信: null ${_settings.excite} ${_settings.range} ${_settings.integrate} ${_settings.average}\n');
+    _appendLog(
+      '送信: null ${_settings.excite} ${_settings.range} ${_settings.integrate} ${_settings.average}\n',
+    );
     MeasurementService.sendBgMeasurementCommand(_settings);
   }
 
@@ -349,7 +381,9 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
     }
     final result = await Navigator.push<FarmSelectResult>(
       context,
-      MaterialPageRoute(builder: (_) => const FarmSelectScreen(mode: FarmSelectMode.farmOnly)),
+      MaterialPageRoute(
+        builder: (_) => const FarmSelectScreen(mode: FarmSelectMode.farmOnly),
+      ),
     );
     if (!mounted) return;
     final farm = result?.farm;
@@ -362,7 +396,9 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
       });
       return;
     }
-    final polygon = farm.boundaryPolygon.map((p) => LatLng(p['lat']!, p['lng']!)).toList();
+    final polygon = farm.boundaryPolygon
+        .map((p) => LatLng(p['lat']!, p['lng']!))
+        .toList();
     final center = calculatePolygonCenter(polygon);
     // まずポリゴン中心をフォールバックとして設定
     // ステータスは _markerGeoStatus getter で自動計算されるため手動設定不要
@@ -393,12 +429,15 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
       if (perm == LocationPermission.denied) {
         perm = await Geolocator.requestPermission();
       }
-      if (perm == LocationPermission.denied || perm == LocationPermission.deniedForever) {
+      if (perm == LocationPermission.denied ||
+          perm == LocationPermission.deniedForever) {
         _appendLog('位置情報の権限がありません\n');
         return;
       }
       final pos = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+        ),
       );
       final here = LatLng(pos.latitude, pos.longitude);
       if (!mounted) return;
@@ -409,7 +448,9 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
       });
       if (moveCamera) {
         await _mapController?.animateCamera(
-          CameraUpdate.newCameraPosition(CameraPosition(target: here, zoom: 18)),
+          CameraUpdate.newCameraPosition(
+            CameraPosition(target: here, zoom: 18),
+          ),
         );
       }
     } catch (e) {
@@ -437,7 +478,8 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
       _chartData.clear();
       _logController.clear();
       _receivedPoints = 0;
-      _totalPoints = int.tryParse(_points.text.trim()) ?? AppConstants.defaultPointCount;
+      _totalPoints =
+          int.tryParse(_points.text.trim()) ?? AppConstants.defaultPointCount;
       _isMeasuring = true;
       _uploadPhase = UploadPhase.idle;
     });
@@ -493,13 +535,16 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
     }
     final note1 = _note1.text.trim();
     final note2 = _note2.text.trim();
-    if (!LocalSaveService.isValidMemo(note1) || !LocalSaveService.isValidMemo(note2)) {
+    if (!LocalSaveService.isValidMemo(note1) ||
+        !LocalSaveService.isValidMemo(note2)) {
       _appendLog('${AppConstants.errorInvalidMemoFormat}\n');
       return null;
     }
     try {
       final settings = _currentSettings();
-      final chartDataForCsv = _buildExecChartDataForCsvFromResponseLog(settings);
+      final chartDataForCsv = _buildExecChartDataForCsvFromResponseLog(
+        settings,
+      );
       final fileBase = await LocalSaveService.saveMeasurement(
         chartData: chartDataForCsv,
         userId: userId,
@@ -552,7 +597,8 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
       final measurementParameters =
           jsonDecode(await jsonFile.readAsString()) as Map<String, dynamic>;
       final measurementDate =
-          (measurementParameters['timestamp'] as String?) ?? DateTime.now().toIso8601String();
+          (measurementParameters['timestamp'] as String?) ??
+          DateTime.now().toIso8601String();
       measurementDateForPending = measurementDate;
       final note1 = _note1.text.trim();
       final note2 = _note2.text.trim();
@@ -605,7 +651,11 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
       setState(() => _uploadPhase = UploadPhase.error);
       _appendUploadLog('error: $e');
       if (fileBase != null) {
-        _appendUploadLog(queued ? 'pending: queued $fileBase' : 'pending: queue failed $fileBase');
+        _appendUploadLog(
+          queued
+              ? 'pending: queued $fileBase'
+              : 'pending: queue failed $fileBase',
+        );
       }
     } catch (e) {
       var queued = false;
@@ -617,7 +667,9 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
             note1: _note1.text.trim().isEmpty ? null : _note1.text.trim(),
             note2: _note2.text.trim().isEmpty ? null : _note2.text.trim(),
             measurementDate: measurementDateForPending,
-            failedPhase: _uploadPhase == UploadPhase.idle ? UploadPhase.error.name : _uploadPhase.name,
+            failedPhase: _uploadPhase == UploadPhase.idle
+                ? UploadPhase.error.name
+                : _uploadPhase.name,
             lastError: e.toString(),
             createdAt: DateTime.now(),
             updatedAt: DateTime.now(),
@@ -629,10 +681,16 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
       setState(() => _uploadPhase = UploadPhase.error);
       _appendUploadLog('error: $e');
       if (fileBase != null) {
-        _appendUploadLog(queued ? 'pending: queued $fileBase' : 'pending: queue failed $fileBase');
+        _appendUploadLog(
+          queued
+              ? 'pending: queued $fileBase'
+              : 'pending: queue failed $fileBase',
+        );
       }
     } finally {
-      if (mounted && _uploadPhase != UploadPhase.done && _uploadPhase != UploadPhase.error) {
+      if (mounted &&
+          _uploadPhase != UploadPhase.done &&
+          _uploadPhase != UploadPhase.error) {
         setState(() => _uploadPhase = UploadPhase.idle);
       }
     }
@@ -648,7 +706,9 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
     }
   }
 
-  List<ChartData> _buildExecChartDataForCsvFromResponseLog(MeasureSettings settings) {
+  List<ChartData> _buildExecChartDataForCsvFromResponseLog(
+    MeasureSettings settings,
+  ) {
     final expectedFreqs = <int>[];
     final expectedSet = <int>{};
     for (var i = 0; i < settings.points; i++) {
@@ -673,7 +733,11 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
       if (freqD == null || real == null || imag == null) continue;
       final freq = freqD.round();
       if (!expectedSet.contains(freq)) continue;
-      byFreq[freq] = ChartData(real: real, imag: imag, frequency: freq.toDouble());
+      byFreq[freq] = ChartData(
+        real: real,
+        imag: imag,
+        frequency: freq.toDouble(),
+      );
     }
     final missing = <int>[];
     final ordered = <ChartData>[];
@@ -752,7 +816,9 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
           }
         }
 
-        if (_currentStep == SessionStep.bg && _bgIsMeasuring && line.startsWith('*')) {
+        if (_currentStep == SessionStep.bg &&
+            _bgIsMeasuring &&
+            line.startsWith('*')) {
           _bgReceivedPoints++;
           _bgProgress = (_bgReceivedPoints / _bgTotalPoints).clamp(0.0, 1.0);
           continue;
@@ -761,12 +827,17 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
         if (_isMeasuring && line.startsWith('*')) {
           final idx = _receivedPoints;
           final freq = _fstartValue() + (_fdeltaValue() * idx);
-          final point = MeasurementParser.tryParseExecDataLine(line, frequency: freq);
+          final point = MeasurementParser.tryParseExecDataLine(
+            line,
+            frequency: freq,
+          );
           if (point != null) {
             _chartData.add(point);
           }
           _receivedPoints++;
-          final p = ((_receivedPoints / _totalPoints) * 100).clamp(0, 100).toInt();
+          final p = ((_receivedPoints / _totalPoints) * 100)
+              .clamp(0, 100)
+              .toInt();
           _setActiveSpotProgress(p);
         }
       }
@@ -809,7 +880,11 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
       setState(() => spot.icon = cached);
       return;
     }
-    final icon = await _buildMarkerIcon(label: label, color: color, check: check);
+    final icon = await _buildMarkerIcon(
+      label: label,
+      color: color,
+      check: check,
+    );
     _markerIconCache[key] = icon;
     if (!mounted) return;
     if (requestVersion != spot.iconVersion) return;
@@ -896,8 +971,8 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
             title: spot.uploadDone
                 ? 'アップロード完了'
                 : spot.saveDone
-                    ? '保存完了'
-                    : '${spot.percent}%',
+                ? '保存完了'
+                : '${spot.percent}%',
           ),
         ),
       );
@@ -952,7 +1027,11 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
     );
   }
 
-  Widget _stepBodyTitle(BuildContext context, String title, String description) {
+  Widget _stepBodyTitle(
+    BuildContext context,
+    String title,
+    String description,
+  ) {
     final theme = Theme.of(context);
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
@@ -990,7 +1069,9 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
     if (_selectedFarm == null) {
       return Center(
         child: FilledButton(
-          onPressed: _isMeasuring ? null : () => _openFarmSelection(clearSpots: true),
+          onPressed: _isMeasuring
+              ? null
+              : () => _openFarmSelection(clearSpots: true),
           child: const Text('圃場を選択'),
         ),
       );
@@ -1000,7 +1081,10 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
     return Stack(
       children: [
         GoogleMap(
-          initialCameraPosition: CameraPosition(target: initialTarget, zoom: 17),
+          initialCameraPosition: CameraPosition(
+            target: initialTarget,
+            zoom: 17,
+          ),
           onMapCreated: (c) => _mapController = c,
           mapType: MapType.satellite,
           myLocationEnabled: true,
@@ -1043,7 +1127,12 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
             left: 72,
             right: 12,
             child: Container(
-              padding: const EdgeInsets.only(left: 10, top: 6, bottom: 6, right: 4),
+              padding: const EdgeInsets.only(
+                left: 10,
+                top: 6,
+                bottom: 6,
+                right: 4,
+              ),
               decoration: BoxDecoration(
                 color: Colors.black54,
                 borderRadius: BorderRadius.circular(8),
@@ -1072,7 +1161,9 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
           bottom: 18,
           child: FloatingActionButton(
             heroTag: 'current_location_button',
-            onPressed: _isFetchingCurrentLocation ? null : () => _fetchCurrentLocation(moveCamera: true),
+            onPressed: _isFetchingCurrentLocation
+                ? null
+                : () => _fetchCurrentLocation(moveCamera: true),
             child: _isFetchingCurrentLocation
                 ? const SizedBox(
                     width: 20,
@@ -1095,16 +1186,16 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
                 color: _markerGeoStatus == GeoFenceStatus.outside
                     ? Colors.red.withOpacity(0.85)
                     : _markerGeoStatus == GeoFenceStatus.edge
-                        ? Colors.orange.withOpacity(0.85)
-                        : Colors.green.withOpacity(0.85),
+                    ? Colors.orange.withOpacity(0.85)
+                    : Colors.green.withOpacity(0.85),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Text(
                 _markerGeoStatus == GeoFenceStatus.outside
                     ? '圃場外です。地点を圃場内に調整してください。'
                     : _markerGeoStatus == GeoFenceStatus.edge
-                        ? '境界付近です。測定は可能です。'
-                        : '圃場内',
+                    ? '境界付近です。測定は可能です。'
+                    : '圃場内',
                 style: const TextStyle(color: Colors.white, fontSize: 13),
                 textAlign: TextAlign.center,
               ),
@@ -1117,7 +1208,8 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
           child: Center(
             child: FilledButton(
               // 赤マーカーが圃場外の場合はボタンを無効化
-              onPressed: (_isMeasuring || _markerGeoStatus == GeoFenceStatus.outside)
+              onPressed:
+                  (_isMeasuring || _markerGeoStatus == GeoFenceStatus.outside)
                   ? null
                   : _startMeasureSequence,
               child: Text(_isMeasuring ? '測定中...' : '測定開始'),
@@ -1133,10 +1225,11 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text(''),
-        automaticallyImplyLeading: false,
         actions: [
           IconButton(
-            onPressed: (_isMeasuring || _bgIsMeasuring || _isRecalling) ? null : _openSettings,
+            onPressed: (_isMeasuring || _bgIsMeasuring || _isRecalling)
+                ? null
+                : _openSettings,
             icon: const Icon(Icons.settings),
             tooltip: '設定',
           ),
@@ -1170,11 +1263,21 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
                                 child: const Text('接続'),
                               ),
                               ElevatedButton(
-                                onPressed: (!_isConnected || _isMeasuring || _isRecalling) ? null : _disconnect,
+                                onPressed:
+                                    (!_isConnected ||
+                                        _isMeasuring ||
+                                        _isRecalling)
+                                    ? null
+                                    : _disconnect,
                                 child: const Text('切断'),
                               ),
                               OutlinedButton(
-                                onPressed: (!_isConnected || _isRecalling || _recallDone) ? null : _startAutoRecall,
+                                onPressed:
+                                    (!_isConnected ||
+                                        _isRecalling ||
+                                        _recallDone)
+                                    ? null
+                                    : _startAutoRecall,
                                 child: const Text('Recall再試行'),
                               ),
                             ],
@@ -1185,8 +1288,8 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
                               _isRecalling
                                   ? 'Recall実行中…（最大20秒）'
                                   : _recallDone
-                                      ? 'Recall完了（OK）'
-                                      : 'Recall未完了',
+                                  ? 'Recall完了（OK）'
+                                  : 'Recall未完了',
                             ),
                         ],
                       ),
@@ -1216,7 +1319,11 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          _stepBodyTitle(context, 'Step 2: BG測定', '完了後に圃場選択へ進みます。'),
+                          _stepBodyTitle(
+                            context,
+                            'Step 2: BG測定',
+                            '完了後に圃場選択へ進みます。',
+                          ),
                           Wrap(
                             spacing: 8,
                             runSpacing: 8,
@@ -1226,7 +1333,9 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
                                 child: const Text('BG測定開始'),
                               ),
                               OutlinedButton(
-                                onPressed: (_bgDone && !_bgIsMeasuring) ? () => _openFarmSelection(clearSpots: true) : null,
+                                onPressed: (_bgDone && !_bgIsMeasuring)
+                                    ? () => _openFarmSelection(clearSpots: true)
+                                    : null,
                                 child: const Text('圃場選択へ'),
                               ),
                             ],
@@ -1235,9 +1344,13 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
                           LinearPercentIndicator(
                             lineHeight: AppConstants.progressBarHeight,
                             percent: _bgProgress.clamp(0.0, 1.0),
-                            center: Text('${(_bgProgress * 100).toStringAsFixed(0)}%'),
+                            center: Text(
+                              '${(_bgProgress * 100).toStringAsFixed(0)}%',
+                            ),
                             backgroundColor: Colors.grey[300],
-                            progressColor: Theme.of(context).colorScheme.primary,
+                            progressColor: Theme.of(
+                              context,
+                            ).colorScheme.primary,
                           ),
                           const SizedBox(height: 16),
                         ],
@@ -1247,10 +1360,10 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
                 ],
               ),
             ),
-          if (_currentStep == SessionStep.measure) Expanded(child: _buildMeasureBody()),
+          if (_currentStep == SessionStep.measure)
+            Expanded(child: _buildMeasureBody()),
         ],
       ),
     );
   }
 }
-
