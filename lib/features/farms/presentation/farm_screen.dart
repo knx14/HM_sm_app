@@ -29,8 +29,10 @@ class _FarmScreenState extends State<FarmScreen> {
   String? _googleMapsApiKey;
 
   static const double _cardRadius = 18;
-  
-  static const MethodChannel _channel = MethodChannel('com.henrymonitor.testapp/google_maps_api_key');
+
+  static const MethodChannel _channel = MethodChannel(
+    'com.henrymonitor.testapp/google_maps_api_key',
+  );
 
   @override
   void initState() {
@@ -41,10 +43,7 @@ class _FarmScreenState extends State<FarmScreen> {
       'API_BASE_URL',
       defaultValue: 'https://api.hm-admin.com',
     );
-    final apiClient = ApiClient(
-      baseUrl: baseUrl,
-      authService: authService,
-    );
+    final apiClient = ApiClient(baseUrl: baseUrl, authService: authService);
     _farmRepository = FarmRepository(apiClient);
     _initializeData();
   }
@@ -143,7 +142,9 @@ class _FarmScreenState extends State<FarmScreen> {
   }
 
   /// 境界点をLatLngのリストに変換
-  List<LatLng> _boundaryPolygonToLatLng(List<Map<String, double>> boundaryPolygon) {
+  List<LatLng> _boundaryPolygonToLatLng(
+    List<Map<String, double>> boundaryPolygon,
+  ) {
     return boundaryPolygon.map((point) {
       return LatLng(point['lat']!, point['lng']!);
     }).toList();
@@ -162,9 +163,7 @@ class _FarmScreenState extends State<FarmScreen> {
       color: colorScheme.surfaceContainerLow,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(_cardRadius),
-        side: BorderSide(
-          color: colorScheme.outline.withValues(alpha: 0.12),
-        ),
+        side: BorderSide(color: colorScheme.outline.withValues(alpha: 0.12)),
       ),
       child: InkWell(
         onTap: () {
@@ -285,8 +284,9 @@ class _FarmScreenState extends State<FarmScreen> {
 
     // Static Maps APIのURLを生成
     // キャッシュバスター: farm.idとupdatedAtを使用（変更時のみ再生成）
-    final cacheBuster = '${farm.id}_${farm.updatedAt?.millisecondsSinceEpoch ?? farm.createdAt?.millisecondsSinceEpoch ?? DateTime.now().millisecondsSinceEpoch}';
-    
+    final cacheBuster =
+        '${farm.id}_${farm.updatedAt?.millisecondsSinceEpoch ?? farm.createdAt?.millisecondsSinceEpoch ?? DateTime.now().millisecondsSinceEpoch}';
+
     final mapUrl = buildStaticMapUrl(
       boundaryPoints: boundaryPoints,
       apiKey: _googleMapsApiKey!,
@@ -330,10 +330,7 @@ class _FarmScreenState extends State<FarmScreen> {
     );
   }
 
-  void _logStaticMapFailure({
-    required int farmId,
-    required Object error,
-  }) {
+  void _logStaticMapFailure({required int farmId, required Object error}) {
     debugPrint(
       'Static map thumbnail load failed '
       '(farmId=$farmId, errorType=${error.runtimeType})',
@@ -376,9 +373,7 @@ class _FarmScreenState extends State<FarmScreen> {
       decoration: BoxDecoration(
         color: colorScheme.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(borderRadius),
-        border: Border.all(
-          color: colorScheme.outline.withValues(alpha: 0.20),
-        ),
+        border: Border.all(color: colorScheme.outline.withValues(alpha: 0.20)),
       ),
       child: Center(
         child: Text(
@@ -480,7 +475,6 @@ class _FarmScreenState extends State<FarmScreen> {
     return Scaffold(
       backgroundColor: colorScheme.surface,
       appBar: AppBar(
-        automaticallyImplyLeading: false,
         title: Text(
           '圃場管理',
           style: theme.textTheme.titleLarge?.copyWith(
@@ -495,9 +489,7 @@ class _FarmScreenState extends State<FarmScreen> {
         builder: (context, userProvider, child) {
           if (_isLoading && _farms.isEmpty) {
             return Center(
-              child: CircularProgressIndicator(
-                color: colorScheme.primary,
-              ),
+              child: CircularProgressIndicator(color: colorScheme.primary),
             );
           }
 
@@ -585,9 +577,8 @@ class _FarmScreenState extends State<FarmScreen> {
           final result = await Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (context) => FarmFormScreen(
-                farmRepository: _farmRepository,
-              ),
+              builder: (context) =>
+                  FarmFormScreen(farmRepository: _farmRepository),
             ),
           );
 
@@ -604,4 +595,3 @@ class _FarmScreenState extends State<FarmScreen> {
     );
   }
 }
-
