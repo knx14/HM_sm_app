@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:package_info_plus/package_info_plus.dart';
+
+import 'faq_screen.dart';
 
 class HelpScreen extends StatelessWidget {
   const HelpScreen({super.key});
@@ -32,7 +35,12 @@ class HelpScreen extends StatelessWidget {
             icon: Icons.help_outline,
             title: 'よくある質問（FAQ）',
             subtitle: '測定失敗・同期エラーなど',
-            onTap: () => _showPreparing(context),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const FaqScreen()),
+              );
+            },
           ),
           const SizedBox(height: 12),
           _HelpCard(
@@ -46,11 +54,17 @@ class HelpScreen extends StatelessWidget {
             icon: Icons.info_outline,
             title: 'アプリ情報',
             subtitle: '利用規約・ライセンス',
-            onTap: () {
+            onTap: () async {
+              final info = await PackageInfo.fromPlatform();
+              if (!context.mounted) return;
               showAboutDialog(
                 context: context,
                 applicationName: 'HenryMonitor',
-                applicationVersion: '1.0.0+1',
+                applicationVersion: 'v${info.version} (${info.buildNumber})',
+                children: const [
+                  SizedBox(height: 8),
+                  Text('磁界式センサーと機械学習による土壌成分分析アプリ'),
+                ],
               );
             },
           ),

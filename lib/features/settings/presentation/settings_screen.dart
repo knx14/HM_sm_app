@@ -1,16 +1,47 @@
 import 'package:flutter/material.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:provider/provider.dart';
 
 import '../../../app/routes.dart';
 import '../../../providers/user_provider.dart';
 import '../../auth/data/amplify_auth_service.dart';
 import '../../auth/domain/auth_repository.dart';
-import '../../measure/data/measurement_upload_service.dart';
-import '../../measure/domain/measure_settings.dart';
-import '../../measure/presentation/measurement_settings_sheet.dart';
+import '../../measure/domain/measure_settings_store.dart';
+import 'measurement_params_screen.dart';
 
-class SettingsScreen extends StatelessWidget {
+class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
+
+  @override
+  State<SettingsScreen> createState() => _SettingsScreenState();
+}
+
+class _SettingsScreenState extends State<SettingsScreen> {
+  final MeasureSettingsStore _measureSettingsStore = MeasureSettingsStore();
+  String _version = '-';
+  String _buildNumber = '-';
+  String _selectedSensor = '0';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadInfo();
+  }
+
+  Future<void> _loadInfo() async {
+    final results = await Future.wait([
+      PackageInfo.fromPlatform(),
+      _measureSettingsStore.load(),
+    ]);
+    if (!mounted) return;
+    final packageInfo = results[0] as PackageInfo;
+    final measureSettings = results[1] as StoredMeasureSettings;
+    setState(() {
+      _version = packageInfo.version;
+      _buildNumber = packageInfo.buildNumber;
+      _selectedSensor = measureSettings.selectedSensor;
+    });
+  }
 
   Future<void> _confirmLogout(BuildContext context) async {
     final ok = await showDialog<bool>(
@@ -62,7 +93,7 @@ class SettingsScreen extends StatelessWidget {
       ),
       body: ListView(
         children: [
-          _SectionHeader('アカウント'),
+          const _SectionHeader('アカウント'),
           ListTile(
             title: const Text('ユーザーID'),
             subtitle: Text(user.userId ?? '未取得'),
@@ -77,10 +108,10 @@ class SettingsScreen extends StatelessWidget {
           ),
           const Divider(height: 1),
           const _SectionHeader('通信'),
-          const ListTile(
-            title: Text('測定機器'),
-            subtitle: Text('測定画面で接続状態を確認します'),
-            leading: Icon(Icons.usb_outlined),
+          ListTile(
+            title: const Text('測定機器'),
+            subtitle: Text('TypeD 測定センサー / Sensor $_selectedSensor'),
+            leading: const Icon(Icons.usb_outlined),
           ),
           const ListTile(
             title: Text('同期方式'),
@@ -91,22 +122,25 @@ class SettingsScreen extends StatelessWidget {
           const _SectionHeader('システム'),
           ListTile(
             title: const Text('測定条件の設定'),
-            subtitle: const Text('既存の詳細設定UIを開きます'),
+            subtitle: const Text('測定パラメータとセンサー番号を保存します'),
             leading: const Icon(Icons.tune),
             trailing: const Icon(Icons.chevron_right),
-            onTap: () {
-              Navigator.push(
+            onTap: () async {
+              await Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (_) => const MeasurementConditionsScreen(),
+                  builder: (_) => const MeasurementParamsScreen(),
                 ),
               );
+              if (context.mounted) {
+                await _loadInfo();
+              }
             },
           ),
-          const ListTile(
-            title: Text('バージョン'),
-            subtitle: Text('1.0.0+1'),
-            leading: Icon(Icons.info_outline),
+          ListTile(
+            title: const Text('バージョン'),
+            subtitle: Text('v$_version ($_buildNumber)'),
+            leading: const Icon(Icons.info_outline),
           ),
           const ListTile(
             title: Text('利用規約'),
@@ -115,95 +149,6 @@ class SettingsScreen extends StatelessWidget {
             trailing: Icon(Icons.chevron_right),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class MeasurementConditionsScreen extends StatefulWidget {
-  const MeasurementConditionsScreen({super.key});
-
-  @override
-  State<MeasurementConditionsScreen> createState() =>
-      _MeasurementConditionsScreenState();
-}
-
-class _MeasurementConditionsScreenState
-    extends State<MeasurementConditionsScreen> {
-  final _fstart = TextEditingController(
-    text: MeasureSettings.defaults.fstart.toString(),
-  );
-  final _fdelta = TextEditingController(
-    text: MeasureSettings.defaults.fdelta.toString(),
-  );
-  final _points = TextEditingController(
-    text: MeasureSettings.defaults.points.toString(),
-  );
-  final _excite = TextEditingController(
-    text: MeasureSettings.defaults.excite.toString(),
-  );
-  final _range = TextEditingController(
-    text: MeasureSettings.defaults.range.toString(),
-  );
-  final _integrate = TextEditingController(
-    text: MeasureSettings.defaults.integrate.toString(),
-  );
-  final _average = TextEditingController(
-    text: MeasureSettings.defaults.average.toString(),
-  );
-  final _note1 = TextEditingController();
-  final _note2 = TextEditingController();
-  final _logController = TextEditingController();
-  final _uploadLogController = TextEditingController();
-  final _logScrollController = ScrollController();
-  final _uploadLogScrollController = ScrollController();
-  String _selectedSensor = '0';
-
-  @override
-  void dispose() {
-    _fstart.dispose();
-    _fdelta.dispose();
-    _points.dispose();
-    _excite.dispose();
-    _range.dispose();
-    _integrate.dispose();
-    _average.dispose();
-    _note1.dispose();
-    _note2.dispose();
-    _logController.dispose();
-    _uploadLogController.dispose();
-    _logScrollController.dispose();
-    _uploadLogScrollController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      body: MeasurementSettingsSheet(
-        isConnected: false,
-        isMeasuring: false,
-        isUploading: false,
-        fstart: _fstart,
-        fdelta: _fdelta,
-        points: _points,
-        excite: _excite,
-        range: _range,
-        integrate: _integrate,
-        average: _average,
-        note1: _note1,
-        note2: _note2,
-        selectedSensor: _selectedSensor,
-        onSensorChanged: (value) => setState(() => _selectedSensor = value),
-        onSendId: () {},
-        onSendList: () {},
-        onSendStore: () {},
-        onSendRecall: () {},
-        logController: _logController,
-        logScrollController: _logScrollController,
-        uploadLogController: _uploadLogController,
-        uploadLogScrollController: _uploadLogScrollController,
-        uploadPhase: UploadPhase.idle,
       ),
     );
   }
