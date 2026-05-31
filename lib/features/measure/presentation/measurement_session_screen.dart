@@ -36,7 +36,7 @@ class _SpotProgress {
   });
 
   final String id;
-  final LatLng position;
+  LatLng position;
   final DateTime createdAt;
   int percent = 0;
   bool saveDone = false;
@@ -115,6 +115,7 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
   final List<ChartData> _chartData = [];
   final List<_SpotProgress> _spots = <_SpotProgress>[];
   _SpotProgress? _activeSpot;
+  String? _correctingSpotId;
   final Map<String, BitmapDescriptor> _markerIconCache =
       <String, BitmapDescriptor>{};
   Completer<bool>? _execCompleter;
@@ -914,6 +915,14 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
     _refreshSpotIcon(spot);
   }
 
+  _SpotProgress? _spotById(String? id) {
+    if (id == null) return null;
+    for (final spot in _spots) {
+      if (spot.id == id) return spot;
+    }
+    return null;
+  }
+
   Future<void> _markSpotSaved(_SpotProgress spot) async {
     spot.saveDone = true;
     await _refreshSpotIcon(spot);
@@ -1066,6 +1075,10 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
             // rebuild 時に自動計算されるため、同期ずれが原理的に起きない。
             setState(() {
               _confirmedLocation = p;
+              final correctingSpot = _spotById(_correctingSpotId);
+              if (correctingSpot != null) {
+                correctingSpot.position = p;
+              }
             });
           },
         ),
@@ -1117,6 +1130,17 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
                   ),
                 ],
               ),
+            ),
+          ),
+        if (_correctingSpotId != null)
+          Positioned(
+            top: 72,
+            left: 12,
+            right: 12,
+            child: _PinCorrectionBanner(
+              spotNumber:
+                  _spots.indexWhere((spot) => spot.id == _correctingSpotId) + 1,
+              onDone: () => setState(() => _correctingSpotId = null),
             ),
           ),
         Positioned(
@@ -1231,6 +1255,7 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
   }
 
   Widget _buildBottomMeasureButton() {
+    final isCorrectingSpot = _correctingSpotId != null;
     return SafeArea(
       top: false,
       child: Padding(
@@ -1240,13 +1265,21 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
           height: 52,
           child: FilledButton.icon(
             style: FilledButton.styleFrom(
-              backgroundColor: _canStartMeasurement
+              backgroundColor: isCorrectingSpot
+                  ? const Color(0xFF2E5C39)
+                  : _canStartMeasurement
                   ? const Color(0xFFB02020)
                   : Colors.grey.shade400,
               foregroundColor: Colors.white,
             ),
-            onPressed: _canStartMeasurement ? _startMeasureSequence : null,
-            icon: _isMeasuring
+            onPressed: isCorrectingSpot
+                ? _confirmPinCorrection
+                : _canStartMeasurement
+                ? _startMeasureSequence
+                : null,
+            icon: isCorrectingSpot
+                ? const Icon(Icons.check)
+                : _isMeasuring
                 ? const SizedBox(
                     width: 18,
                     height: 18,
@@ -1256,11 +1289,22 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
                     ),
                   )
                 : const Icon(Icons.play_arrow_rounded),
-            label: Text(_isMeasuring ? '測定中...' : '測定開始'),
+            label: Text(
+              isCorrectingSpot
+                  ? '位置を確定'
+                  : _isMeasuring
+                  ? '測定中...'
+                  : '測定開始',
+            ),
           ),
         ),
       ),
     );
+  }
+
+  void _confirmPinCorrection() {
+    setState(() => _correctingSpotId = null);
+    _openMeasurementList();
   }
 
   void _openMeasurementList() {
@@ -1276,10 +1320,15 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
               if (_activeSpot != null && ids.contains(_activeSpot!.id)) {
                 _activeSpot = null;
               }
+              if (_correctingSpotId != null &&
+                  ids.contains(_correctingSpotId)) {
+                _correctingSpotId = null;
+              }
             });
           },
           onCorrectSpot: (spot) {
             setState(() {
+              _correctingSpotId = spot.id;
               _confirmedLocation = spot.position;
               _showMapHint = true;
             });
@@ -1440,6 +1489,44 @@ class _ActionStatusChip extends StatelessWidget {
                     ],
                   ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PinCorrectionBanner extends StatelessWidget {
+  const _PinCorrectionBanner({required this.spotNumber, required this.onDone});
+
+  final int spotNumber;
+  final VoidCallback onDone;
+
+  @override
+  Widget build(BuildContext context) {
+    final numberLabel = spotNumber > 0 ? '測定点 $spotNumber' : '選択中の測定点';
+    return Material(
+      color: Colors.black87,
+      borderRadius: BorderRadius.circular(10),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 8, 6, 8),
+        child: Row(
+          children: [
+            const Icon(Icons.edit_location_alt, color: Colors.white, size: 18),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                '$numberLabel の位置修正中。地図をタップするとピンが移動します。',
+                style: const TextStyle(color: Colors.white, fontSize: 13),
+              ),
+            ),
+            TextButton(
+              onPressed: onDone,
+              child: const Text(
+                '完了',
+                style: TextStyle(color: Color(0xFF7DD3A8)),
+              ),
+            ),
+          ],
         ),
       ),
     );
