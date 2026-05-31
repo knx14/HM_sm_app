@@ -21,6 +21,7 @@ import '../data/serial_comm_android.dart';
 import '../domain/app_settings.dart';
 import '../domain/chart_data.dart';
 import '../domain/measure_settings.dart';
+import '../domain/measure_settings_store.dart';
 import '../domain/measurement_parser.dart';
 import '../domain/measurement_service.dart';
 import 'farm_select_screen.dart';
@@ -84,6 +85,7 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
   final _note1 = TextEditingController();
   final _note2 = TextEditingController();
   final AppSettings _settings = AppSettings();
+  final MeasureSettingsStore _measureSettingsStore = MeasureSettingsStore();
   final PendingUploadStore _pendingUploadStore = PendingUploadStore();
 
   bool _isConnected = false;
@@ -145,6 +147,24 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
     super.initState();
     SerialComm.init(_onReceive);
     SerialComm.addDisconnectListener(_onUsbDisconnected);
+    _loadSavedMeasureSettings();
+  }
+
+  Future<void> _loadSavedMeasureSettings() async {
+    final stored = await _measureSettingsStore.load();
+    if (!mounted) return;
+    final settings = stored.settings;
+    setState(() {
+      _fstart.text = settings.fstart.toString();
+      _fdelta.text = settings.fdelta.toString();
+      _points.text = settings.points.toString();
+      _excite.text = settings.excite.toString();
+      _range.text = settings.range.toString();
+      _integrate.text = settings.integrate.toString();
+      _average.text = settings.average.toString();
+      _selectedSensor = stored.selectedSensor;
+    });
+    _updateSettings();
   }
 
   @override
