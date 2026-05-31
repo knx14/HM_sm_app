@@ -12,6 +12,7 @@ class TimelineNotifier extends ChangeNotifier {
 
   List<TimelineItem> _items = const [];
   bool _isLoading = false;
+  bool _isRefreshing = false;
   String? _error;
 
   List<TimelineItem> get items => _items;
@@ -19,7 +20,15 @@ class TimelineNotifier extends ChangeNotifier {
   String? get error => _error;
 
   Future<void> loadInitial() => _load();
-  Future<void> reload() => _load();
+  Future<void> reload() async {
+    if (_isRefreshing) return;
+    _isRefreshing = true;
+    try {
+      await _load();
+    } finally {
+      _isRefreshing = false;
+    }
+  }
 
   Future<void> _load() async {
     _isLoading = true;

@@ -56,6 +56,8 @@ class _TimeseriesView extends StatelessWidget {
                   SizedBox(height: 280, child: _TimeseriesChart(data: data)),
                   const SizedBox(height: 12),
                   const _LegendRow(),
+                  const SizedBox(height: 12),
+                  _WorkLogSummaryCard(workLogs: data.workLogs),
                   if (state.isLoading)
                     const Padding(
                       padding: EdgeInsets.only(top: 8),
@@ -66,6 +68,97 @@ class _TimeseriesView extends StatelessWidget {
             ),
           ),
       ],
+    );
+  }
+}
+
+class _WorkLogSummaryCard extends StatelessWidget {
+  const _WorkLogSummaryCard({required this.workLogs});
+
+  final List<WorkLogMark> workLogs;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Card(
+      elevation: 0,
+      color: colorScheme.surfaceContainerLow,
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('作業ログ', style: TextStyle(fontWeight: FontWeight.w800)),
+            const SizedBox(height: 8),
+            if (workLogs.isEmpty)
+              Text(
+                'この期間の作業ログはありません',
+                style: TextStyle(
+                  color: colorScheme.onSurface.withValues(alpha: 0.62),
+                  fontSize: 12,
+                ),
+              )
+            else
+              ...workLogs.map((mark) => _WorkLogSummaryRow(mark: mark)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _WorkLogSummaryRow extends StatelessWidget {
+  const _WorkLogSummaryRow({required this.mark});
+
+  final WorkLogMark mark;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = _workTypeColor(mark.workType);
+    final title = mark.title?.trim();
+    final detail = mark.detail?.trim();
+    final amount = mark.amountValue == null
+        ? null
+        : '${mark.amountValue!.toStringAsFixed(1)} ${mark.amountUnit ?? ''}'
+              .trim();
+    final content = [
+      _workTypeLabel(mark.workType),
+      if (title != null && title.isNotEmpty) title,
+      if (detail != null && detail.isNotEmpty) detail,
+      if (amount != null && amount.isNotEmpty) amount,
+    ].join(' / ');
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 5),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 8,
+            height: 8,
+            margin: const EdgeInsets.only(top: 7),
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+          ),
+          const SizedBox(width: 8),
+          SizedBox(
+            width: 48,
+            child: Text(
+              _shortDate(mark.date),
+              style: TextStyle(
+                color: Theme.of(
+                  context,
+                ).colorScheme.onSurface.withValues(alpha: 0.62),
+                fontSize: 12,
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              content,
+              style: const TextStyle(fontWeight: FontWeight.w700),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -176,14 +269,190 @@ class _TimeseriesChart extends StatelessWidget {
       color: Theme.of(context).colorScheme.surfaceContainerLow,
       child: Padding(
         padding: const EdgeInsets.fromLTRB(8, 14, 12, 8),
-        child: CustomPaint(
-          painter: _TimeseriesChartPainter(
-            points: data.points,
-            workLogs: data.workLogs,
-            textColor: Theme.of(context).colorScheme.onSurface,
-          ),
-          child: const SizedBox.expand(),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            return GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTapUp: (details) {
+                final index = _pointIndexAt(
+                  details.localPosition,
+                  constraints.biggest,
+                  data.points.length,
+                );
+                if (index == null) return;
+                _showMeasurementDetail(context, data, data.points[index]);
+              },
+              child: CustomPaint(
+                painter: _TimeseriesChartPainter(
+                  points: data.points,
+                  workLogs: data.workLogs,
+                  textColor: Theme.of(context).colorScheme.onSurface,
+                ),
+                child: const SizedBox.expand(),
+              ),
+            );
+          },
         ),
+      ),
+    );
+  }
+
+  int? _pointIndexAt(Offset tap, Size size, int pointCount) {
+    if (pointCount == 0) return null;
+    final chart = _TimeseriesChartPainter.chartRectFor(size);
+    if (!chart.inflate(16).contains(tap)) return null;
+    if (pointCount == 1) return 0;
+
+    final position = ((tap.dx - chart.left) / chart.width).clamp(0.0, 1.0);
+    final index = (position * (pointCount - 1)).round();
+    final pointX = chart.left + chart.width * index / (pointCount - 1);
+    return (tap.dx - pointX).abs() <= 24 ? index : null;
+  }
+
+  void _showMeasurementDetail(
+    BuildContext context,
+    TimeseriesResult data,
+    TimeseriesPoint point,
+  ) {
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (_) => _MeasurementDetailSheet(
+        date: point.date,
+        parameter: data.parameter,
+        unit: data.unit,
+        avg: point.avg,
+        minVal: point.min,
+        maxVal: point.max,
+        count: point.count,
+      ),
+    );
+  }
+}
+
+class _MeasurementDetailSheet extends StatelessWidget {
+  const _MeasurementDetailSheet({
+    required this.date,
+    required this.parameter,
+    required this.avg,
+    required this.minVal,
+    required this.maxVal,
+    required this.count,
+    this.unit,
+  });
+
+  final String date;
+  final String parameter;
+  final String? unit;
+  final double avg;
+  final double minVal;
+  final double maxVal;
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              date,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: Theme.of(
+                  context,
+                ).colorScheme.onSurface.withValues(alpha: 0.62),
+                fontSize: 13,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              '$parameter 測定値',
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(height: 18),
+            Row(
+              children: [
+                Expanded(
+                  child: _StatBox(label: '圃場平均', value: avg, unit: unit),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _StatBox(label: '最小', value: minVal, unit: unit),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _StatBox(label: '最大', value: maxVal, unit: unit),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Text(
+              '$count 測定点の集計値',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: Theme.of(
+                  context,
+                ).colorScheme.onSurface.withValues(alpha: 0.62),
+                fontSize: 12,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _StatBox extends StatelessWidget {
+  const _StatBox({required this.label, required this.value, this.unit});
+
+  final String label;
+  final double value;
+  final String? unit;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+      decoration: BoxDecoration(
+        color: Theme.of(
+          context,
+        ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.62),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        children: [
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 11,
+              color: Theme.of(
+                context,
+              ).colorScheme.onSurface.withValues(alpha: 0.62),
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            value.toStringAsFixed(1),
+            style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
+          ),
+          if (unit != null)
+            Text(
+              unit!,
+              style: TextStyle(
+                fontSize: 11,
+                color: Theme.of(
+                  context,
+                ).colorScheme.onSurface.withValues(alpha: 0.62),
+              ),
+            ),
+        ],
       ),
     );
   }
@@ -200,20 +469,25 @@ class _TimeseriesChartPainter extends CustomPainter {
   final List<WorkLogMark> workLogs;
   final Color textColor;
 
-  @override
-  void paint(Canvas canvas, Size size) {
-    if (points.isEmpty) return;
+  static const left = 44.0;
+  static const right = 10.0;
+  static const top = 12.0;
+  static const bottom = 38.0;
 
-    const left = 44.0;
-    const right = 10.0;
-    const top = 12.0;
-    const bottom = 38.0;
-    final chart = Rect.fromLTWH(
+  static Rect chartRectFor(Size size) {
+    return Rect.fromLTWH(
       left,
       top,
       size.width - left - right,
       size.height - top - bottom,
     );
+  }
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (points.isEmpty) return;
+
+    final chart = chartRectFor(size);
     if (chart.width <= 0 || chart.height <= 0) return;
 
     final minY = points.map((p) => p.min).reduce(math.min);
@@ -225,6 +499,26 @@ class _TimeseriesChartPainter extends CustomPainter {
     double xFor(int index) {
       if (points.length == 1) return chart.center.dx;
       return chart.left + chart.width * index / (points.length - 1);
+    }
+
+    double? xForDate(String date) {
+      final parsed = DateTime.tryParse(_dateKey(date));
+      final first = DateTime.tryParse(_dateKey(points.first.date));
+      final last = DateTime.tryParse(_dateKey(points.last.date));
+      if (parsed == null || first == null || last == null) {
+        final exactIndex = points.indexWhere(
+          (p) => _dateKey(p.date) == _dateKey(date),
+        );
+        return exactIndex < 0 ? null : xFor(exactIndex);
+      }
+      if (last.isAtSameMomentAs(first)) {
+        return parsed.isAtSameMomentAs(first) ? chart.center.dx : null;
+      }
+      if (parsed.isBefore(first) || parsed.isAfter(last)) return null;
+      final totalDays = last.difference(first).inSeconds;
+      if (totalDays <= 0) return null;
+      final offsetDays = parsed.difference(first).inSeconds;
+      return chart.left + chart.width * (offsetDays / totalDays);
     }
 
     double yFor(double value) {
@@ -247,21 +541,26 @@ class _TimeseriesChartPainter extends CustomPainter {
       );
     }
 
-    final workDates = {
-      for (var i = 0; i < points.length; i++) points[i].date: i,
-    };
     final workPaint = Paint()
       ..color = Colors.orange.withValues(alpha: 0.75)
       ..strokeWidth = 1.4;
     for (final mark in workLogs) {
-      final index = workDates[mark.date];
-      if (index == null) continue;
-      final x = xFor(index);
+      final x = xForDate(mark.date);
+      if (x == null) continue;
       _drawDashedLine(
         canvas,
         Offset(x, chart.top),
         Offset(x, chart.bottom),
         workPaint,
+      );
+      _drawText(
+        canvas,
+        mark.title?.isNotEmpty == true
+            ? mark.title!
+            : _workTypeLabel(mark.workType),
+        Offset(x + 3, chart.top + 2),
+        fontSize: 9,
+        color: Colors.orange.shade800,
       );
     }
 
@@ -358,12 +657,42 @@ class _TimeseriesChartPainter extends CustomPainter {
     return date;
   }
 
+  String _dateKey(String date) =>
+      date.length >= 10 ? date.substring(0, 10) : date;
+
   @override
   bool shouldRepaint(covariant _TimeseriesChartPainter oldDelegate) {
     return oldDelegate.points != points ||
         oldDelegate.workLogs != workLogs ||
         oldDelegate.textColor != textColor;
   }
+}
+
+String _shortDate(String date) {
+  if (date.length >= 10) {
+    return '${date.substring(5, 7)}/${date.substring(8, 10)}';
+  }
+  return date;
+}
+
+String _workTypeLabel(String workType) {
+  return switch (workType) {
+    'fertilization' => '施肥',
+    'tillage' => '耕うん',
+    'pesticide' => '農薬',
+    'harvest' => '収穫',
+    _ => '作業',
+  };
+}
+
+Color _workTypeColor(String workType) {
+  return switch (workType) {
+    'fertilization' => const Color(0xFFB85C00),
+    'tillage' => const Color(0xFF7A4525),
+    'pesticide' => const Color(0xFF5A2D82),
+    'harvest' => const Color(0xFFB8860B),
+    _ => const Color(0xFF6B7E68),
+  };
 }
 
 class _LegendRow extends StatelessWidget {

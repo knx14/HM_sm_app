@@ -95,7 +95,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         children: [
           const _SectionHeader('アカウント'),
           ListTile(
-            title: const Text('ユーザーID'),
+            title: Text(user.displayName),
             subtitle: Text(user.userId ?? '未取得'),
             leading: const Icon(Icons.person_outline),
           ),

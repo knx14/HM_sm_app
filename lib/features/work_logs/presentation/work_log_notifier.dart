@@ -4,13 +4,18 @@ import '../data/work_log_repository.dart';
 import '../domain/work_log_entry.dart';
 
 class WorkLogNotifier extends ChangeNotifier {
-  WorkLogNotifier({required this.farmId, WorkLogRepository? repository})
-    : _repository = repository ?? WorkLogRepository() {
+  WorkLogNotifier({
+    required this.farmId,
+    WorkLogRepository? repository,
+    int? editWorkLogId,
+  }) : _repository = repository ?? WorkLogRepository(),
+       _editWorkLogId = editWorkLogId {
     workDate = _formatDate(DateTime.now());
   }
 
   final int farmId;
   final WorkLogRepository _repository;
+  final int? _editWorkLogId;
 
   int step = 0;
   WorkType? workType;
@@ -25,6 +30,29 @@ class WorkLogNotifier extends ChangeNotifier {
   String? saveError;
 
   bool get isSaveComplete => saveQueued != null && saveError == null;
+  bool get isEditMode => _editWorkLogId != null;
+
+  factory WorkLogNotifier.forEdit({
+    required int farmId,
+    required int workLogId,
+    required WorkLogEntry initial,
+    WorkLogRepository? repository,
+  }) {
+    final notifier = WorkLogNotifier(
+      farmId: farmId,
+      repository: repository,
+      editWorkLogId: workLogId,
+    );
+    notifier
+      ..workType = WorkType.fromValue(initial.workType)
+      ..workDate = initial.workDate
+      ..title = initial.title ?? ''
+      ..detail = initial.detail ?? ''
+      ..amountText = initial.amountValue?.toString() ?? ''
+      ..amountUnit = initial.amountUnit ?? unitPresets.first
+      ..step = 1;
+    return notifier;
+  }
 
   void selectWorkType(WorkType value) {
     workType = value;
@@ -79,8 +107,14 @@ class WorkLogNotifier extends ChangeNotifier {
     );
 
     try {
-      final result = await _repository.create(farmId: farmId, entry: entry);
-      saveQueued = result.queued;
+      final editWorkLogId = _editWorkLogId;
+      if (editWorkLogId == null) {
+        final result = await _repository.create(farmId: farmId, entry: entry);
+        saveQueued = result.queued;
+      } else {
+        await _repository.update(workLogId: editWorkLogId, entry: entry);
+        saveQueued = false;
+      }
     } catch (e) {
       saveError = '保存に失敗しました';
     } finally {
