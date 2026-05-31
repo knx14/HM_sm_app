@@ -89,6 +89,7 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
   final PendingUploadStore _pendingUploadStore = PendingUploadStore();
 
   bool _isConnected = false;
+  bool _isConnecting = false;
   bool _isMeasuring = false;
   bool _isFetchingCurrentLocation = false;
   int _receivedPoints = 0;
@@ -127,6 +128,9 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
       _uploadPhase == UploadPhase.initCalling ||
       _uploadPhase == UploadPhase.uploading ||
       _uploadPhase == UploadPhase.completing;
+
+  bool get _isSerialBusy =>
+      _isConnecting || _isRecalling || _bgIsMeasuring || _isMeasuring;
 
   List<LatLng> get _farmPolygon => (_selectedFarm?.boundaryPolygon ?? const [])
       .map((e) => LatLng(e['lat'] ?? 0, e['lng'] ?? 0))
@@ -249,6 +253,7 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
     setState(() {
       _isConnected = false;
       _currentStep = SessionStep.connect;
+      _isConnecting = false;
       _isRecalling = false;
       _recallDone = false;
       _bgIsMeasuring = false;
@@ -262,14 +267,24 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
   void _setupSerialComm() => SerialComm.init(_onReceive);
 
   Future<void> _connect() async {
-    final success = await SerialComm.connect();
-    if (success) {
-      _setupSerialComm();
+    if (_isSerialBusy) return;
+    setState(() => _isConnecting = true);
+    var success = false;
+    try {
+      success = await SerialComm.connect();
+      if (success) {
+        _setupSerialComm();
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isConnecting = false;
+          _isConnected = success;
+          _currentStep = SessionStep.connect;
+        });
+      }
     }
-    setState(() {
-      _isConnected = success;
-      _currentStep = SessionStep.connect;
-    });
+    if (!mounted) return;
     _appendLog(
       success
           ? '${AppConstants.messageConnectionSuccess}\n'
@@ -303,24 +318,25 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
   }
 
   void _sendIDCommand() {
-    if (!_isConnected || _isMeasuring) return;
+    if (!_isConnected || _isSerialBusy) return;
     MeasurementService.sendIdCommand();
   }
 
   void _sendListCommand() {
-    if (!_isConnected || _isMeasuring) return;
+    if (!_isConnected || _isSerialBusy) return;
     MeasurementService.sendListCommand();
   }
 
   void _sendStoreCommand() {
-    if (!_isConnected || _isMeasuring) return;
+    if (!_isConnected || _isSerialBusy) return;
     MeasurementService.sendStoreCommand(_selectedSensor);
   }
 
   void _sendRecallCommand() {
-    if (!_isConnected || _isMeasuring) return;
+    if (!_isConnected || _isSerialBusy) return;
     MeasurementService.sendListCommand();
     Future.delayed(const Duration(milliseconds: 300), () {
+      if (!mounted || _isSerialBusy) return;
       final lines = _logController.text.split('\n');
       for (final line in lines) {
         if (line.trim().startsWith(_selectedSensor)) {
@@ -359,6 +375,7 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
       _appendLog('${AppConstants.errorConnectFirst}\n');
       return;
     }
+    if (_isSerialBusy) return;
     _updateSettings();
     setState(() {
       _logController.clear();
@@ -376,7 +393,7 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
   }
 
   Future<void> _openFarmSelection({required bool clearSpots}) async {
-    if (_isSelectingFarm) return;
+    if (_isSelectingFarm || _isSerialBusy) return;
     _isSelectingFarm = true;
     if (clearSpots) {
       setState(() {
@@ -423,6 +440,7 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
   }
 
   Future<void> _fetchCurrentLocation({bool moveCamera = true}) async {
+    if (_isSerialBusy) return;
     setState(() => _isFetchingCurrentLocation = true);
     try {
       final serviceEnabled = await Geolocator.isLocationServiceEnabled();
@@ -493,7 +511,7 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
   }
 
   Future<void> _startMeasureSequence() async {
-    if (_isMeasuring || _selectedFarm == null) return;
+    if (_isSerialBusy || _selectedFarm == null) return;
     var point = _confirmedLocation;
     final polygon = _farmPolygon;
     if (point == null && polygon.isNotEmpty) {
@@ -1003,7 +1021,7 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
           heightFactor: 0.92,
           child: MeasurementSettingsSheet(
             isConnected: _isConnected,
-            isMeasuring: _isMeasuring,
+            isMeasuring: _isSerialBusy,
             isUploading: _isUploading,
             fstart: _fstart,
             fdelta: _fdelta,
@@ -1054,7 +1072,7 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
               ),
               const SizedBox(height: 16),
               FilledButton.icon(
-                onPressed: _isMeasuring
+                onPressed: _isSerialBusy
                     ? null
                     : () => _openFarmSelection(clearSpots: true),
                 icon: const Icon(Icons.agriculture),
@@ -1091,6 +1109,7 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
           },
           markers: _buildMarkers(),
           onTap: (p) {
+            if (_isSerialBusy) return;
             // 赤マーカー位置を更新。ステータスは _markerGeoStatus getter で
             // rebuild 時に自動計算されるため、同期ずれが原理的に起きない。
             setState(() {
@@ -1109,7 +1128,7 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
             heroTag: 'measurement_list_button',
             backgroundColor: Colors.white,
             foregroundColor: Colors.black87,
-            onPressed: _isMeasuring
+            onPressed: _isSerialBusy
                 ? null
                 : () {
                     _openMeasurementList();
@@ -1142,7 +1161,9 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
                     ),
                   ),
                   GestureDetector(
-                    onTap: () => setState(() => _showMapHint = false),
+                    onTap: _isSerialBusy
+                        ? null
+                        : () => setState(() => _showMapHint = false),
                     child: const Padding(
                       padding: EdgeInsets.all(4),
                       child: Icon(Icons.close, color: Colors.white, size: 18),
@@ -1170,7 +1191,7 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
             heroTag: 'current_location_button',
             backgroundColor: Colors.white,
             foregroundColor: Colors.black87,
-            onPressed: _isFetchingCurrentLocation
+            onPressed: (_isFetchingCurrentLocation || _isSerialBusy)
                 ? null
                 : () => _fetchCurrentLocation(moveCamera: true),
             child: _isFetchingCurrentLocation
@@ -1219,7 +1240,7 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
         _recallDone &&
         _bgDone &&
         _selectedFarm != null &&
-        !_isMeasuring &&
+        !_isSerialBusy &&
         _markerGeoStatus != GeoFenceStatus.outside;
   }
 
@@ -1244,7 +1265,7 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
               label: _selectedFarm?.farmName ?? '圃場を選択',
               isDone: _selectedFarm != null,
               isLoading: _isSelectingFarm,
-              onTap: _isMeasuring
+              onTap: _isSerialBusy
                   ? null
                   : () => _openFarmSelection(clearSpots: true),
             ),
@@ -1254,8 +1275,8 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
             label: '接続',
             subLabel: 'センサ',
             isDone: _isConnected && _recallDone,
-            isLoading: _isRecalling,
-            onTap: (_isConnected && _recallDone) || _isRecalling
+            isLoading: _isConnecting || _isRecalling,
+            onTap: (_isConnected && _recallDone) || _isSerialBusy
                 ? null
                 : _connect,
           ),
@@ -1265,7 +1286,7 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
             subLabel: '基準',
             isDone: _bgDone,
             isLoading: _bgIsMeasuring,
-            onTap: (_isConnected && _recallDone && !_bgDone && !_bgIsMeasuring)
+            onTap: (_isConnected && _recallDone && !_bgDone && !_isSerialBusy)
                 ? _startBg
                 : null,
           ),
@@ -1292,7 +1313,7 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
                   : Colors.grey.shade400,
               foregroundColor: Colors.white,
             ),
-            onPressed: isCorrectingSpot
+            onPressed: isCorrectingSpot && !_isSerialBusy
                 ? _confirmPinCorrection
                 : _canStartMeasurement
                 ? _startMeasureSequence
@@ -1323,11 +1344,13 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
   }
 
   void _confirmPinCorrection() {
+    if (_isSerialBusy) return;
     setState(() => _correctingSpotId = null);
     _openMeasurementList();
   }
 
   void _openMeasurementList() {
+    if (_isSerialBusy) return;
     Navigator.push<void>(
       context,
       MaterialPageRoute(
@@ -1361,27 +1384,28 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('測定'),
-        actions: [
-          IconButton(
-            onPressed: (_isMeasuring || _bgIsMeasuring || _isRecalling)
-                ? null
-                : _openSettings,
-            icon: const Icon(Icons.settings),
-            tooltip: '設定',
-          ),
-        ],
-      ),
-      body: Column(
-        children: [
-          _buildTopStatusBar(),
-          if (_bgIsMeasuring)
-            LinearProgressIndicator(value: _bgProgress.clamp(0.0, 1.0)),
-          Expanded(child: _buildMeasureBody()),
-          _buildBottomMeasureButton(),
-        ],
+    return PopScope(
+      canPop: !_isSerialBusy,
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('測定'),
+          actions: [
+            IconButton(
+              onPressed: _isSerialBusy ? null : _openSettings,
+              icon: const Icon(Icons.settings),
+              tooltip: '設定',
+            ),
+          ],
+        ),
+        body: Column(
+          children: [
+            _buildTopStatusBar(),
+            if (_bgIsMeasuring)
+              LinearProgressIndicator(value: _bgProgress.clamp(0.0, 1.0)),
+            Expanded(child: _buildMeasureBody()),
+            _buildBottomMeasureButton(),
+          ],
+        ),
       ),
     );
   }

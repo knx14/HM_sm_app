@@ -118,10 +118,11 @@ class _FarmScreenState extends State<FarmScreen> {
       final farms = results[0] as List<Farm>;
       final latest = results[1] as List<FarmWithLatestResult>;
       final latestByFarmId = {for (final item in latest) item.farmId: item};
+      final sortedFarms = _sortFarmsByLatestResult(farms, latestByFarmId);
       final averagesByFarmId = await _loadLatestAverages(latestByFarmId.values);
       if (!mounted) return;
       setState(() {
-        _farms = farms;
+        _farms = sortedFarms;
         _latestByFarmId = latestByFarmId;
         _averagesByFarmId = averagesByFarmId;
         _isLoading = false;
@@ -133,6 +134,31 @@ class _FarmScreenState extends State<FarmScreen> {
         _isLoading = false;
       });
     }
+  }
+
+  List<Farm> _sortFarmsByLatestResult(
+    List<Farm> farms,
+    Map<int, FarmWithLatestResult> latestByFarmId,
+  ) {
+    final originalIndexByFarmId = <int, int>{
+      for (var i = 0; i < farms.length; i++) farms[i].id: i,
+    };
+    return List<Farm>.from(farms)..sort((a, b) {
+      final aDate = latestByFarmId[a.id]?.latestResult?.latestMeasurementDate;
+      final bDate = latestByFarmId[b.id]?.latestResult?.latestMeasurementDate;
+      if (aDate == null && bDate == null) {
+        return originalIndexByFarmId[a.id]!.compareTo(
+          originalIndexByFarmId[b.id]!,
+        );
+      }
+      if (aDate == null) return 1;
+      if (bDate == null) return -1;
+      final dateOrder = bDate.compareTo(aDate);
+      if (dateOrder != 0) return dateOrder;
+      return originalIndexByFarmId[a.id]!.compareTo(
+        originalIndexByFarmId[b.id]!,
+      );
+    });
   }
 
   Future<Map<int, _FarmCardAverages>> _loadLatestAverages(
