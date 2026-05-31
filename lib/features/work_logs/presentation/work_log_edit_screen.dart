@@ -24,6 +24,30 @@ class WorkLogEditScreen extends StatelessWidget {
     return result ?? false;
   }
 
+  static Future<bool> showEdit(
+    BuildContext context, {
+    required int farmId,
+    required int workLogId,
+    required WorkLogEntry initial,
+  }) async {
+    final result = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) {
+        return ChangeNotifierProvider(
+          create: (_) => WorkLogNotifier.forEdit(
+            farmId: farmId,
+            workLogId: workLogId,
+            initial: initial,
+          ),
+          child: WorkLogEditScreen(farmId: farmId),
+        );
+      },
+    );
+    return result ?? false;
+  }
+
   @override
   Widget build(BuildContext context) {
     final notifier = context.watch<WorkLogNotifier>();
@@ -61,10 +85,10 @@ class WorkLogEditScreen extends StatelessWidget {
                   padding: const EdgeInsets.fromLTRB(20, 0, 8, 8),
                   child: Row(
                     children: [
-                      const Expanded(
+                      Expanded(
                         child: Text(
-                          '作業記録を追加',
-                          style: TextStyle(
+                          notifier.isEditMode ? '作業記録を編集' : '作業記録を追加',
+                          style: const TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.w800,
                           ),
@@ -397,9 +421,9 @@ class _ConfirmStep extends StatelessWidget {
       controller: scrollController,
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
       children: [
-        const Text(
-          '以下の内容で登録します',
-          style: TextStyle(fontWeight: FontWeight.w800),
+        Text(
+          notifier.isEditMode ? '以下の内容で更新します' : '以下の内容で登録します',
+          style: const TextStyle(fontWeight: FontWeight.w800),
         ),
         const SizedBox(height: 16),
         _ConfirmRow(label: '種別', value: type.label),
@@ -429,7 +453,7 @@ class _ConfirmStep extends StatelessWidget {
                   Navigator.pop(context, true);
                 },
                 icon: const Icon(Icons.save_outlined),
-                label: const Text('保存'),
+                label: Text(notifier.isEditMode ? '更新' : '保存'),
               ),
             ),
           ],

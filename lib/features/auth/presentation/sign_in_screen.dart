@@ -24,7 +24,7 @@ class _SignInScreenState extends State<SignInScreen> {
   /// エラーメッセージを日本語に変換
   String _parseError(dynamic error) {
     final errorString = error.toString().toLowerCase();
-    
+
     // 認証エラー（パスワードまたはメールアドレスが間違っている）
     if (errorString.contains('notauthorizedexception') ||
         errorString.contains('not authorized') ||
@@ -32,13 +32,13 @@ class _SignInScreenState extends State<SignInScreen> {
         errorString.contains('invalid credentials')) {
       return 'メールアドレスかパスワードが誤っています';
     }
-    
+
     // ユーザーが見つからない
     if (errorString.contains('usernotfoundexception') ||
         errorString.contains('user not found')) {
       return 'メールアドレスかパスワードが誤っています';
     }
-    
+
     // その他のエラー
     return 'メールアドレスかパスワードが誤っています';
   }
@@ -48,24 +48,27 @@ class _SignInScreenState extends State<SignInScreen> {
       _loading = true;
     });
     try {
-      await _repo.signIn(
-        email: _email.text.trim(),
-        password: _password.text,
-      );
+      await _repo.signIn(email: _email.text.trim(), password: _password.text);
       if (!mounted) return;
-      
+
       // ログイン成功直後: subをProviderにセット
       final userProvider = Provider.of<UserProvider>(context, listen: false);
       final authService = AmplifyAuthService();
-      final userId = await authService.userSub();
+      final userResults = await Future.wait([
+        authService.userSub(),
+        authService.userDisplayName(),
+      ]);
+      final userId = userResults[0];
+      final displayName = userResults[1];
       if (userId != null) {
-        userProvider.setUserId(userId);
+        userProvider.setUserId(userId, displayName: displayName);
       }
-      
+
       // id_tokenも取得して確認（デバッグ用）
       final token = await authService.idToken();
       print('id_token取得: ${token != null ? "成功" : "失敗"}');
-      
+      if (!mounted) return;
+
       // ホーム画面に遷移
       Navigator.pushReplacementNamed(context, AppRoutes.main);
     } catch (e) {
@@ -81,6 +84,7 @@ class _SignInScreenState extends State<SignInScreen> {
       if (mounted) setState(() => _loading = false);
     }
   }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -89,11 +93,7 @@ class _SignInScreenState extends State<SignInScreen> {
         backgroundColor: const Color(0xFFF1F8E9),
         elevation: 0,
         centerTitle: true,
-        title: Image.asset(
-          'assets/images/logo.png',
-          width: 50,
-          height: 50,
-        ),
+        title: Image.asset('assets/images/logo.png', width: 50, height: 50),
       ),
       body: GestureDetector(
         behavior: HitTestBehavior.opaque,
@@ -112,12 +112,17 @@ class _SignInScreenState extends State<SignInScreen> {
                       children: [
                         const Text(
                           'ログイン',
-                          style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                          style: TextStyle(
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                         const SizedBox(height: 12),
                         TextField(
                           controller: _email,
-                          decoration: const InputDecoration(labelText: 'メールアドレス'),
+                          decoration: const InputDecoration(
+                            labelText: 'メールアドレス',
+                          ),
                           keyboardType: TextInputType.emailAddress,
                         ),
                         const SizedBox(height: 8),
@@ -148,7 +153,9 @@ class _SignInScreenState extends State<SignInScreen> {
                             onPressed: () {
                               Navigator.push(
                                 context,
-                                MaterialPageRoute(builder: (_) => const ResetPasswordScreen()),
+                                MaterialPageRoute(
+                                  builder: (_) => const ResetPasswordScreen(),
+                                ),
                               );
                             },
                             child: const Text('パスワードを忘れた？'),

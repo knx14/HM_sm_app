@@ -42,6 +42,32 @@ class WorkLogRepository {
     }
   }
 
+  Future<void> update({
+    required int workLogId,
+    required WorkLogEntry entry,
+  }) async {
+    await _apiClient.dio.patch(
+      '/api/v1/work-logs/$workLogId',
+      data: entry.toJson(),
+    );
+  }
+
+  Future<void> delete(int workLogId) async {
+    await _apiClient.dio.delete('/api/v1/work-logs/$workLogId');
+  }
+
+  Future<List<Map<String, dynamic>>> listByFarm(int farmId) async {
+    final response = await _apiClient.dio.get(
+      '/api/v1/farms/$farmId/work-logs',
+    );
+    final body = response.data;
+    final data = body is Map ? body['data'] : body;
+    final list = data is List ? data : const <dynamic>[];
+    return list
+        .map((item) => Map<String, dynamic>.from(item as Map))
+        .toList(growable: false);
+  }
+
   Future<WorkLogFlushResult> flushQueue() async {
     final items = await _queue.listItems();
     var success = 0;

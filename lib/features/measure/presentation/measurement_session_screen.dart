@@ -1,16 +1,18 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:typed_data';
 import 'dart:ui' as ui;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:provider/provider.dart';
 
+import '../../../core/api/api_client_factory.dart';
 import '../../../providers/user_provider.dart';
 import '../../../services/geo_service.dart';
 import '../../../utils/polygon_area.dart';
+import '../../farms/data/farm_repository.dart';
 import '../../farms/domain/farm.dart';
 import '../constants/app_constants.dart';
 import '../data/measurement_local_paths.dart';
@@ -152,6 +154,7 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
     SerialComm.init(_onReceive);
     SerialComm.addDisconnectListener(_onUsbDisconnected);
     _loadSavedMeasureSettings();
+    _autoSelectNearestFarm();
   }
 
   Future<void> _loadSavedMeasureSettings() async {
@@ -437,6 +440,74 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
     // GPS現在位置を取得して赤マーカーの初期位置を現在地に設定する。
     // GPS取得に失敗した場合はポリゴン中心のまま残る。
     await _fetchCurrentLocation(moveCamera: true);
+  }
+
+  Future<void> _autoSelectNearestFarm() async {
+    if (_selectedFarm != null || _isSelectingFarm) return;
+    setState(() => _isSelectingFarm = true);
+    try {
+      final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) return;
+      var perm = await Geolocator.checkPermission();
+      if (perm == LocationPermission.denied) {
+        perm = await Geolocator.requestPermission();
+      }
+      if (perm == LocationPermission.denied ||
+          perm == LocationPermission.deniedForever) {
+        return;
+      }
+
+      final results = await Future.wait([
+        Geolocator.getCurrentPosition(
+          locationSettings: const LocationSettings(
+            accuracy: LocationAccuracy.high,
+            timeLimit: Duration(seconds: 5),
+          ),
+        ),
+        FarmRepository(buildApiClient()).getFarms(),
+      ]);
+      if (!mounted || _selectedFarm != null) return;
+      final pos = results[0] as Position;
+      final farms = results[1] as List<Farm>;
+      Farm? nearestFarm;
+      LatLng? nearestCenter;
+      var minDistance = double.infinity;
+
+      for (final farm in farms) {
+        final polygon = farm.boundaryPolygon
+            .map((p) => LatLng(p['lat']!, p['lng']!))
+            .toList();
+        if (polygon.isEmpty) continue;
+        final center = calculatePolygonCenter(polygon);
+        final distance = Geolocator.distanceBetween(
+          pos.latitude,
+          pos.longitude,
+          center.latitude,
+          center.longitude,
+        );
+        if (distance < minDistance) {
+          minDistance = distance;
+          nearestFarm = farm;
+          nearestCenter = center;
+        }
+      }
+
+      if (nearestFarm == null || nearestCenter == null) return;
+      setState(() {
+        _selectedFarm = nearestFarm;
+        _confirmedLocation = LatLng(pos.latitude, pos.longitude);
+        _currentStep = _bgDone ? SessionStep.measure : _currentStep;
+        _showMapHint = true;
+      });
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint('最近傍圃場の自動選択に失敗しました: $e');
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isSelectingFarm = false);
+      }
+    }
   }
 
   Future<void> _fetchCurrentLocation({bool moveCamera = true}) async {

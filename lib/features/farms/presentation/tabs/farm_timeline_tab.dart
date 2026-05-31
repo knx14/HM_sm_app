@@ -3,6 +3,8 @@ import 'package:provider/provider.dart';
 
 import '../../../results/domain/timeline_item.dart';
 import '../../../results/presentation/providers/timeline_notifier.dart';
+import '../../../work_logs/data/work_log_repository.dart';
+import '../../../work_logs/domain/work_log_entry.dart';
 import '../../../work_logs/presentation/work_log_edit_screen.dart';
 
 class FarmTimelineTab extends StatelessWidget {
@@ -56,7 +58,11 @@ class _TimelineView extends StatelessWidget {
             final item = state.items[index - (state.isLoading ? 1 : 0)];
             return switch (item) {
               MeasurementTimelineItem() => _MeasurementCard(item: item),
-              WorkLogTimelineItem() => _WorkLogCard(item: item),
+              WorkLogTimelineItem() => _WorkLogCard(
+                item: item,
+                onEdit: () => _editWorkLog(context, state, item),
+                onDelete: () => _deleteWorkLog(context, state, item),
+              ),
               UnknownTimelineItem() => const SizedBox.shrink(),
             };
           },
@@ -91,6 +97,128 @@ class _TimelineView extends StatelessWidget {
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(const SnackBar(content: Text('作業記録を保存しました')));
+  }
+
+  Future<void> _editWorkLog(
+    BuildContext context,
+    TimelineNotifier state,
+    WorkLogTimelineItem item,
+  ) async {
+    final workLogId = await _resolveWorkLogId(item, state.farmId);
+    if (workLogId == null) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('作業記録IDを取得できませんでした')));
+      return;
+    }
+    if (!context.mounted) return;
+    final saved = await WorkLogEditScreen.showEdit(
+      context,
+      farmId: state.farmId,
+      workLogId: workLogId,
+      initial: _entryFromItem(item),
+    );
+    if (!saved || !context.mounted) return;
+    await state.reload();
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('作業記録を更新しました')));
+  }
+
+  Future<void> _deleteWorkLog(
+    BuildContext context,
+    TimelineNotifier state,
+    WorkLogTimelineItem item,
+  ) async {
+    final workLogId = await _resolveWorkLogId(item, state.farmId);
+    if (workLogId == null) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('作業記録IDを取得できませんでした')));
+      return;
+    }
+    if (!context.mounted) return;
+    final title = item.title?.isNotEmpty == true ? item.title! : '作業記録';
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('作業記録を削除'),
+        content: Text('「$title」を削除しますか？'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('キャンセル'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(context).colorScheme.error,
+              foregroundColor: Theme.of(context).colorScheme.onError,
+            ),
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('削除'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !context.mounted) return;
+    try {
+      await WorkLogRepository().delete(workLogId);
+      await state.reload();
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('作業記録を削除しました')));
+    } catch (_) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('削除に失敗しました')));
+    }
+  }
+
+  WorkLogEntry _entryFromItem(WorkLogTimelineItem item) {
+    return WorkLogEntry(
+      workType: item.workType,
+      workDate: item.date.length >= 10 ? item.date.substring(0, 10) : item.date,
+      title: item.title,
+      detail: item.detail,
+      amountValue: item.amountValue,
+      amountUnit: item.amountUnit,
+    );
+  }
+
+  Future<int?> _resolveWorkLogId(WorkLogTimelineItem item, int farmId) async {
+    if (item.id > 0) return item.id;
+    try {
+      final logs = await WorkLogRepository().listByFarm(farmId);
+      for (final log in logs) {
+        final id = (log['id'] as num?)?.toInt();
+        if (id == null) continue;
+        if (_matchesWorkLog(item, log)) return id;
+      }
+    } catch (_) {
+      return null;
+    }
+    return null;
+  }
+
+  bool _matchesWorkLog(WorkLogTimelineItem item, Map<String, dynamic> log) {
+    final logDate = log['work_date'] as String? ?? log['date'] as String?;
+    final sameDate = _dateKey(logDate) == _dateKey(item.date);
+    final sameType = (log['work_type'] as String?) == item.workType;
+    final sameTitle = (log['title'] as String?) == item.title;
+    final sameDetail = (log['detail'] as String?) == item.detail;
+    final logAmount = (log['amount_value'] as num?)?.toDouble();
+    final sameAmount = logAmount == item.amountValue;
+    return sameDate && sameType && sameTitle && sameDetail && sameAmount;
+  }
+
+  String _dateKey(String? date) {
+    if (date == null) return '';
+    return date.length >= 10 ? date.substring(0, 10) : date;
   }
 }
 
@@ -260,9 +388,11 @@ class _ParameterChip extends StatelessWidget {
 }
 
 class _WorkLogCard extends StatelessWidget {
-  const _WorkLogCard({required this.item});
+  const _WorkLogCard({required this.item, this.onEdit, this.onDelete});
 
   final WorkLogTimelineItem item;
+  final VoidCallback? onEdit;
+  final VoidCallback? onDelete;
 
   static const _colors = <String, Color>{
     'fertilization': Color(0xFFB85C00),
@@ -364,13 +494,52 @@ class _WorkLogCard extends StatelessWidget {
                         ],
                       ),
                     ),
-                    const SizedBox(width: 8),
-                    Text(
-                      _shortDate(item.date),
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: colorScheme.onSurface.withValues(alpha: 0.54),
-                      ),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Text(
+                          _shortDate(item.date),
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: colorScheme.onSurface.withValues(
+                              alpha: 0.54,
+                            ),
+                          ),
+                        ),
+                        PopupMenuButton<String>(
+                          tooltip: '作業記録メニュー',
+                          onSelected: (value) {
+                            if (value == 'edit') onEdit?.call();
+                            if (value == 'delete') onDelete?.call();
+                          },
+                          itemBuilder: (context) => [
+                            PopupMenuItem(
+                              value: 'edit',
+                              enabled: onEdit != null,
+                              child: const ListTile(
+                                dense: true,
+                                leading: Icon(Icons.edit_outlined),
+                                title: Text('編集'),
+                              ),
+                            ),
+                            PopupMenuItem(
+                              value: 'delete',
+                              enabled: onDelete != null,
+                              child: ListTile(
+                                dense: true,
+                                leading: Icon(
+                                  Icons.delete_outline,
+                                  color: colorScheme.error,
+                                ),
+                                title: Text(
+                                  '削除',
+                                  style: TextStyle(color: colorScheme.error),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
                     ),
                   ],
                 ),

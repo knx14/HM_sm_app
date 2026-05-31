@@ -25,13 +25,20 @@ class _SplashScreenState extends State<SplashScreen> {
   Future<void> _checkAuthState() async {
     try {
       final isSignedIn = await _repo.isSignedIn();
+      if (!mounted) return;
       if (isSignedIn) {
         final userProvider = Provider.of<UserProvider>(context, listen: false);
 
         try {
-          final userId = await _authService.userSub();
+          final userResults = await Future.wait([
+            _authService.userSub(),
+            _authService.userDisplayName(),
+          ]);
+          final userId = userResults[0];
+          final displayName = userResults[1];
+          if (!mounted) return;
           if (userId != null) {
-            userProvider.setUserId(userId);
+            userProvider.setUserId(userId, displayName: displayName);
             Navigator.pushReplacementNamed(context, AppRoutes.main);
           } else {
             userProvider.setError('ユーザIDの取得に失敗しました');
@@ -41,6 +48,7 @@ class _SplashScreenState extends State<SplashScreen> {
             );
           }
         } catch (e) {
+          if (!mounted) return;
           userProvider.setError('ユーザIDの取得中にエラーが発生しました: $e');
           Navigator.pushReplacement(
             context,
@@ -48,12 +56,14 @@ class _SplashScreenState extends State<SplashScreen> {
           );
         }
       } else {
+        if (!mounted) return;
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(builder: (_) => const _WelcomeView()),
         );
       }
     } catch (e) {
+      if (!mounted) return;
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (_) => const _WelcomeView()),
@@ -63,9 +73,7 @@ class _SplashScreenState extends State<SplashScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return const Scaffold(
-      backgroundColor: Colors.white,
-    );
+    return const Scaffold(backgroundColor: Colors.white);
   }
 }
 
@@ -84,7 +92,7 @@ class _WelcomeView extends StatelessWidget {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Image.asset('assets/images/logo.png', width:60, height: 60),
+              Image.asset('assets/images/logo.png', width: 60, height: 60),
               const SizedBox(height: 16),
               const Text(
                 'ようこそ HenryMonitor へ',
