@@ -28,6 +28,7 @@ class _TimeseriesView extends StatelessWidget {
   Widget build(BuildContext context) {
     final state = context.watch<TimeseriesNotifier>();
     final data = state.data;
+    final displayData = state.filteredData;
 
     return Column(
       children: [
@@ -35,6 +36,19 @@ class _TimeseriesView extends StatelessWidget {
           selected: state.parameter,
           isLoading: state.isLoading,
           onChanged: context.read<TimeseriesNotifier>().setParameter,
+        ),
+        _RangeSelector(
+          selected: state.selectedRange,
+          onChanged: context.read<TimeseriesNotifier>().setRange,
+        ),
+        _PeriodSelector(
+          selectedRange: state.selectedRange,
+          selectedYear: state.selectedYear,
+          selectedMonth: state.selectedMonth,
+          availableYears: state.availableYears,
+          availableMonths: state.availableMonths,
+          onYearChanged: context.read<TimeseriesNotifier>().setSelectedYear,
+          onMonthChanged: context.read<TimeseriesNotifier>().setSelectedMonth,
         ),
         if (state.isLoading && data == null)
           const Expanded(child: Center(child: CircularProgressIndicator()))
@@ -44,6 +58,13 @@ class _TimeseriesView extends StatelessWidget {
           )
         else if (data == null || data.points.isEmpty)
           const Expanded(child: Center(child: Text('測定データがありません')))
+        else if (displayData == null || displayData.points.isEmpty)
+          Expanded(
+            child: _RangeEmptyState(
+              periodLabel: state.selectedPeriodLabel,
+              onShowAll: () => state.setRange(TimeseriesRange.all),
+            ),
+          )
         else
           Expanded(
             child: RefreshIndicator(
@@ -51,13 +72,16 @@ class _TimeseriesView extends StatelessWidget {
               child: ListView(
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
                 children: [
-                  _LatestAverageCard(data: data),
+                  _LatestAverageCard(data: displayData),
                   const SizedBox(height: 12),
-                  SizedBox(height: 280, child: _TimeseriesChart(data: data)),
+                  SizedBox(
+                    height: 280,
+                    child: _TimeseriesChart(data: displayData),
+                  ),
                   const SizedBox(height: 12),
                   const _LegendRow(),
                   const SizedBox(height: 12),
-                  _WorkLogSummaryCard(workLogs: data.workLogs),
+                  _WorkLogSummaryCard(workLogs: displayData.workLogs),
                   if (state.isLoading)
                     const Padding(
                       padding: EdgeInsets.only(top: 8),
@@ -68,6 +92,33 @@ class _TimeseriesView extends StatelessWidget {
             ),
           ),
       ],
+    );
+  }
+}
+
+class _RangeEmptyState extends StatelessWidget {
+  const _RangeEmptyState({required this.periodLabel, required this.onShowAll});
+
+  final String periodLabel;
+  final VoidCallback onShowAll;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            '$periodLabelのデータがありません',
+            style: TextStyle(
+              color: colorScheme.onSurface.withValues(alpha: 0.62),
+            ),
+          ),
+          const SizedBox(height: 8),
+          TextButton(onPressed: onShowAll, child: const Text('すべて表示に戻す')),
+        ],
+      ),
     );
   }
 }
@@ -158,6 +209,115 @@ class _WorkLogSummaryRow extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _RangeSelector extends StatelessWidget {
+  const _RangeSelector({required this.selected, required this.onChanged});
+
+  final TimeseriesRange selected;
+  final ValueChanged<TimeseriesRange> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Theme.of(context).colorScheme.surface,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+        child: SizedBox(
+          width: double.infinity,
+          child: SegmentedButton<TimeseriesRange>(
+            segments: TimeseriesRange.values
+                .map(
+                  (range) => ButtonSegment<TimeseriesRange>(
+                    value: range,
+                    label: Text(range.label),
+                  ),
+                )
+                .toList(growable: false),
+            selected: {selected},
+            showSelectedIcon: false,
+            style: ButtonStyle(
+              textStyle: WidgetStateProperty.all(const TextStyle(fontSize: 12)),
+            ),
+            onSelectionChanged: (values) => onChanged(values.first),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PeriodSelector extends StatelessWidget {
+  const _PeriodSelector({
+    required this.selectedRange,
+    required this.selectedYear,
+    required this.selectedMonth,
+    required this.availableYears,
+    required this.availableMonths,
+    required this.onYearChanged,
+    required this.onMonthChanged,
+  });
+
+  final TimeseriesRange selectedRange;
+  final int selectedYear;
+  final DateTime selectedMonth;
+  final List<int> availableYears;
+  final List<DateTime> availableMonths;
+  final ValueChanged<int> onYearChanged;
+  final ValueChanged<DateTime> onMonthChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    if (selectedRange == TimeseriesRange.all) {
+      return const SizedBox.shrink();
+    }
+
+    return Material(
+      color: Theme.of(context).colorScheme.surface,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+        child: selectedRange == TimeseriesRange.oneYear
+            ? DropdownButtonFormField<int>(
+                initialValue: selectedYear,
+                decoration: const InputDecoration(
+                  labelText: '表示する年',
+                  isDense: true,
+                  border: OutlineInputBorder(),
+                ),
+                items: availableYears
+                    .map(
+                      (year) => DropdownMenuItem<int>(
+                        value: year,
+                        child: Text('$year年'),
+                      ),
+                    )
+                    .toList(growable: false),
+                onChanged: (year) {
+                  if (year != null) onYearChanged(year);
+                },
+              )
+            : DropdownButtonFormField<DateTime>(
+                initialValue: selectedMonth,
+                decoration: const InputDecoration(
+                  labelText: '表示する年月',
+                  isDense: true,
+                  border: OutlineInputBorder(),
+                ),
+                items: availableMonths
+                    .map(
+                      (month) => DropdownMenuItem<DateTime>(
+                        value: month,
+                        child: Text('${month.year}年${month.month}月'),
+                      ),
+                    )
+                    .toList(growable: false),
+                onChanged: (month) {
+                  if (month != null) onMonthChanged(month);
+                },
+              ),
       ),
     );
   }

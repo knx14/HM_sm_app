@@ -20,6 +20,7 @@ class _SignInScreenState extends State<SignInScreen> {
   final _password = TextEditingController();
   final _repo = AuthRepository(AmplifyAuthService());
   bool _loading = false;
+  bool _obscurePassword = true;
 
   /// エラーメッセージを日本語に変換
   String _parseError(dynamic error) {
@@ -128,8 +129,25 @@ class _SignInScreenState extends State<SignInScreen> {
                         const SizedBox(height: 8),
                         TextField(
                           controller: _password,
-                          decoration: const InputDecoration(labelText: 'パスワード'),
-                          obscureText: true,
+                          decoration: InputDecoration(
+                            labelText: 'パスワード',
+                            suffixIcon: IconButton(
+                              tooltip: _obscurePassword
+                                  ? 'パスワードを表示'
+                                  : 'パスワードを非表示',
+                              icon: Icon(
+                                _obscurePassword
+                                    ? Icons.visibility
+                                    : Icons.visibility_off,
+                              ),
+                              onPressed: () {
+                                setState(() {
+                                  _obscurePassword = !_obscurePassword;
+                                });
+                              },
+                            ),
+                          ),
+                          obscureText: _obscurePassword,
                         ),
                         const SizedBox(height: 24),
                         Center(
