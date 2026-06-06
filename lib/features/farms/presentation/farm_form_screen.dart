@@ -41,6 +41,7 @@ class _FarmFormScreenState extends State<FarmFormScreen> {
 
   // 登録状態
   bool _isLoading = false;
+  bool _isDeleting = false;
 
   // デフォルト位置（東京）- 現在地が取得できない場合のフォールバック
   static const CameraPosition _defaultPosition = CameraPosition(
@@ -51,27 +52,24 @@ class _FarmFormScreenState extends State<FarmFormScreen> {
   @override
   void initState() {
     super.initState();
-    
+
     // 編集モードの場合、既存データで初期化
     if (widget.farm != null) {
       _farmNameController.text = widget.farm!.farmName;
       _selectedCultivationMethod = widget.farm!.cultivationMethod;
       _cropTypeController.text = widget.farm!.cropType ?? '';
-      
+
       // 境界点を設定
       _boundaryPoints = widget.farm!.boundaryPolygon.map((point) {
         return LatLng(point['lat']!, point['lng']!);
       }).toList();
-      
+
       // 地図の初期位置を境界の中心に設定
       if (_boundaryPoints.isNotEmpty) {
         final center = _calculateCenter(_boundaryPoints);
-        _initialPosition = CameraPosition(
-          target: center,
-          zoom: 15,
-        );
+        _initialPosition = CameraPosition(target: center, zoom: 15);
       }
-      
+
       // ウィジェットが構築された後にマーカーとポリゴンを更新
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {
@@ -79,12 +77,16 @@ class _FarmFormScreenState extends State<FarmFormScreen> {
         }
       });
     }
-    
+
     // 30秒後にタイムアウトチェック
     Future.delayed(const Duration(seconds: 30), () {
-      if (mounted && !_mapInitialized && _mapError == null && _currentStep == 1) {
+      if (mounted &&
+          !_mapInitialized &&
+          _mapError == null &&
+          _currentStep == 1) {
         setState(() {
-          _mapError = 'マップの読み込みがタイムアウトしました。\n\n考えられる原因:\n1. Google Maps APIキーの試用期間が終了している\n2. APIキーが無効または制限されている\n3. インターネット接続の問題\n\nGoogle Cloud Consoleで以下を確認してください:\n- Maps SDK for Android が有効になっているか\n- APIキーの使用制限が設定されていないか\n- 請求アカウントが有効になっているか';
+          _mapError =
+              'マップの読み込みがタイムアウトしました。\n\n考えられる原因:\n1. Google Maps APIキーの試用期間が終了している\n2. APIキーが無効または制限されている\n3. インターネット接続の問題\n\nGoogle Cloud Consoleで以下を確認してください:\n- Maps SDK for Android が有効になっているか\n- APIキーの使用制限が設定されていないか\n- 請求アカウントが有効になっているか';
         });
       }
     });
@@ -116,11 +118,10 @@ class _FarmFormScreenState extends State<FarmFormScreen> {
         position: point,
         infoWindow: InfoWindow(
           title: 'ポイント ${index + 1}',
-          snippet: '${point.latitude.toStringAsFixed(6)}, ${point.longitude.toStringAsFixed(6)}',
+          snippet:
+              '${point.latitude.toStringAsFixed(6)}, ${point.longitude.toStringAsFixed(6)}',
         ),
-        icon: BitmapDescriptor.defaultMarkerWithHue(
-          BitmapDescriptor.hueGreen,
-        ),
+        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen),
       );
     }).toSet();
 
@@ -265,10 +266,7 @@ class _FarmFormScreenState extends State<FarmFormScreen> {
     try {
       // boundaryPolygonをMap形式に変換
       final boundaryPolygon = _boundaryPoints.map((point) {
-        return {
-          'lat': point.latitude,
-          'lng': point.longitude,
-        };
+        return {'lat': point.latitude, 'lng': point.longitude};
       }).toList();
 
       if (widget.farm != null) {
@@ -321,7 +319,7 @@ class _FarmFormScreenState extends State<FarmFormScreen> {
       if (e is DioException && e.response != null) {
         final statusCode = e.response?.statusCode;
         final responseData = e.response?.data;
-        
+
         if (statusCode == 500) {
           errorMessage = 'サーバーエラーが発生しました。\nしばらく時間をおいて再度お試しください。';
         } else if (statusCode == 422) {
@@ -358,6 +356,79 @@ class _FarmFormScreenState extends State<FarmFormScreen> {
     }
   }
 
+  Future<void> _confirmDelete() async {
+    final farm = widget.farm;
+    if (farm == null || _isLoading || _isDeleting) return;
+
+    final shouldDelete =
+        await showDialog<bool>(
+          context: context,
+          builder: (dialogContext) => AlertDialog(
+            title: const Text('圃場を削除しますか？'),
+            content: Text(
+              '「${farm.farmName}」と、この圃場に紐づくすべての測定データが削除されます。\n\nこの操作は取り消せません。',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext, false),
+                child: const Text('キャンセル'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext, true),
+                style: TextButton.styleFrom(
+                  foregroundColor: Theme.of(context).colorScheme.error,
+                ),
+                child: const Text('削除する'),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+
+    if (!shouldDelete || !mounted) return;
+
+    setState(() => _isDeleting = true);
+    try {
+      await widget.farmRepository.delete(farm.id);
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('圃場を削除しました'),
+          backgroundColor: Theme.of(context).colorScheme.primary,
+        ),
+      );
+      Navigator.pop(context, true);
+    } catch (e) {
+      if (!mounted) return;
+
+      var errorMessage = '削除に失敗しました';
+      if (e is DioException && e.response != null) {
+        final statusCode = e.response?.statusCode;
+        final responseData = e.response?.data;
+        if (statusCode == 403) {
+          errorMessage = 'この圃場を削除する権限がありません。';
+        } else if (responseData is Map && responseData.containsKey('message')) {
+          errorMessage = responseData['message'] as String;
+        } else if (statusCode != null) {
+          errorMessage = '削除に失敗しました: $statusCode';
+        }
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(errorMessage),
+          backgroundColor: Theme.of(context).colorScheme.error,
+          duration: const Duration(seconds: 5),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isDeleting = false);
+      }
+    }
+  }
+
   /// 中心座標を計算（編集モード用）
   LatLng _calculateCenter(List<LatLng> points) {
     if (points.isEmpty) {
@@ -372,10 +443,7 @@ class _FarmFormScreenState extends State<FarmFormScreen> {
       sumLng += point.longitude;
     }
 
-    return LatLng(
-      sumLat / points.length,
-      sumLng / points.length,
-    );
+    return LatLng(sumLat / points.length, sumLng / points.length);
   }
 
   @override
@@ -429,9 +497,7 @@ class _FarmFormScreenState extends State<FarmFormScreen> {
                 elevation: 0,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(16),
-                  side: BorderSide(
-                    color: colorScheme.outline.withOpacity(0.2),
-                  ),
+                  side: BorderSide(color: colorScheme.outline.withOpacity(0.2)),
                 ),
                 child: Padding(
                   padding: const EdgeInsets.all(24),
@@ -650,9 +716,7 @@ class _FarmFormScreenState extends State<FarmFormScreen> {
 
   Widget _buildBoundaryInfo(ThemeData theme, ColorScheme colorScheme) {
     final pointCount = _boundaryPoints.length;
-    final area = pointCount >= 3
-        ? calculatePolygonArea(_boundaryPoints)
-        : 0.0;
+    final area = pointCount >= 3 ? calculatePolygonArea(_boundaryPoints) : 0.0;
     final center = pointCount > 0
         ? calculatePolygonCenter(_boundaryPoints)
         : null;
@@ -660,20 +724,10 @@ class _FarmFormScreenState extends State<FarmFormScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildInfoRow(
-          '点数',
-          '$pointCount点',
-          theme,
-          colorScheme,
-        ),
+        _buildInfoRow('点数', '$pointCount点', theme, colorScheme),
         if (area > 0) ...[
           const SizedBox(height: 12),
-          _buildInfoRow(
-            '面積',
-            formatArea(area),
-            theme,
-            colorScheme,
-          ),
+          _buildInfoRow('面積', formatArea(area), theme, colorScheme),
         ],
         if (center != null) ...[
           const SizedBox(height: 12),
@@ -730,10 +784,12 @@ class _FarmFormScreenState extends State<FarmFormScreen> {
   }
 
   Widget _buildStep1Footer(ThemeData theme, ColorScheme colorScheme) {
-    final canSubmit = _boundaryPoints.length >= 4 &&
+    final canSubmit =
+        _boundaryPoints.length >= 4 &&
         _farmNameController.text.trim().isNotEmpty &&
         _selectedCultivationMethod != null &&
         _cropTypeController.text.trim().isNotEmpty;
+    final isEditMode = widget.farm != null;
 
     return Container(
       decoration: BoxDecoration(
@@ -748,38 +804,67 @@ class _FarmFormScreenState extends State<FarmFormScreen> {
       ),
       padding: const EdgeInsets.all(16),
       child: SafeArea(
-        child: FilledButton(
-          onPressed: canSubmit && !_isLoading ? _submitForm : null,
-          style: FilledButton.styleFrom(
-            padding: const EdgeInsets.symmetric(vertical: 16),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-            backgroundColor: canSubmit
-                ? colorScheme.primary
-                : colorScheme.surfaceContainerHighest,
-          ),
-          child: _isLoading
-              ? SizedBox(
-                  height: 20,
-                  width: 20,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    valueColor: AlwaysStoppedAnimation<Color>(
-                      colorScheme.onPrimary,
-                    ),
-                  ),
-                )
-              : Text(
-                  widget.farm != null ? '更新' : '登録',
-                  style: theme.textTheme.labelLarge?.copyWith(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: canSubmit
-                        ? colorScheme.onPrimary
-                        : colorScheme.onSurface.withOpacity(0.5),
-                  ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            FilledButton(
+              onPressed: canSubmit && !_isLoading && !_isDeleting
+                  ? _submitForm
+                  : null,
+              style: FilledButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
                 ),
+                backgroundColor: canSubmit
+                    ? colorScheme.primary
+                    : colorScheme.surfaceContainerHighest,
+              ),
+              child: _isLoading
+                  ? SizedBox(
+                      height: 20,
+                      width: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(
+                          colorScheme.onPrimary,
+                        ),
+                      ),
+                    )
+                  : Text(
+                      isEditMode ? '更新' : '登録',
+                      style: theme.textTheme.labelLarge?.copyWith(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: canSubmit
+                            ? colorScheme.onPrimary
+                            : colorScheme.onSurface.withOpacity(0.5),
+                      ),
+                    ),
+            ),
+            if (isEditMode) ...[
+              const SizedBox(height: 8),
+              TextButton.icon(
+                onPressed: _isLoading || _isDeleting ? null : _confirmDelete,
+                style: TextButton.styleFrom(
+                  foregroundColor: colorScheme.error,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                ),
+                icon: _isDeleting
+                    ? SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: colorScheme.error,
+                        ),
+                      )
+                    : const Icon(Icons.delete_outline, size: 18),
+                label: Text(_isDeleting ? '削除中...' : 'この圃場を削除'),
+              ),
+            ],
+          ],
         ),
       ),
     );
@@ -834,9 +919,7 @@ class _FarmFormScreenState extends State<FarmFormScreen> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  CircularProgressIndicator(
-                    color: colorScheme.primary,
-                  ),
+                  CircularProgressIndicator(color: colorScheme.primary),
                   const SizedBox(height: 16),
                   Text(
                     'マップを読み込んでいます...',
@@ -907,9 +990,7 @@ class _FarmFormScreenState extends State<FarmFormScreen> {
 
   Widget _buildMapControlPanel(ThemeData theme, ColorScheme colorScheme) {
     final pointCount = _boundaryPoints.length;
-    final area = pointCount >= 3
-        ? calculatePolygonArea(_boundaryPoints)
-        : 0.0;
+    final area = pointCount >= 3 ? calculatePolygonArea(_boundaryPoints) : 0.0;
     final canConfirm = pointCount >= 4;
 
     return SafeArea(
@@ -1005,10 +1086,7 @@ class _FarmFormScreenState extends State<FarmFormScreen> {
                         borderRadius: BorderRadius.circular(12),
                       ),
                     ),
-                    child: Text(
-                      '1つ戻す',
-                      style: theme.textTheme.labelLarge,
-                    ),
+                    child: Text('1つ戻す', style: theme.textTheme.labelLarge),
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -1023,10 +1101,7 @@ class _FarmFormScreenState extends State<FarmFormScreen> {
                         borderRadius: BorderRadius.circular(12),
                       ),
                     ),
-                    child: Text(
-                      'クリア',
-                      style: theme.textTheme.labelLarge,
-                    ),
+                    child: Text('クリア', style: theme.textTheme.labelLarge),
                   ),
                 ),
                 const SizedBox(width: 12),

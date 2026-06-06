@@ -11,11 +11,14 @@ class TimeseriesResult {
     required this.workLogs,
   });
 
-  TimeseriesResult copyWith({List<WorkLogMark>? workLogs}) {
+  TimeseriesResult copyWith({
+    List<TimeseriesPoint>? points,
+    List<WorkLogMark>? workLogs,
+  }) {
     return TimeseriesResult(
       parameter: parameter,
       unit: unit,
-      points: points,
+      points: points ?? this.points,
       workLogs: workLogs ?? this.workLogs,
     );
   }
