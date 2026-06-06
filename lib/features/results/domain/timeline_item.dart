@@ -67,6 +67,7 @@ class ParameterStat {
 }
 
 final class WorkLogTimelineItem extends TimelineItem {
+  final int id;
   final String workType;
   final String? title;
   final String? detail;
@@ -74,6 +75,7 @@ final class WorkLogTimelineItem extends TimelineItem {
   final String? amountUnit;
 
   const WorkLogTimelineItem({
+    required this.id,
     required super.date,
     required this.workType,
     this.title,
@@ -84,6 +86,7 @@ final class WorkLogTimelineItem extends TimelineItem {
 
   factory WorkLogTimelineItem.fromJson(Map<String, dynamic> json) {
     return WorkLogTimelineItem(
+      id: _extractId(json),
       date: json['date'] as String,
       workType: (json['work_type'] as String?) ?? 'other',
       title: json['title'] as String?,
@@ -91,6 +94,21 @@ final class WorkLogTimelineItem extends TimelineItem {
       amountValue: (json['amount_value'] as num?)?.toDouble(),
       amountUnit: json['amount_unit'] as String?,
     );
+  }
+
+  static int _extractId(Map<String, dynamic> json) {
+    final direct =
+        json['id'] as num? ??
+        json['work_log_id'] as num? ??
+        json['workLogId'] as num?;
+    if (direct != null) return direct.toInt();
+
+    final nested = json['work_log'];
+    if (nested is Map) {
+      final nestedId = nested['id'] as num?;
+      if (nestedId != null) return nestedId.toInt();
+    }
+    return 0;
   }
 }
 

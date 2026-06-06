@@ -1,17 +1,18 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:typed_data';
 import 'dart:ui' as ui;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
-import 'package:percent_indicator/linear_percent_indicator.dart';
 import 'package:provider/provider.dart';
 
+import '../../../core/api/api_client_factory.dart';
 import '../../../providers/user_provider.dart';
 import '../../../services/geo_service.dart';
 import '../../../utils/polygon_area.dart';
+import '../../farms/data/farm_repository.dart';
 import '../../farms/domain/farm.dart';
 import '../constants/app_constants.dart';
 import '../data/measurement_local_paths.dart';
@@ -22,11 +23,11 @@ import '../data/serial_comm_android.dart';
 import '../domain/app_settings.dart';
 import '../domain/chart_data.dart';
 import '../domain/measure_settings.dart';
+import '../domain/measure_settings_store.dart';
 import '../domain/measurement_parser.dart';
 import '../domain/measurement_service.dart';
 import 'farm_select_screen.dart';
 import 'measurement_settings_sheet.dart';
-import 'widgets/step_indicator_bar.dart';
 
 enum SessionStep { connect, bg, measure }
 
@@ -38,7 +39,7 @@ class _SpotProgress {
   });
 
   final String id;
-  final LatLng position;
+  LatLng position;
   final DateTime createdAt;
   int percent = 0;
   bool saveDone = false;
@@ -86,9 +87,11 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
   final _note1 = TextEditingController();
   final _note2 = TextEditingController();
   final AppSettings _settings = AppSettings();
+  final MeasureSettingsStore _measureSettingsStore = MeasureSettingsStore();
   final PendingUploadStore _pendingUploadStore = PendingUploadStore();
 
   bool _isConnected = false;
+  bool _isConnecting = false;
   bool _isMeasuring = false;
   bool _isFetchingCurrentLocation = false;
   int _receivedPoints = 0;
@@ -117,6 +120,7 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
   final List<ChartData> _chartData = [];
   final List<_SpotProgress> _spots = <_SpotProgress>[];
   _SpotProgress? _activeSpot;
+  String? _correctingSpotId;
   final Map<String, BitmapDescriptor> _markerIconCache =
       <String, BitmapDescriptor>{};
   Completer<bool>? _execCompleter;
@@ -126,6 +130,9 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
       _uploadPhase == UploadPhase.initCalling ||
       _uploadPhase == UploadPhase.uploading ||
       _uploadPhase == UploadPhase.completing;
+
+  bool get _isSerialBusy =>
+      _isConnecting || _isRecalling || _bgIsMeasuring || _isMeasuring;
 
   List<LatLng> get _farmPolygon => (_selectedFarm?.boundaryPolygon ?? const [])
       .map((e) => LatLng(e['lat'] ?? 0, e['lng'] ?? 0))
@@ -146,6 +153,25 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
     super.initState();
     SerialComm.init(_onReceive);
     SerialComm.addDisconnectListener(_onUsbDisconnected);
+    _loadSavedMeasureSettings();
+    _autoSelectNearestFarm();
+  }
+
+  Future<void> _loadSavedMeasureSettings() async {
+    final stored = await _measureSettingsStore.load();
+    if (!mounted) return;
+    final settings = stored.settings;
+    setState(() {
+      _fstart.text = settings.fstart.toString();
+      _fdelta.text = settings.fdelta.toString();
+      _points.text = settings.points.toString();
+      _excite.text = settings.excite.toString();
+      _range.text = settings.range.toString();
+      _integrate.text = settings.integrate.toString();
+      _average.text = settings.average.toString();
+      _selectedSensor = stored.selectedSensor;
+    });
+    _updateSettings();
   }
 
   @override
@@ -230,6 +256,7 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
     setState(() {
       _isConnected = false;
       _currentStep = SessionStep.connect;
+      _isConnecting = false;
       _isRecalling = false;
       _recallDone = false;
       _bgIsMeasuring = false;
@@ -243,14 +270,24 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
   void _setupSerialComm() => SerialComm.init(_onReceive);
 
   Future<void> _connect() async {
-    final success = await SerialComm.connect();
-    if (success) {
-      _setupSerialComm();
+    if (_isSerialBusy) return;
+    setState(() => _isConnecting = true);
+    var success = false;
+    try {
+      success = await SerialComm.connect();
+      if (success) {
+        _setupSerialComm();
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isConnecting = false;
+          _isConnected = success;
+          _currentStep = SessionStep.connect;
+        });
+      }
     }
-    setState(() {
-      _isConnected = success;
-      _currentStep = SessionStep.connect;
-    });
+    if (!mounted) return;
     _appendLog(
       success
           ? '${AppConstants.messageConnectionSuccess}\n'
@@ -283,39 +320,26 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
     });
   }
 
-  void _disconnect() {
-    SerialComm.disconnect();
-    _recallTimeoutTimer?.cancel();
-    setState(() {
-      _isConnected = false;
-      _currentStep = SessionStep.connect;
-      _isRecalling = false;
-      _recallDone = false;
-      _bgIsMeasuring = false;
-      _bgDone = false;
-    });
-    _appendLog('${AppConstants.messageDisconnected}\n');
-  }
-
   void _sendIDCommand() {
-    if (!_isConnected || _isMeasuring) return;
+    if (!_isConnected || _isSerialBusy) return;
     MeasurementService.sendIdCommand();
   }
 
   void _sendListCommand() {
-    if (!_isConnected || _isMeasuring) return;
+    if (!_isConnected || _isSerialBusy) return;
     MeasurementService.sendListCommand();
   }
 
   void _sendStoreCommand() {
-    if (!_isConnected || _isMeasuring) return;
+    if (!_isConnected || _isSerialBusy) return;
     MeasurementService.sendStoreCommand(_selectedSensor);
   }
 
   void _sendRecallCommand() {
-    if (!_isConnected || _isMeasuring) return;
+    if (!_isConnected || _isSerialBusy) return;
     MeasurementService.sendListCommand();
     Future.delayed(const Duration(milliseconds: 300), () {
+      if (!mounted || _isSerialBusy) return;
       final lines = _logController.text.split('\n');
       for (final line in lines) {
         if (line.trim().startsWith(_selectedSensor)) {
@@ -354,6 +378,7 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
       _appendLog('${AppConstants.errorConnectFirst}\n');
       return;
     }
+    if (_isSerialBusy) return;
     _updateSettings();
     setState(() {
       _logController.clear();
@@ -371,7 +396,7 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
   }
 
   Future<void> _openFarmSelection({required bool clearSpots}) async {
-    if (_isSelectingFarm) return;
+    if (_isSelectingFarm || _isSerialBusy) return;
     _isSelectingFarm = true;
     if (clearSpots) {
       setState(() {
@@ -417,7 +442,76 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
     await _fetchCurrentLocation(moveCamera: true);
   }
 
+  Future<void> _autoSelectNearestFarm() async {
+    if (_selectedFarm != null || _isSelectingFarm) return;
+    setState(() => _isSelectingFarm = true);
+    try {
+      final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) return;
+      var perm = await Geolocator.checkPermission();
+      if (perm == LocationPermission.denied) {
+        perm = await Geolocator.requestPermission();
+      }
+      if (perm == LocationPermission.denied ||
+          perm == LocationPermission.deniedForever) {
+        return;
+      }
+
+      final results = await Future.wait([
+        Geolocator.getCurrentPosition(
+          locationSettings: const LocationSettings(
+            accuracy: LocationAccuracy.high,
+            timeLimit: Duration(seconds: 5),
+          ),
+        ),
+        FarmRepository(buildApiClient()).getFarms(),
+      ]);
+      if (!mounted || _selectedFarm != null) return;
+      final pos = results[0] as Position;
+      final farms = results[1] as List<Farm>;
+      Farm? nearestFarm;
+      LatLng? nearestCenter;
+      var minDistance = double.infinity;
+
+      for (final farm in farms) {
+        final polygon = farm.boundaryPolygon
+            .map((p) => LatLng(p['lat']!, p['lng']!))
+            .toList();
+        if (polygon.isEmpty) continue;
+        final center = calculatePolygonCenter(polygon);
+        final distance = Geolocator.distanceBetween(
+          pos.latitude,
+          pos.longitude,
+          center.latitude,
+          center.longitude,
+        );
+        if (distance < minDistance) {
+          minDistance = distance;
+          nearestFarm = farm;
+          nearestCenter = center;
+        }
+      }
+
+      if (nearestFarm == null || nearestCenter == null) return;
+      setState(() {
+        _selectedFarm = nearestFarm;
+        _confirmedLocation = LatLng(pos.latitude, pos.longitude);
+        _currentStep = _bgDone ? SessionStep.measure : _currentStep;
+        _showMapHint = true;
+      });
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint('最近傍圃場の自動選択に失敗しました: $e');
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isSelectingFarm = false);
+      }
+    }
+  }
+
   Future<void> _fetchCurrentLocation({bool moveCamera = true}) async {
+    if (_isSerialBusy) return;
     setState(() => _isFetchingCurrentLocation = true);
     try {
       final serviceEnabled = await Geolocator.isLocationServiceEnabled();
@@ -488,7 +582,7 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
   }
 
   Future<void> _startMeasureSequence() async {
-    if (_isMeasuring || _selectedFarm == null) return;
+    if (_isSerialBusy || _selectedFarm == null) return;
     var point = _confirmedLocation;
     final polygon = _farmPolygon;
     if (point == null && polygon.isNotEmpty) {
@@ -759,7 +853,6 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
 
   void _onReceive(String data) {
     if (!mounted) return;
-    bool shouldOpenFarmSelect = false;
     setState(() {
       _logController.text += data;
       final newLines = data.split('\n');
@@ -784,7 +877,6 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
           if (_currentStep == SessionStep.bg && _bgIsMeasuring) {
             _bgIsMeasuring = false;
             _bgDone = true;
-            shouldOpenFarmSelect = true;
             continue;
           }
           if (_isMeasuring) {
@@ -842,13 +934,6 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
         }
       }
     });
-    if (shouldOpenFarmSelect) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) {
-          _openFarmSelection(clearSpots: true);
-        }
-      });
-    }
   }
 
   Future<void> _refreshSpotIcon(_SpotProgress spot) async {
@@ -939,6 +1024,14 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
     _refreshSpotIcon(spot);
   }
 
+  _SpotProgress? _spotById(String? id) {
+    if (id == null) return null;
+    for (final spot in _spots) {
+      if (spot.id == id) return spot;
+    }
+    return null;
+  }
+
   Future<void> _markSpotSaved(_SpotProgress spot) async {
     spot.saveDone = true;
     await _refreshSpotIcon(spot);
@@ -999,7 +1092,7 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
           heightFactor: 0.92,
           child: MeasurementSettingsSheet(
             isConnected: _isConnected,
-            isMeasuring: _isMeasuring,
+            isMeasuring: _isSerialBusy,
             isUploading: _isUploading,
             fstart: _fstart,
             fdelta: _fdelta,
@@ -1027,52 +1120,37 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
     );
   }
 
-  Widget _stepBodyTitle(
-    BuildContext context,
-    String title,
-    String description,
-  ) {
-    final theme = Theme.of(context);
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(title, style: theme.textTheme.titleLarge),
-          const SizedBox(height: 6),
-          Text(description, style: theme.textTheme.bodyMedium),
-        ],
-      ),
-    );
-  }
-
-  Widget _standardLogField({
-    required TextEditingController controller,
-    required ScrollController scrollController,
-    required String label,
-  }) {
-    return TextField(
-      controller: controller,
-      scrollController: scrollController,
-      readOnly: true,
-      maxLines: AppConstants.logAreaMaxLines,
-      style: const TextStyle(fontSize: AppConstants.standardFontSize),
-      decoration: InputDecoration(
-        labelText: label,
-        border: const OutlineInputBorder(),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-      ),
-    );
-  }
-
   Widget _buildMeasureBody() {
     if (_selectedFarm == null) {
       return Center(
-        child: FilledButton(
-          onPressed: _isMeasuring
-              ? null
-              : () => _openFarmSelection(clearSpots: true),
-          child: const Text('圃場を選択'),
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.map_outlined,
+                size: 56,
+                color: Theme.of(
+                  context,
+                ).colorScheme.onSurface.withValues(alpha: 0.35),
+              ),
+              const SizedBox(height: 12),
+              const Text(
+                '圃場を選択すると地図が表示されます',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: 16),
+              FilledButton.icon(
+                onPressed: _isSerialBusy
+                    ? null
+                    : () => _openFarmSelection(clearSpots: true),
+                icon: const Icon(Icons.agriculture),
+                label: const Text('圃場を選択'),
+              ),
+            ],
+          ),
         ),
       );
     }
@@ -1102,23 +1180,31 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
           },
           markers: _buildMarkers(),
           onTap: (p) {
+            if (_isSerialBusy) return;
             // 赤マーカー位置を更新。ステータスは _markerGeoStatus getter で
             // rebuild 時に自動計算されるため、同期ずれが原理的に起きない。
             setState(() {
               _confirmedLocation = p;
+              final correctingSpot = _spotById(_correctingSpotId);
+              if (correctingSpot != null) {
+                correctingSpot.position = p;
+              }
             });
           },
         ),
         Positioned(
           top: 12,
           left: 12,
-          child: FilledButton.tonal(
-            onPressed: _isMeasuring
+          child: FloatingActionButton.small(
+            heroTag: 'measurement_list_button',
+            backgroundColor: Colors.white,
+            foregroundColor: Colors.black87,
+            onPressed: _isSerialBusy
                 ? null
-                : () async {
-                    await _openFarmSelection(clearSpots: true);
+                : () {
+                    _openMeasurementList();
                   },
-            child: const Icon(Icons.arrow_back),
+            child: const Icon(Icons.list),
           ),
         ),
         if (_showMapHint)
@@ -1146,7 +1232,9 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
                     ),
                   ),
                   GestureDetector(
-                    onTap: () => setState(() => _showMapHint = false),
+                    onTap: _isSerialBusy
+                        ? null
+                        : () => setState(() => _showMapHint = false),
                     child: const Padding(
                       padding: EdgeInsets.all(4),
                       child: Icon(Icons.close, color: Colors.white, size: 18),
@@ -1156,12 +1244,25 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
               ),
             ),
           ),
+        if (_correctingSpotId != null)
+          Positioned(
+            top: 72,
+            left: 12,
+            right: 12,
+            child: _PinCorrectionBanner(
+              spotNumber:
+                  _spots.indexWhere((spot) => spot.id == _correctingSpotId) + 1,
+              onDone: () => setState(() => _correctingSpotId = null),
+            ),
+          ),
         Positioned(
           right: 12,
           bottom: 18,
-          child: FloatingActionButton(
+          child: FloatingActionButton.small(
             heroTag: 'current_location_button',
-            onPressed: _isFetchingCurrentLocation
+            backgroundColor: Colors.white,
+            foregroundColor: Colors.black87,
+            onPressed: (_isFetchingCurrentLocation || _isSerialBusy)
                 ? null
                 : () => _fetchCurrentLocation(moveCamera: true),
             child: _isFetchingCurrentLocation
@@ -1184,10 +1285,10 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               decoration: BoxDecoration(
                 color: _markerGeoStatus == GeoFenceStatus.outside
-                    ? Colors.red.withOpacity(0.85)
+                    ? Colors.red.withValues(alpha: 0.85)
                     : _markerGeoStatus == GeoFenceStatus.edge
-                    ? Colors.orange.withOpacity(0.85)
-                    : Colors.green.withOpacity(0.85),
+                    ? Colors.orange.withValues(alpha: 0.85)
+                    : Colors.green.withValues(alpha: 0.85),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Text(
@@ -1201,169 +1302,509 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
               ),
             ),
           ),
-        Positioned(
-          left: 0,
-          right: 0,
-          bottom: 24,
-          child: Center(
-            child: FilledButton(
-              // 赤マーカーが圃場外の場合はボタンを無効化
-              onPressed:
-                  (_isMeasuring || _markerGeoStatus == GeoFenceStatus.outside)
+      ],
+    );
+  }
+
+  bool get _canStartMeasurement {
+    return _isConnected &&
+        _recallDone &&
+        _bgDone &&
+        _selectedFarm != null &&
+        !_isSerialBusy &&
+        _markerGeoStatus != GeoFenceStatus.outside;
+  }
+
+  Widget _buildTopStatusBar() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        border: Border(
+          bottom: BorderSide(
+            color: Theme.of(
+              context,
+            ).colorScheme.outline.withValues(alpha: 0.12),
+          ),
+        ),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: _FarmStatusChip(
+              label: _selectedFarm?.farmName ?? '圃場を選択',
+              isDone: _selectedFarm != null,
+              isLoading: _isSelectingFarm,
+              onTap: _isSerialBusy
                   ? null
-                  : _startMeasureSequence,
-              child: Text(_isMeasuring ? '測定中...' : '測定開始'),
+                  : () => _openFarmSelection(clearSpots: true),
+            ),
+          ),
+          const SizedBox(width: 8),
+          _ActionStatusChip(
+            label: '接続',
+            subLabel: 'センサ',
+            isDone: _isConnected && _recallDone,
+            isLoading: _isConnecting || _isRecalling,
+            onTap: (_isConnected && _recallDone) || _isSerialBusy
+                ? null
+                : _connect,
+          ),
+          const SizedBox(width: 8),
+          _ActionStatusChip(
+            label: 'BG',
+            subLabel: '基準',
+            isDone: _bgDone,
+            isLoading: _bgIsMeasuring,
+            onTap: (_isConnected && _recallDone && !_bgDone && !_isSerialBusy)
+                ? _startBg
+                : null,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBottomMeasureButton() {
+    final isCorrectingSpot = _correctingSpotId != null;
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: SizedBox(
+          width: double.infinity,
+          height: 52,
+          child: FilledButton.icon(
+            style: FilledButton.styleFrom(
+              backgroundColor: isCorrectingSpot
+                  ? const Color(0xFF2E5C39)
+                  : _canStartMeasurement
+                  ? const Color(0xFFB02020)
+                  : Colors.grey.shade400,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: isCorrectingSpot && !_isSerialBusy
+                ? _confirmPinCorrection
+                : _canStartMeasurement
+                ? _startMeasureSequence
+                : null,
+            icon: isCorrectingSpot
+                ? const Icon(Icons.check)
+                : _isMeasuring
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
+                  )
+                : const Icon(Icons.play_arrow_rounded),
+            label: Text(
+              isCorrectingSpot
+                  ? '位置を確定'
+                  : _isMeasuring
+                  ? '測定中...'
+                  : '測定開始',
             ),
           ),
         ),
-      ],
+      ),
+    );
+  }
+
+  void _confirmPinCorrection() {
+    if (_isSerialBusy) return;
+    setState(() => _correctingSpotId = null);
+    _openMeasurementList();
+  }
+
+  void _openMeasurementList() {
+    if (_isSerialBusy) return;
+    Navigator.push<void>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => _MeasurementListScreen(
+          farmName: _selectedFarm?.farmName,
+          spots: _spots,
+          onDeleteSpots: (ids) {
+            setState(() {
+              _spots.removeWhere((spot) => ids.contains(spot.id));
+              if (_activeSpot != null && ids.contains(_activeSpot!.id)) {
+                _activeSpot = null;
+              }
+              if (_correctingSpotId != null &&
+                  ids.contains(_correctingSpotId)) {
+                _correctingSpotId = null;
+              }
+            });
+          },
+          onCorrectSpot: (spot) {
+            setState(() {
+              _correctingSpotId = spot.id;
+              _confirmedLocation = spot.position;
+              _showMapHint = true;
+            });
+            Navigator.pop(context);
+          },
+        ),
+      ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    return PopScope(
+      canPop: !_isSerialBusy,
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('測定'),
+          actions: [
+            IconButton(
+              onPressed: _isSerialBusy ? null : _openSettings,
+              icon: const Icon(Icons.settings),
+              tooltip: '設定',
+            ),
+          ],
+        ),
+        body: Column(
+          children: [
+            _buildTopStatusBar(),
+            if (_bgIsMeasuring)
+              LinearProgressIndicator(value: _bgProgress.clamp(0.0, 1.0)),
+            Expanded(child: _buildMeasureBody()),
+            _buildBottomMeasureButton(),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _FarmStatusChip extends StatelessWidget {
+  const _FarmStatusChip({
+    required this.label,
+    required this.isDone,
+    required this.isLoading,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool isDone;
+  final bool isLoading;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final bg = isDone
+        ? const Color(0xFF2E5C39)
+        : Theme.of(context).colorScheme.surfaceContainerHighest;
+    final fg = isDone ? Colors.white : Theme.of(context).colorScheme.onSurface;
+    return Material(
+      color: bg,
+      borderRadius: BorderRadius.circular(999),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(999),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+          child: Row(
+            children: [
+              if (isLoading) ...[
+                SizedBox(
+                  width: 14,
+                  height: 14,
+                  child: CircularProgressIndicator(strokeWidth: 2, color: fg),
+                ),
+                const SizedBox(width: 8),
+              ] else ...[
+                Icon(Icons.agriculture, size: 16, color: fg),
+                const SizedBox(width: 6),
+              ],
+              Expanded(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: fg,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 13,
+                  ),
+                ),
+              ),
+              Icon(Icons.arrow_drop_down, size: 18, color: fg),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ActionStatusChip extends StatelessWidget {
+  const _ActionStatusChip({
+    required this.label,
+    required this.subLabel,
+    required this.isDone,
+    required this.isLoading,
+    required this.onTap,
+  });
+
+  final String label;
+  final String subLabel;
+  final bool isDone;
+  final bool isLoading;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final enabled = onTap != null;
+    final bg = isDone
+        ? const Color(0xFF2E5C39)
+        : enabled
+        ? const Color(0xFF5A5A5A)
+        : Theme.of(context).colorScheme.surfaceContainerHighest;
+    final fg = isDone || enabled ? Colors.white : Colors.black45;
+    return Material(
+      color: bg,
+      borderRadius: BorderRadius.circular(999),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(999),
+        onTap: onTap,
+        child: SizedBox(
+          width: 64,
+          height: 42,
+          child: Center(
+            child: isLoading
+                ? SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2, color: fg),
+                  )
+                : Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        isDone ? '✓ $label' : label,
+                        style: TextStyle(
+                          color: fg,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      Text(
+                        subLabel,
+                        style: TextStyle(
+                          color: fg.withValues(alpha: 0.78),
+                          fontSize: 10,
+                        ),
+                      ),
+                    ],
+                  ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PinCorrectionBanner extends StatelessWidget {
+  const _PinCorrectionBanner({required this.spotNumber, required this.onDone});
+
+  final int spotNumber;
+  final VoidCallback onDone;
+
+  @override
+  Widget build(BuildContext context) {
+    final numberLabel = spotNumber > 0 ? '測定点 $spotNumber' : '選択中の測定点';
+    return Material(
+      color: Colors.black87,
+      borderRadius: BorderRadius.circular(10),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 8, 6, 8),
+        child: Row(
+          children: [
+            const Icon(Icons.edit_location_alt, color: Colors.white, size: 18),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                '$numberLabel の位置修正中。地図をタップするとピンが移動します。',
+                style: const TextStyle(color: Colors.white, fontSize: 13),
+              ),
+            ),
+            TextButton(
+              onPressed: onDone,
+              child: const Text(
+                '完了',
+                style: TextStyle(color: Color(0xFF7DD3A8)),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _MeasurementListScreen extends StatefulWidget {
+  const _MeasurementListScreen({
+    required this.farmName,
+    required this.spots,
+    required this.onDeleteSpots,
+    required this.onCorrectSpot,
+  });
+
+  final String? farmName;
+  final List<_SpotProgress> spots;
+  final ValueChanged<Set<String>> onDeleteSpots;
+  final ValueChanged<_SpotProgress> onCorrectSpot;
+
+  @override
+  State<_MeasurementListScreen> createState() => _MeasurementListScreenState();
+}
+
+class _MeasurementListScreenState extends State<_MeasurementListScreen> {
+  final Set<String> _selected = <String>{};
+  bool _showUnconfirmedOnly = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final spots = _showUnconfirmedOnly
+        ? widget.spots.where((spot) => !spot.uploadDone).toList()
+        : widget.spots;
     return Scaffold(
       appBar: AppBar(
-        title: const Text(''),
+        title: Text(
+          widget.farmName == null ? '測定リスト' : '測定リスト - ${widget.farmName}',
+        ),
+        backgroundColor: const Color(0xFF1A2318),
+        foregroundColor: Colors.white,
         actions: [
-          IconButton(
-            onPressed: (_isMeasuring || _bgIsMeasuring || _isRecalling)
-                ? null
-                : _openSettings,
-            icon: const Icon(Icons.settings),
-            tooltip: '設定',
+          TextButton(
+            onPressed: () {
+              setState(() => _showUnconfirmedOnly = !_showUnconfirmedOnly);
+            },
+            child: Text(
+              '未確定のみ',
+              style: TextStyle(
+                color: _showUnconfirmedOnly
+                    ? const Color(0xFF7DD3A8)
+                    : Colors.white70,
+              ),
+            ),
           ),
         ],
       ),
       body: Column(
         children: [
-          StepIndicatorBar(
-            currentStep: _currentStep,
-            isStep1Done: _isConnected && _recallDone,
-            isBgDone: _bgDone,
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            color: const Color(0xFFF5F5F0),
+            child: Text(
+              '全 ${widget.spots.length} 件 / 表示 ${spots.length} 件',
+              style: TextStyle(color: Colors.grey.shade700, fontSize: 13),
+            ),
           ),
-          if (_currentStep == SessionStep.connect)
-            Expanded(
-              child: Column(
-                children: [
-                  Flexible(
-                    fit: FlexFit.loose,
-                    child: SingleChildScrollView(
-                      padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          _stepBodyTitle(context, 'Step 1: 接続', ''),
-                          Wrap(
-                            spacing: 8,
-                            runSpacing: 8,
-                            children: [
-                              ElevatedButton(
-                                onPressed: _isConnected ? null : _connect,
-                                child: const Text('接続'),
-                              ),
-                              ElevatedButton(
-                                onPressed:
-                                    (!_isConnected ||
-                                        _isMeasuring ||
-                                        _isRecalling)
-                                    ? null
-                                    : _disconnect,
-                                child: const Text('切断'),
-                              ),
-                              OutlinedButton(
-                                onPressed:
-                                    (!_isConnected ||
-                                        _isRecalling ||
-                                        _recallDone)
-                                    ? null
-                                    : _startAutoRecall,
-                                child: const Text('Recall再試行'),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 8),
-                          if (_isConnected)
-                            Text(
-                              _isRecalling
-                                  ? 'Recall実行中…（最大20秒）'
-                                  : _recallDone
-                                  ? 'Recall完了（OK）'
-                                  : 'Recall未完了',
+          Expanded(
+            child: spots.isEmpty
+                ? const Center(child: Text('測定ピンはありません'))
+                : ListView.separated(
+                    itemCount: spots.length,
+                    separatorBuilder: (_, __) => const Divider(height: 1),
+                    itemBuilder: (context, index) {
+                      final spot = spots[index];
+                      final selected = _selected.contains(spot.id);
+                      return CheckboxListTile(
+                        value: selected,
+                        onChanged: (value) {
+                          setState(() {
+                            if (value == true) {
+                              _selected.add(spot.id);
+                            } else {
+                              _selected.remove(spot.id);
+                            }
+                          });
+                        },
+                        secondary: CircleAvatar(
+                          radius: 15,
+                          backgroundColor: _spotColor(spot),
+                          child: Text(
+                            '${widget.spots.indexOf(spot) + 1}',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w800,
                             ),
-                        ],
-                      ),
-                    ),
+                          ),
+                        ),
+                        title: Text(_spotTitle(spot)),
+                        subtitle: Text(
+                          '${spot.position.latitude.toStringAsFixed(6)}, '
+                          '${spot.position.longitude.toStringAsFixed(6)}\n'
+                          '${_spotStatusLabel(spot)}',
+                        ),
+                      );
+                    },
                   ),
+          ),
+          SafeArea(
+            top: false,
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Row(
+                children: [
+                  OutlinedButton(
+                    onPressed: _selected.isEmpty
+                        ? null
+                        : () {
+                            widget.onDeleteSpots(_selected);
+                            setState(() => _selected.clear());
+                          },
+                    child: const Text('選択を削除'),
+                  ),
+                  const SizedBox(width: 12),
                   Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.all(12),
-                      child: _standardLogField(
-                        controller: _logController,
-                        scrollController: _logScrollController,
-                        label: '応答ログ',
-                      ),
+                    child: FilledButton(
+                      onPressed: _selected.length == 1
+                          ? () {
+                              final spot = widget.spots.firstWhere(
+                                (spot) => spot.id == _selected.first,
+                              );
+                              widget.onCorrectSpot(spot);
+                            }
+                          : null,
+                      child: const Text('位置を修正'),
                     ),
                   ),
                 ],
               ),
             ),
-          if (_currentStep == SessionStep.bg)
-            Expanded(
-              child: Column(
-                children: [
-                  Flexible(
-                    fit: FlexFit.loose,
-                    child: SingleChildScrollView(
-                      padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          _stepBodyTitle(
-                            context,
-                            'Step 2: BG測定',
-                            '完了後に圃場選択へ進みます。',
-                          ),
-                          Wrap(
-                            spacing: 8,
-                            runSpacing: 8,
-                            children: [
-                              ElevatedButton(
-                                onPressed: _bgIsMeasuring ? null : _startBg,
-                                child: const Text('BG測定開始'),
-                              ),
-                              OutlinedButton(
-                                onPressed: (_bgDone && !_bgIsMeasuring)
-                                    ? () => _openFarmSelection(clearSpots: true)
-                                    : null,
-                                child: const Text('圃場選択へ'),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 12),
-                          LinearPercentIndicator(
-                            lineHeight: AppConstants.progressBarHeight,
-                            percent: _bgProgress.clamp(0.0, 1.0),
-                            center: Text(
-                              '${(_bgProgress * 100).toStringAsFixed(0)}%',
-                            ),
-                            backgroundColor: Colors.grey[300],
-                            progressColor: Theme.of(
-                              context,
-                            ).colorScheme.primary,
-                          ),
-                          const SizedBox(height: 16),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          if (_currentStep == SessionStep.measure)
-            Expanded(child: _buildMeasureBody()),
+          ),
         ],
       ),
     );
+  }
+
+  Color _spotColor(_SpotProgress spot) {
+    if (spot.uploadDone) return const Color(0xFF27AE60);
+    if (spot.saveDone) return const Color(0xFFE67E22);
+    return const Color(0xFFC0392B);
+  }
+
+  String _spotStatusLabel(_SpotProgress spot) {
+    if (spot.uploadDone) return '推定完了';
+    if (spot.saveDone) return '保存済み';
+    if (spot.failed) return 'エラー';
+    return '${spot.percent}%';
+  }
+
+  String _spotTitle(_SpotProgress spot) {
+    final created = spot.createdAt;
+    final time =
+        '${created.hour.toString().padLeft(2, '0')}:${created.minute.toString().padLeft(2, '0')}';
+    return '測定点 ${widget.spots.indexOf(spot) + 1} / $time';
   }
 }

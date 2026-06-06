@@ -39,12 +39,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final user = context.watch<UserProvider>();
-    final userId = user.userId;
-    final shortUserId = userId?.substring(
-      0,
-      userId.length < 8 ? userId.length : 8,
-    );
-    final userLabel = shortUserId == null ? 'ユーザー確認中' : 'User $shortUserId';
+    final userLabel = user.userId == null ? 'ユーザー確認中' : user.displayName;
 
     return Scaffold(
       backgroundColor: colorScheme.surface,

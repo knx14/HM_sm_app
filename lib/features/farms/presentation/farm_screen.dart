@@ -118,10 +118,11 @@ class _FarmScreenState extends State<FarmScreen> {
       final farms = results[0] as List<Farm>;
       final latest = results[1] as List<FarmWithLatestResult>;
       final latestByFarmId = {for (final item in latest) item.farmId: item};
+      final sortedFarms = _sortFarmsByLatestResult(farms, latestByFarmId);
       final averagesByFarmId = await _loadLatestAverages(latestByFarmId.values);
       if (!mounted) return;
       setState(() {
-        _farms = farms;
+        _farms = sortedFarms;
         _latestByFarmId = latestByFarmId;
         _averagesByFarmId = averagesByFarmId;
         _isLoading = false;
@@ -133,6 +134,31 @@ class _FarmScreenState extends State<FarmScreen> {
         _isLoading = false;
       });
     }
+  }
+
+  List<Farm> _sortFarmsByLatestResult(
+    List<Farm> farms,
+    Map<int, FarmWithLatestResult> latestByFarmId,
+  ) {
+    final originalIndexByFarmId = <int, int>{
+      for (var i = 0; i < farms.length; i++) farms[i].id: i,
+    };
+    return List<Farm>.from(farms)..sort((a, b) {
+      final aDate = latestByFarmId[a.id]?.latestResult?.latestMeasurementDate;
+      final bDate = latestByFarmId[b.id]?.latestResult?.latestMeasurementDate;
+      if (aDate == null && bDate == null) {
+        return originalIndexByFarmId[a.id]!.compareTo(
+          originalIndexByFarmId[b.id]!,
+        );
+      }
+      if (aDate == null) return 1;
+      if (bDate == null) return -1;
+      final dateOrder = bDate.compareTo(aDate);
+      if (dateOrder != 0) return dateOrder;
+      return originalIndexByFarmId[a.id]!.compareTo(
+        originalIndexByFarmId[b.id]!,
+      );
+    });
   }
 
   Future<Map<int, _FarmCardAverages>> _loadLatestAverages(
@@ -391,71 +417,77 @@ class _FarmCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(cardRadius),
         child: Padding(
           padding: const EdgeInsets.all(14),
-          child: Row(
+          child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _MapThumbnail(
-                farm: farm,
-                boundaryPoints: boundaryPoints,
-                googleMapsApiKey: googleMapsApiKey,
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _MapThumbnail(
+                    farm: farm,
+                    boundaryPoints: boundaryPoints,
+                    googleMapsApiKey: googleMapsApiKey,
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Expanded(
-                          child: Text(
-                            farm.farmName,
-                            style: theme.textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.w800,
+                        Text(
+                          farm.farmName,
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w800,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          [
+                            farm.cropType ?? farm.cultivationMethod ?? '作物未設定',
+                            if (area > 0) formatArea(area),
+                          ].join(' / '),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: colorScheme.onSurface.withValues(
+                              alpha: 0.68,
                             ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
-                        IconButton(
-                          visualDensity: VisualDensity.compact,
-                          tooltip: '圃場を編集',
-                          onPressed: onEdit,
-                          icon: const Icon(Icons.edit_outlined, size: 20),
-                        ),
+                        const SizedBox(height: 6),
+                        _LatestLine(latest: latest),
                       ],
                     ),
-                    Text(
-                      [
-                        farm.cropType ?? farm.cultivationMethod ?? '作物未設定',
-                        if (area > 0) formatArea(area),
-                      ].join(' / '),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: colorScheme.onSurface.withValues(alpha: 0.68),
-                      ),
+                  ),
+                  const SizedBox(width: 4),
+                  IconButton(
+                    visualDensity: VisualDensity.compact,
+                    tooltip: '圃場を編集',
+                    onPressed: onEdit,
+                    style: IconButton.styleFrom(
+                      backgroundColor: colorScheme.surfaceContainerHighest
+                          .withValues(alpha: 0.72),
                     ),
-                    const SizedBox(height: 8),
-                    _LatestLine(latest: latest),
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        _ValueChip(
-                          label: 'CEC',
-                          value: averages?.cec ?? latest?.cecStats.avg,
-                        ),
-                        const SizedBox(width: 8),
-                        _ValueChip(label: 'CaO', value: averages?.cao),
-                        const SizedBox(width: 8),
-                        _ValueChip(label: 'K2O', value: averages?.k2o),
-                        const SizedBox(width: 8),
-                        _ValueChip(label: 'MgO', value: averages?.mgo),
-                      ],
-                    ),
-                  ],
-                ),
+                    icon: const Icon(Icons.edit_outlined, size: 20),
+                  ),
+                ],
               ),
-              const Icon(Icons.chevron_right_rounded),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  _ValueChip(
+                    label: 'CEC',
+                    value: averages?.cec ?? latest?.cecStats.avg,
+                  ),
+                  const SizedBox(width: 6),
+                  _ValueChip(label: 'CaO', value: averages?.cao),
+                  const SizedBox(width: 6),
+                  _ValueChip(label: 'K₂O', value: averages?.k2o),
+                  const SizedBox(width: 6),
+                  _ValueChip(label: 'MgO', value: averages?.mgo),
+                ],
+              ),
             ],
           ),
         ),
@@ -509,20 +541,40 @@ class _LatestLine extends StatelessWidget {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     if (latest == null) {
-      return Text(
-        '最終測定なし',
+      return _SingleLineScaleDownText(
+        text: '最終測定なし',
         style: TextStyle(
           color: colorScheme.onSurface.withValues(alpha: 0.62),
           fontSize: 12,
         ),
       );
     }
-    return Text(
-      '最終測定 ${fmt.formatYyyyMmDdSlash(latest!.latestMeasurementDate)} / ${latest!.cecStats.countPoints}点',
+    return _SingleLineScaleDownText(
+      text:
+          '最終測定 ${fmt.formatYyyyMmDdSlash(latest!.latestMeasurementDate)} / ${latest!.cecStats.countPoints}点',
       style: const TextStyle(
         color: Color(0xFF4A8459),
         fontSize: 12,
         fontWeight: FontWeight.w700,
+      ),
+    );
+  }
+}
+
+class _SingleLineScaleDownText extends StatelessWidget {
+  const _SingleLineScaleDownText({required this.text, required this.style});
+
+  final String text;
+  final TextStyle style;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: double.infinity,
+      child: FittedBox(
+        alignment: Alignment.centerLeft,
+        fit: BoxFit.scaleDown,
+        child: Text(text, maxLines: 1, softWrap: false, style: style),
       ),
     );
   }
@@ -545,7 +597,7 @@ class _ValueChip extends StatelessWidget {
           borderRadius: BorderRadius.circular(10),
         ),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             Text(
               label,
@@ -554,10 +606,20 @@ class _ValueChip extends StatelessWidget {
                 color: colorScheme.onSurface.withValues(alpha: 0.62),
                 fontWeight: FontWeight.w700,
               ),
+              maxLines: 1,
+              overflow: TextOverflow.visible,
             ),
             Text(
               value == null ? '--' : value!.toStringAsFixed(1),
-              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800),
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w800,
+                color: value == null
+                    ? colorScheme.onSurface.withValues(alpha: 0.38)
+                    : null,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.visible,
             ),
           ],
         ),
@@ -579,9 +641,9 @@ class _MapThumbnail extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const width = 92.0;
-    const height = 92.0;
-    const radius = 14.0;
+    const width = 80.0;
+    const height = 64.0;
+    const radius = 10.0;
     final colorScheme = Theme.of(context).colorScheme;
 
     if (googleMapsApiKey == null ||

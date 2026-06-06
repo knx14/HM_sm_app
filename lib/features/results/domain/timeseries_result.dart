@@ -11,6 +11,18 @@ class TimeseriesResult {
     required this.workLogs,
   });
 
+  TimeseriesResult copyWith({
+    List<TimeseriesPoint>? points,
+    List<WorkLogMark>? workLogs,
+  }) {
+    return TimeseriesResult(
+      parameter: parameter,
+      unit: unit,
+      points: points ?? this.points,
+      workLogs: workLogs ?? this.workLogs,
+    );
+  }
+
   factory TimeseriesResult.fromJson(Map<String, dynamic> json) {
     final pointsRaw = (json['points'] as List<dynamic>?) ?? const [];
     final workLogsRaw = (json['work_logs'] as List<dynamic>?) ?? const [];
@@ -59,14 +71,27 @@ class WorkLogMark {
   final String date;
   final String workType;
   final String? title;
+  final String? detail;
+  final double? amountValue;
+  final String? amountUnit;
 
-  const WorkLogMark({required this.date, required this.workType, this.title});
+  const WorkLogMark({
+    required this.date,
+    required this.workType,
+    this.title,
+    this.detail,
+    this.amountValue,
+    this.amountUnit,
+  });
 
   factory WorkLogMark.fromJson(Map<String, dynamic> json) {
     return WorkLogMark(
       date: json['date'] as String,
       workType: (json['work_type'] as String?) ?? 'other',
       title: json['title'] as String?,
+      detail: json['detail'] as String?,
+      amountValue: (json['amount_value'] as num?)?.toDouble(),
+      amountUnit: json['amount_unit'] as String?,
     );
   }
 }

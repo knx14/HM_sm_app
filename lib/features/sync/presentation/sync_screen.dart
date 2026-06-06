@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../measure/data/measurement_local_paths.dart';
 import '../../measure/data/measurement_upload_service.dart';
@@ -23,11 +24,34 @@ class _SyncScreenState extends State<SyncScreen> {
   int _pendingWorkLogCount = 0;
   bool _isLoading = true;
   bool _isSyncingWorkLogs = false;
+  bool _isSyncingSelected = false;
+  int _syncedCount = 0;
+  int _totalToSync = 0;
+  String _lastSyncedAt = '未同期';
 
   @override
   void initState() {
     super.initState();
+    _loadLastSyncedAt();
     _load();
+  }
+
+  Future<void> _loadLastSyncedAt() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (!mounted) return;
+    setState(() {
+      _lastSyncedAt = prefs.getString('last_synced_at') ?? '未同期';
+    });
+  }
+
+  Future<void> _saveLastSyncedAt() async {
+    final prefs = await SharedPreferences.getInstance();
+    final now = DateTime.now();
+    final label =
+        '${now.month}/${now.day} ${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
+    await prefs.setString('last_synced_at', label);
+    if (!mounted) return;
+    setState(() => _lastSyncedAt = label);
   }
 
   Future<void> _load() async {
@@ -96,6 +120,9 @@ class _SyncScreenState extends State<SyncScreen> {
   Future<void> _syncPendingWorkLogs() async {
     setState(() => _isSyncingWorkLogs = true);
     final result = await _workLogRepository.flushQueue();
+    if (result.success > 0) {
+      await _saveLastSyncedAt();
+    }
     await _load();
     if (!mounted) return;
     setState(() => _isSyncingWorkLogs = false);
@@ -112,21 +139,44 @@ class _SyncScreenState extends State<SyncScreen> {
     final targets = _items
         .where((item) => _selected.contains(item.fileBase))
         .toList();
+    if (targets.isEmpty) return;
+    setState(() {
+      _isSyncingSelected = true;
+      _syncedCount = 0;
+      _totalToSync = targets.length;
+    });
     var success = 0;
     var failed = 0;
     for (final item in targets) {
       try {
         await _syncItem(item);
         success++;
+        if (mounted) {
+          setState(() => _syncedCount = success);
+        }
       } catch (_) {
         failed++;
       }
     }
+    if (success > 0) {
+      await _saveLastSyncedAt();
+    }
     await _load();
     if (!mounted) return;
+    setState(() => _isSyncingSelected = false);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text('同期完了: 成功 $success 件 / 失敗 $failed 件')),
     );
+  }
+
+  Future<void> _retryItem(PendingUploadItem item) async {
+    if (_isSyncingSelected || _syncing.isNotEmpty) return;
+    setState(() {
+      _selected
+        ..clear()
+        ..add(item.fileBase);
+    });
+    await _syncSelected();
   }
 
   Future<void> _deleteSelected() async {
@@ -190,21 +240,54 @@ class _SyncScreenState extends State<SyncScreen> {
                   width: double.infinity,
                   padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
                   color: const Color(0xFFFEF0D8),
-                  child: Row(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Expanded(
-                        child: Text(
-                          '未同期 ${_items.length + _pendingWorkLogCount} 件',
-                          style: const TextStyle(fontWeight: FontWeight.w800),
-                        ),
-                      ),
-                      if (_items.isNotEmpty)
-                        TextButton(
-                          onPressed: _syncing.isEmpty ? _toggleAll : null,
-                          child: Text(
-                            _selected.length == _items.length ? '全解除' : '全選択',
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              '未同期 ${_items.length + _pendingWorkLogCount} 件',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
                           ),
+                          Text(
+                            '最終同期: $_lastSyncedAt',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey[700],
+                            ),
+                          ),
+                          if (_items.isNotEmpty)
+                            TextButton(
+                              onPressed: _syncing.isEmpty && !_isSyncingSelected
+                                  ? _toggleAll
+                                  : null,
+                              child: Text(
+                                _selected.length == _items.length
+                                    ? '全解除'
+                                    : '全選択',
+                              ),
+                            ),
+                        ],
+                      ),
+                      if (_isSyncingSelected) ...[
+                        const SizedBox(height: 8),
+                        LinearProgressIndicator(
+                          value: _totalToSync > 0
+                              ? _syncedCount / _totalToSync
+                              : null,
+                          backgroundColor: Colors.orange[100],
+                          color: Colors.orange,
                         ),
+                        const SizedBox(height: 4),
+                        Text(
+                          '$_syncedCount / $_totalToSync 件 同期中...',
+                          style: const TextStyle(fontSize: 12),
+                        ),
+                      ],
                     ],
                   ),
                 ),
@@ -245,41 +328,57 @@ class _SyncScreenState extends State<SyncScreen> {
                                 item.fileBase,
                               );
                               final syncing = _syncing.contains(item.fileBase);
-                              return CheckboxListTile(
-                                value: selected,
-                                onChanged: syncing
-                                    ? null
-                                    : (value) {
-                                        setState(() {
-                                          if (value == true) {
-                                            _selected.add(item.fileBase);
-                                          } else {
-                                            _selected.remove(item.fileBase);
-                                          }
-                                        });
-                                      },
-                                title: Text(item.fileBase),
-                                subtitle: Text(
-                                  'farm_id=${item.farmId} / ${item.measurementDate}\nphase=${item.failedPhase} / ${item.lastError}',
-                                  maxLines: 3,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                                secondary: syncing
-                                    ? const SizedBox(
-                                        width: 24,
-                                        height: 24,
-                                        child: CircularProgressIndicator(
-                                          strokeWidth: 2,
+                              final hasError = item.lastError.isNotEmpty;
+                              return ColoredBox(
+                                color: hasError
+                                    ? const Color(0xFFFCE4E4)
+                                    : Colors.transparent,
+                                child: ListTile(
+                                  leading: syncing
+                                      ? const SizedBox(
+                                          width: 24,
+                                          height: 24,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                          ),
+                                        )
+                                      : Checkbox(
+                                          value: selected,
+                                          onChanged: _isSyncingSelected
+                                              ? null
+                                              : (value) {
+                                                  setState(() {
+                                                    if (value == true) {
+                                                      _selected.add(
+                                                        item.fileBase,
+                                                      );
+                                                    } else {
+                                                      _selected.remove(
+                                                        item.fileBase,
+                                                      );
+                                                    }
+                                                  });
+                                                },
                                         ),
-                                      )
-                                    : Icon(
-                                        item.lastError.isNotEmpty
-                                            ? Icons.warning_amber_rounded
-                                            : Icons.cloud_upload_outlined,
-                                        color: item.lastError.isNotEmpty
-                                            ? colorScheme.error
-                                            : null,
-                                      ),
+                                  title: Text(item.fileBase),
+                                  subtitle: Text(
+                                    'farm_id=${item.farmId} / ${item.measurementDate}\nphase=${item.failedPhase} / ${item.lastError}',
+                                    maxLines: 3,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  trailing: hasError
+                                      ? IconButton(
+                                          tooltip: 'リトライ',
+                                          icon: Icon(
+                                            Icons.refresh,
+                                            color: colorScheme.error,
+                                          ),
+                                          onPressed: syncing
+                                              ? null
+                                              : () => _retryItem(item),
+                                        )
+                                      : const Icon(Icons.cloud_upload_outlined),
+                                ),
                               );
                             },
                           ),
@@ -297,7 +396,10 @@ class _SyncScreenState extends State<SyncScreen> {
                       child: Row(
                         children: [
                           OutlinedButton(
-                            onPressed: _selected.isEmpty || _syncing.isNotEmpty
+                            onPressed:
+                                _selected.isEmpty ||
+                                    _syncing.isNotEmpty ||
+                                    _isSyncingSelected
                                 ? null
                                 : _deleteSelected,
                             child: const Text('選択を削除'),
@@ -306,7 +408,9 @@ class _SyncScreenState extends State<SyncScreen> {
                           Expanded(
                             child: FilledButton.icon(
                               onPressed:
-                                  _selected.isEmpty || _syncing.isNotEmpty
+                                  _selected.isEmpty ||
+                                      _syncing.isNotEmpty ||
+                                      _isSyncingSelected
                                   ? null
                                   : _syncSelected,
                               icon: const Icon(Icons.cloud_upload_outlined),
