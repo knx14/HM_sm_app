@@ -62,7 +62,6 @@ class _HomeScreenState extends State<HomeScreen> {
                     Expanded(
                       child: _HomeActionButton(
                         label: '測定を始める',
-                        subtitle: '接続 / BG / 測定',
                         icon: Icons.play_arrow_rounded,
                         color: const Color(0xFFB02020),
                         onTap: () => _pushNamed(AppRoutes.measurement),
@@ -72,7 +71,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     Expanded(
                       child: _HomeActionButton(
                         label: '圃場',
-                        subtitle: '一覧 / 登録 / 編集',
+                        subtitle: '一覧 / 登録 / 詳細',
                         icon: Icons.grass,
                         color: const Color(0xFF2E5C39),
                         onTap: () => _pushNamed(AppRoutes.farms),
