@@ -947,7 +947,7 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
       check = true;
     } else if (spot.saveDone) {
       label = '✓';
-      color = Colors.grey;
+      color = const Color(0xFFE67E22);
       check = true;
     } else if (spot.failed) {
       label = '!';
