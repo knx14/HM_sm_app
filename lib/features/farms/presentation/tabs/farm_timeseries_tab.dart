@@ -437,7 +437,7 @@ class _TimeseriesChart extends StatelessWidget {
                 final index = _pointIndexAt(
                   details.localPosition,
                   constraints.biggest,
-                  data.points.length,
+                  data,
                 );
                 if (index == null) return;
                 _showMeasurementDetail(context, data, data.points[index]);
@@ -447,6 +447,7 @@ class _TimeseriesChart extends StatelessWidget {
                   points: data.points,
                   workLogs: data.workLogs,
                   textColor: Theme.of(context).colorScheme.onSurface,
+                  baseTextStyle: DefaultTextStyle.of(context).style,
                 ),
                 child: const SizedBox.expand(),
               ),
@@ -457,16 +458,35 @@ class _TimeseriesChart extends StatelessWidget {
     );
   }
 
-  int? _pointIndexAt(Offset tap, Size size, int pointCount) {
-    if (pointCount == 0) return null;
+  int? _pointIndexAt(Offset tap, Size size, TimeseriesResult data) {
+    final points = data.points;
+    if (points.isEmpty) return null;
     final chart = _TimeseriesChartPainter.chartRectFor(size);
     if (!chart.inflate(16).contains(tap)) return null;
-    if (pointCount == 1) return 0;
 
-    final position = ((tap.dx - chart.left) / chart.width).clamp(0.0, 1.0);
-    final index = (position * (pointCount - 1)).round();
-    final pointX = chart.left + chart.width * index / (pointCount - 1);
-    return (tap.dx - pointX).abs() <= 24 ? index : null;
+    final range = _TimeseriesChartPainter.dateRangeFor(
+      points,
+      data.workLogs,
+    );
+    if (range == null) return points.length == 1 ? 0 : null;
+
+    int? nearestIndex;
+    var nearestDistance = double.infinity;
+    for (var i = 0; i < points.length; i++) {
+      final x = _TimeseriesChartPainter.xForDateString(
+        points[i].date,
+        chart,
+        range.$1,
+        range.$2,
+      );
+      if (x == null) continue;
+      final distance = (tap.dx - x).abs();
+      if (distance <= 24 && distance < nearestDistance) {
+        nearestIndex = i;
+        nearestDistance = distance;
+      }
+    }
+    return nearestIndex;
   }
 
   void _showMeasurementDetail(
@@ -623,11 +643,13 @@ class _TimeseriesChartPainter extends CustomPainter {
     required this.points,
     required this.workLogs,
     required this.textColor,
+    required this.baseTextStyle,
   });
 
   final List<TimeseriesPoint> points;
   final List<WorkLogMark> workLogs;
   final Color textColor;
+  final TextStyle baseTextStyle;
 
   static const left = 44.0;
   static const right = 10.0;
@@ -643,6 +665,57 @@ class _TimeseriesChartPainter extends CustomPainter {
     );
   }
 
+  static String _dateKeyStatic(String date) =>
+      date.length >= 10 ? date.substring(0, 10) : date;
+
+  static (DateTime, DateTime)? dateRangeFor(
+    List<TimeseriesPoint> points,
+    List<WorkLogMark> workLogs,
+  ) {
+    DateTime? minDate;
+    DateTime? maxDate;
+
+    void consider(String date) {
+      final parsed = DateTime.tryParse(_dateKeyStatic(date));
+      if (parsed == null) return;
+      minDate = minDate == null || parsed.isBefore(minDate!)
+          ? parsed
+          : minDate;
+      maxDate = maxDate == null || parsed.isAfter(maxDate!)
+          ? parsed
+          : maxDate;
+    }
+
+    for (final point in points) {
+      consider(point.date);
+    }
+    for (final mark in workLogs) {
+      consider(mark.date);
+    }
+
+    if (minDate == null || maxDate == null) return null;
+    return (minDate!, maxDate!);
+  }
+
+  static double? xForDateString(
+    String date,
+    Rect chart,
+    DateTime minDate,
+    DateTime maxDate,
+  ) {
+    final parsed = DateTime.tryParse(_dateKeyStatic(date));
+    if (parsed == null) return null;
+    if (maxDate.isAtSameMomentAs(minDate)) {
+      return parsed.isAtSameMomentAs(minDate) ? chart.center.dx : null;
+    }
+    final totalDays = maxDate.difference(minDate).inDays;
+    if (totalDays <= 0) {
+      return parsed.isAtSameMomentAs(minDate) ? chart.center.dx : null;
+    }
+    final offsetDays = parsed.difference(minDate).inDays;
+    return chart.left + chart.width * (offsetDays / totalDays);
+  }
+
   @override
   void paint(Canvas canvas, Size size) {
     if (points.isEmpty) return;
@@ -650,36 +723,18 @@ class _TimeseriesChartPainter extends CustomPainter {
     final chart = chartRectFor(size);
     if (chart.width <= 0 || chart.height <= 0) return;
 
+    final dateRange = dateRangeFor(points, workLogs);
+    if (dateRange == null) return;
+    final (minDate, maxDate) = dateRange;
+
     final minY = points.map((p) => p.min).reduce(math.min);
     final maxY = points.map((p) => p.max).reduce(math.max);
     final yPadding = (maxY - minY).abs() < 0.001 ? 1.0 : (maxY - minY) * 0.12;
     final y0 = minY - yPadding;
     final y1 = maxY + yPadding;
 
-    double xFor(int index) {
-      if (points.length == 1) return chart.center.dx;
-      return chart.left + chart.width * index / (points.length - 1);
-    }
-
-    double? xForDate(String date) {
-      final parsed = DateTime.tryParse(_dateKey(date));
-      final first = DateTime.tryParse(_dateKey(points.first.date));
-      final last = DateTime.tryParse(_dateKey(points.last.date));
-      if (parsed == null || first == null || last == null) {
-        final exactIndex = points.indexWhere(
-          (p) => _dateKey(p.date) == _dateKey(date),
-        );
-        return exactIndex < 0 ? null : xFor(exactIndex);
-      }
-      if (last.isAtSameMomentAs(first)) {
-        return parsed.isAtSameMomentAs(first) ? chart.center.dx : null;
-      }
-      if (parsed.isBefore(first) || parsed.isAfter(last)) return null;
-      final totalDays = last.difference(first).inSeconds;
-      if (totalDays <= 0) return null;
-      final offsetDays = parsed.difference(first).inSeconds;
-      return chart.left + chart.width * (offsetDays / totalDays);
-    }
+    double? xForDate(String date) =>
+        xForDateString(date, chart, minDate, maxDate);
 
     double yFor(double value) {
       if ((y1 - y0).abs() < 0.001) return chart.center.dy;
@@ -727,7 +782,9 @@ class _TimeseriesChartPainter extends CustomPainter {
     final bandPath = Path();
     for (var i = 0; i < points.length; i++) {
       final p = points[i];
-      final point = Offset(xFor(i), yFor(p.max));
+      final x = xForDate(p.date);
+      if (x == null) continue;
+      final point = Offset(x, yFor(p.max));
       if (i == 0) {
         bandPath.moveTo(point.dx, point.dy);
       } else {
@@ -736,7 +793,9 @@ class _TimeseriesChartPainter extends CustomPainter {
     }
     for (var i = points.length - 1; i >= 0; i--) {
       final p = points[i];
-      bandPath.lineTo(xFor(i), yFor(p.min));
+      final x = xForDate(p.date);
+      if (x == null) continue;
+      bandPath.lineTo(x, yFor(p.min));
     }
     bandPath.close();
     canvas.drawPath(
@@ -747,7 +806,9 @@ class _TimeseriesChartPainter extends CustomPainter {
     final linePath = Path();
     for (var i = 0; i < points.length; i++) {
       final p = points[i];
-      final point = Offset(xFor(i), yFor(p.avg));
+      final x = xForDate(p.date);
+      if (x == null) continue;
+      final point = Offset(x, yFor(p.avg));
       if (i == 0) {
         linePath.moveTo(point.dx, point.dy);
       } else {
@@ -764,15 +825,19 @@ class _TimeseriesChartPainter extends CustomPainter {
 
     final dotPaint = Paint()..color = const Color(0xFF2E5C39);
     for (var i = 0; i < points.length; i++) {
-      canvas.drawCircle(Offset(xFor(i), yFor(points[i].avg)), 4, dotPaint);
+      final x = xForDate(points[i].date);
+      if (x == null) continue;
+      canvas.drawCircle(Offset(x, yFor(points[i].avg)), 4, dotPaint);
     }
 
     final labelStep = math.max(1, (points.length / 4).ceil());
     for (var i = 0; i < points.length; i += labelStep) {
+      final x = xForDate(points[i].date);
+      if (x == null) continue;
       _drawText(
         canvas,
         _shortDate(points[i].date),
-        Offset(xFor(i) - 16, chart.bottom + 8),
+        Offset(x - 16, chart.bottom + 8),
         fontSize: 10,
         color: textColor.withValues(alpha: 0.68),
       );
@@ -802,10 +867,11 @@ class _TimeseriesChartPainter extends CustomPainter {
   }) {
     final painter = TextPainter(
       text: TextSpan(
-        style: TextStyle(fontSize: fontSize, color: color),
+        style: baseTextStyle.copyWith(fontSize: fontSize, color: color),
         text: text,
       ),
       textDirection: TextDirection.ltr,
+      locale: const Locale('ja', 'JP'),
     )..layout();
     painter.paint(canvas, offset);
   }
@@ -817,14 +883,12 @@ class _TimeseriesChartPainter extends CustomPainter {
     return date;
   }
 
-  String _dateKey(String date) =>
-      date.length >= 10 ? date.substring(0, 10) : date;
-
   @override
   bool shouldRepaint(covariant _TimeseriesChartPainter oldDelegate) {
     return oldDelegate.points != points ||
         oldDelegate.workLogs != workLogs ||
-        oldDelegate.textColor != textColor;
+        oldDelegate.textColor != textColor ||
+        oldDelegate.baseTextStyle != baseTextStyle;
   }
 }
 
