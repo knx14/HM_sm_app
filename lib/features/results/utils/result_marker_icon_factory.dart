@@ -19,26 +19,28 @@ class ResultMarkerIconFactory {
     final cached = _cache[key];
     if (cached != null) return cached;
 
-    const size = 64.0;
+    const size = 40.0;
+    const radius = 15.0;
     final recorder = ui.PictureRecorder();
     final canvas = Canvas(recorder);
+    const center = Offset(size / 2, size / 2);
 
     // 背景（円）
     final paint = Paint()..color = color;
-    canvas.drawCircle(const Offset(size / 2, size / 2), size / 2, paint);
+    canvas.drawCircle(center, radius, paint);
 
-    // 枠線（薄く）
+    // 測定画面のピンと同じ大きさに揃える。
     final border = Paint()
-      ..color = Colors.black.withValues(alpha: 0.08)
+      ..color = Colors.white
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.5;
-    canvas.drawCircle(const Offset(size / 2, size / 2), size / 2 - 1, border);
+      ..strokeWidth = 2;
+    canvas.drawCircle(center, radius, border);
 
     // テキスト
     final textStyle = TextStyle(
       color: _bestTextColor(color),
-      fontSize: 15,
-      fontWeight: FontWeight.w700,
+      fontSize: 11,
+      fontWeight: FontWeight.w800,
     );
     final tp = TextPainter(
       text: TextSpan(text: label, style: textStyle),
@@ -60,4 +62,3 @@ class ResultMarkerIconFactory {
     return l < 0.4 ? Colors.white : Colors.black;
   }
 }
-

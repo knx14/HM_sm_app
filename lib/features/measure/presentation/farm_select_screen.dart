@@ -20,20 +20,19 @@ enum FarmSelectMode {
 class FarmSelectResult {
   final Farm farm;
   final LocationConfirmResult? locationConfirmResult;
+  final bool isFromCache;
 
   const FarmSelectResult({
     required this.farm,
     this.locationConfirmResult,
+    this.isFromCache = false,
   });
 }
 
 class FarmSelectScreen extends StatefulWidget {
   final FarmSelectMode mode;
 
-  const FarmSelectScreen({
-    super.key,
-    this.mode = FarmSelectMode.farmOnly,
-  });
+  const FarmSelectScreen({super.key, this.mode = FarmSelectMode.farmOnly});
 
   @override
   State<FarmSelectScreen> createState() => _FarmSelectScreenState();
@@ -43,6 +42,7 @@ class _FarmSelectScreenState extends State<FarmSelectScreen> {
   late final FarmRepository _farmRepository;
 
   bool _isLoading = false;
+  bool _isUsingCachedFarms = false;
   String? _error;
   List<Farm> _farms = [];
 
@@ -55,10 +55,7 @@ class _FarmSelectScreenState extends State<FarmSelectScreen> {
       'API_BASE_URL',
       defaultValue: 'https://api.hm-admin.com',
     );
-    final apiClient = ApiClient(
-      baseUrl: baseUrl,
-      authService: authService,
-    );
+    final apiClient = ApiClient(baseUrl: baseUrl, authService: authService);
     _farmRepository = FarmRepository(apiClient);
 
     _loadFarms();
@@ -74,12 +71,31 @@ class _FarmSelectScreenState extends State<FarmSelectScreen> {
       if (!mounted) return;
       setState(() {
         _farms = farms;
+        _isUsingCachedFarms = _farmRepository.wasLastResultFromCache;
+        _isLoading = false;
+      });
+    } on FarmCacheUnavailableException catch (e) {
+      if (!mounted) return;
+      final message = e.toString();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'ネットワークに接続できません。\n'
+            '一度オンラインで起動すると、次回からオフラインでも使用できます。',
+          ),
+          duration: Duration(seconds: 4),
+        ),
+      );
+      setState(() {
+        _error = message;
+        _isUsingCachedFarms = false;
         _isLoading = false;
       });
     } catch (e) {
       if (!mounted) return;
       setState(() {
         _error = e.toString();
+        _isUsingCachedFarms = false;
         _isLoading = false;
       });
     }
@@ -91,7 +107,7 @@ class _FarmSelectScreenState extends State<FarmSelectScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('圃場を選択'),
+        title: Text(_isUsingCachedFarms ? '圃場を選択（オフライン・保存済みデータ）' : '圃場を選択'),
         leading: Navigator.canPop(context) ? null : const SizedBox.shrink(),
       ),
       body: Padding(
@@ -105,7 +121,10 @@ class _FarmSelectScreenState extends State<FarmSelectScreen> {
                   padding: const EdgeInsets.all(12),
                   child: Row(
                     children: [
-                      Icon(Icons.error_outline, color: colorScheme.onErrorContainer),
+                      Icon(
+                        Icons.error_outline,
+                        color: colorScheme.onErrorContainer,
+                      ),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
@@ -129,44 +148,55 @@ class _FarmSelectScreenState extends State<FarmSelectScreen> {
               child: _isLoading && _farms.isEmpty
                   ? const Center(child: CircularProgressIndicator())
                   : _farms.isEmpty
-                      ? const Center(child: Text('圃場がありません'))
-                      : ListView.separated(
-                          itemCount: _farms.length,
-                          separatorBuilder: (_, __) => const Divider(height: 1),
-                          itemBuilder: (context, index) {
-                            final farm = _farms[index];
-                            return ListTile(
-                              title: Text(farm.farmName),
-                              subtitle: Text('ID: ${farm.id}'),
-                              trailing: const Icon(Icons.chevron_right),
-                              onTap: () async {
-                                switch (widget.mode) {
-                                  case FarmSelectMode.farmOnly:
-                                    Navigator.pop(context, FarmSelectResult(farm: farm));
-                                    return;
-                                  case FarmSelectMode.farmAndLocationConfirm:
-                                    final result = await Navigator.push<LocationConfirmResult>(
+                  ? const Center(child: Text('圃場がありません'))
+                  : ListView.separated(
+                      itemCount: _farms.length,
+                      separatorBuilder: (_, __) => const Divider(height: 1),
+                      itemBuilder: (context, index) {
+                        final farm = _farms[index];
+                        return ListTile(
+                          title: Text(farm.farmName),
+                          subtitle: Text('ID: ${farm.id}'),
+                          trailing: const Icon(Icons.chevron_right),
+                          onTap: () async {
+                            switch (widget.mode) {
+                              case FarmSelectMode.farmOnly:
+                                Navigator.pop(
+                                  context,
+                                  FarmSelectResult(
+                                    farm: farm,
+                                    isFromCache: _isUsingCachedFarms,
+                                  ),
+                                );
+                                return;
+                              case FarmSelectMode.farmAndLocationConfirm:
+                                final result =
+                                    await Navigator.push<LocationConfirmResult>(
                                       context,
-                                      MaterialPageRoute(builder: (_) => LocationConfirmScreen(farm: farm)),
-                                    );
-                                    if (!context.mounted) return;
-                                    if (result == null) {
-                                      // 地点確定がキャンセルされたら、圃場選択に留まる（戻れるようにする）。
-                                      return;
-                                    }
-                                    Navigator.pop(
-                                      context,
-                                      FarmSelectResult(
-                                        farm: farm,
-                                        locationConfirmResult: result,
+                                      MaterialPageRoute(
+                                        builder: (_) =>
+                                            LocationConfirmScreen(farm: farm),
                                       ),
                                     );
-                                    return;
+                                if (!context.mounted) return;
+                                if (result == null) {
+                                  // 地点確定がキャンセルされたら、圃場選択に留まる（戻れるようにする）。
+                                  return;
                                 }
-                              },
-                            );
+                                Navigator.pop(
+                                  context,
+                                  FarmSelectResult(
+                                    farm: farm,
+                                    locationConfirmResult: result,
+                                    isFromCache: _isUsingCachedFarms,
+                                  ),
+                                );
+                                return;
+                            }
                           },
-                        ),
+                        );
+                      },
+                    ),
             ),
           ],
         ),
@@ -174,4 +204,3 @@ class _FarmSelectScreenState extends State<FarmSelectScreen> {
     );
   }
 }
-

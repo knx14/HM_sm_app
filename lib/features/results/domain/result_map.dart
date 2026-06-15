@@ -59,12 +59,14 @@ class ResultPoint {
   final int pointId;
   final double lat;
   final double lng;
+  final DateTime? createdAt;
   final List<ResultValue> values;
 
   const ResultPoint({
     required this.pointId,
     required this.lat,
     required this.lng,
+    this.createdAt,
     required this.values,
   });
 
@@ -74,7 +76,12 @@ class ResultPoint {
       pointId: (json['point_id'] as num).toInt(),
       lat: (json['lat'] as num).toDouble(),
       lng: (json['lng'] as num).toDouble(),
-      values: valuesJson.map((e) => ResultValue.fromJson(e as Map<String, dynamic>)).toList(),
+      createdAt: json['created_at'] != null
+          ? DateTime.parse(json['created_at'] as String).toLocal()
+          : null,
+      values: valuesJson
+          .map((e) => ResultValue.fromJson(e as Map<String, dynamic>))
+          .toList(),
     );
   }
 }
@@ -100,4 +107,3 @@ class ResultMapResponse {
     );
   }
 }
-

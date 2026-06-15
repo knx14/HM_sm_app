@@ -6,6 +6,11 @@ import 'measurement_local_paths.dart';
 class PendingUploadItem {
   final String fileBase;
   final int farmId;
+  final String? farmName;
+  final int? pointNumber;
+  final String? localPinId;
+  final double? latitude;
+  final double? longitude;
   final String? note1;
   final String? note2;
   final String measurementDate;
@@ -17,6 +22,11 @@ class PendingUploadItem {
   const PendingUploadItem({
     required this.fileBase,
     required this.farmId,
+    this.farmName,
+    this.pointNumber,
+    this.localPinId,
+    this.latitude,
+    this.longitude,
     required this.note1,
     required this.note2,
     required this.measurementDate,
@@ -29,11 +39,19 @@ class PendingUploadItem {
   PendingUploadItem copyWith({
     String? failedPhase,
     String? lastError,
+    String? localPinId,
+    double? latitude,
+    double? longitude,
     DateTime? updatedAt,
   }) {
     return PendingUploadItem(
       fileBase: fileBase,
       farmId: farmId,
+      farmName: farmName,
+      pointNumber: pointNumber,
+      localPinId: localPinId ?? this.localPinId,
+      latitude: latitude ?? this.latitude,
+      longitude: longitude ?? this.longitude,
       note1: note1,
       note2: note2,
       measurementDate: measurementDate,
@@ -48,6 +66,11 @@ class PendingUploadItem {
     return {
       'fileBase': fileBase,
       'farmId': farmId,
+      'farmName': farmName,
+      'pointNumber': pointNumber,
+      'localPinId': localPinId,
+      'latitude': latitude,
+      'longitude': longitude,
       'note1': note1,
       'note2': note2,
       'measurementDate': measurementDate,
@@ -62,13 +85,22 @@ class PendingUploadItem {
     return PendingUploadItem(
       fileBase: json['fileBase'] as String,
       farmId: (json['farmId'] as num).toInt(),
+      farmName: json['farmName'] as String?,
+      pointNumber: (json['pointNumber'] as num?)?.toInt(),
+      localPinId: json['localPinId'] as String?,
+      latitude: (json['latitude'] as num?)?.toDouble(),
+      longitude: (json['longitude'] as num?)?.toDouble(),
       note1: json['note1'] as String?,
       note2: json['note2'] as String?,
       measurementDate: json['measurementDate'] as String,
       failedPhase: (json['failedPhase'] as String?) ?? 'error',
       lastError: (json['lastError'] as String?) ?? '',
-      createdAt: DateTime.tryParse((json['createdAt'] as String?) ?? '') ?? DateTime.now(),
-      updatedAt: DateTime.tryParse((json['updatedAt'] as String?) ?? '') ?? DateTime.now(),
+      createdAt:
+          DateTime.tryParse((json['createdAt'] as String?) ?? '') ??
+          DateTime.now(),
+      updatedAt:
+          DateTime.tryParse((json['updatedAt'] as String?) ?? '') ??
+          DateTime.now(),
     );
   }
 }
@@ -115,6 +147,9 @@ class PendingUploadStore {
       items[index] = items[index].copyWith(
         failedPhase: item.failedPhase,
         lastError: item.lastError,
+        localPinId: item.localPinId,
+        latitude: item.latitude,
+        longitude: item.longitude,
         updatedAt: now,
       );
     } else {
@@ -122,6 +157,11 @@ class PendingUploadStore {
         PendingUploadItem(
           fileBase: item.fileBase,
           farmId: item.farmId,
+          farmName: item.farmName,
+          pointNumber: item.pointNumber,
+          localPinId: item.localPinId,
+          latitude: item.latitude,
+          longitude: item.longitude,
           note1: item.note1,
           note2: item.note2,
           measurementDate: item.measurementDate,
@@ -148,10 +188,7 @@ class PendingUploadStore {
     final content = const JsonEncoder.withIndent('  ').convert(payload);
     try {
       await file.parent.create(recursive: true);
-      await tmpFile.writeAsString(
-        content,
-        flush: true,
-      );
+      await tmpFile.writeAsString(content, flush: true);
       if (await file.exists()) {
         await file.delete();
       }
@@ -162,7 +199,9 @@ class PendingUploadStore {
       try {
         await file.writeAsString(content, flush: true);
       } catch (fallbackError) {
-        throw StateError('pending write failed: $primaryError | fallback failed: $fallbackError');
+        throw StateError(
+          'pending write failed: $primaryError | fallback failed: $fallbackError',
+        );
       }
       try {
         if (await tmpFile.exists()) {

@@ -1,11 +1,14 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../measure/data/measurement_local_paths.dart';
 import '../../measure/data/measurement_upload_service.dart';
 import '../../measure/data/pending_upload_store.dart';
+import '../../measure/presentation/measurement_session_screen.dart'
+    show MeasurementStateProvider;
 import '../../work_logs/data/work_log_repository.dart';
 
 class SyncScreen extends StatefulWidget {
@@ -84,6 +87,12 @@ class _SyncScreenState extends State<SyncScreen> {
 
       final measurementParameters =
           jsonDecode(await jsonFile.readAsString()) as Map<String, dynamic>;
+      final latitude =
+          item.latitude ??
+          (measurementParameters['latitude'] as num?)?.toDouble();
+      final longitude =
+          item.longitude ??
+          (measurementParameters['longitude'] as num?)?.toDouble();
       await MeasurementUploadService().uploadCsvWithInitComplete(
         farmId: item.farmId,
         csvFile: csvFile,
@@ -93,6 +102,14 @@ class _SyncScreenState extends State<SyncScreen> {
         note2: item.note2,
         cultivationType: null,
       );
+      if (mounted) {
+        context.read<MeasurementStateProvider>().removeSyncedLocalPins(
+          farmId: item.farmId,
+          localPinId: item.localPinId,
+          latitude: latitude,
+          longitude: longitude,
+        );
+      }
       await _store.removeByFileBase(item.fileBase);
       _selected.remove(item.fileBase);
     } catch (e) {
@@ -100,6 +117,11 @@ class _SyncScreenState extends State<SyncScreen> {
         PendingUploadItem(
           fileBase: item.fileBase,
           farmId: item.farmId,
+          farmName: item.farmName,
+          pointNumber: item.pointNumber,
+          localPinId: item.localPinId,
+          latitude: item.latitude,
+          longitude: item.longitude,
           note1: item.note1,
           note2: item.note2,
           measurementDate: item.measurementDate,
@@ -169,16 +191,6 @@ class _SyncScreenState extends State<SyncScreen> {
     );
   }
 
-  Future<void> _retryItem(PendingUploadItem item) async {
-    if (_isSyncingSelected || _syncing.isNotEmpty) return;
-    setState(() {
-      _selected
-        ..clear()
-        ..add(item.fileBase);
-    });
-    await _syncSelected();
-  }
-
   Future<void> _deleteSelected() async {
     final targets = _items
         .where((item) => _selected.contains(item.fileBase))
@@ -221,9 +233,29 @@ class _SyncScreenState extends State<SyncScreen> {
     });
   }
 
+  String _farmLabel(PendingUploadItem item) {
+    final farmName = item.farmName?.trim();
+    if (farmName != null && farmName.isNotEmpty) return farmName;
+    return '圃場ID ${item.farmId}';
+  }
+
+  String _pointLabel(PendingUploadItem item, int index) {
+    final pointNumber = item.pointNumber ?? index + 1;
+    return '地点 $pointNumber';
+  }
+
+  String _dateTimeLabel(PendingUploadItem item) {
+    final parsed = DateTime.tryParse(item.measurementDate)?.toLocal();
+    final time = parsed ?? item.createdAt;
+    final date =
+        '${time.year}/${time.month.toString().padLeft(2, '0')}/${time.day.toString().padLeft(2, '0')}';
+    final hour = time.hour.toString().padLeft(2, '0');
+    final minute = time.minute.toString().padLeft(2, '0');
+    return '$date $hour:$minute';
+  }
+
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
     return Scaffold(
       appBar: AppBar(
         title: const Text('同期'),
@@ -321,63 +353,48 @@ class _SyncScreenState extends State<SyncScreen> {
                           ),
                           const Divider(height: 1),
                         ],
-                        for (final item in _items) ...[
+                        for (var index = 0; index < _items.length; index++) ...[
                           Builder(
                             builder: (context) {
+                              final item = _items[index];
                               final selected = _selected.contains(
                                 item.fileBase,
                               );
                               final syncing = _syncing.contains(item.fileBase);
-                              final hasError = item.lastError.isNotEmpty;
-                              return ColoredBox(
-                                color: hasError
-                                    ? const Color(0xFFFCE4E4)
-                                    : Colors.transparent,
-                                child: ListTile(
-                                  leading: syncing
-                                      ? const SizedBox(
-                                          width: 24,
-                                          height: 24,
-                                          child: CircularProgressIndicator(
-                                            strokeWidth: 2,
-                                          ),
-                                        )
-                                      : Checkbox(
-                                          value: selected,
-                                          onChanged: _isSyncingSelected
-                                              ? null
-                                              : (value) {
-                                                  setState(() {
-                                                    if (value == true) {
-                                                      _selected.add(
-                                                        item.fileBase,
-                                                      );
-                                                    } else {
-                                                      _selected.remove(
-                                                        item.fileBase,
-                                                      );
-                                                    }
-                                                  });
-                                                },
+                              return ListTile(
+                                leading: syncing
+                                    ? const SizedBox(
+                                        width: 24,
+                                        height: 24,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
                                         ),
-                                  title: Text(item.fileBase),
-                                  subtitle: Text(
-                                    'farm_id=${item.farmId} / ${item.measurementDate}\nphase=${item.failedPhase} / ${item.lastError}',
-                                    maxLines: 3,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                  trailing: hasError
-                                      ? IconButton(
-                                          tooltip: 'リトライ',
-                                          icon: Icon(
-                                            Icons.refresh,
-                                            color: colorScheme.error,
-                                          ),
-                                          onPressed: syncing
-                                              ? null
-                                              : () => _retryItem(item),
-                                        )
-                                      : const Icon(Icons.cloud_upload_outlined),
+                                      )
+                                    : Checkbox(
+                                        value: selected,
+                                        onChanged: _isSyncingSelected
+                                            ? null
+                                            : (value) {
+                                                setState(() {
+                                                  if (value == true) {
+                                                    _selected.add(
+                                                      item.fileBase,
+                                                    );
+                                                  } else {
+                                                    _selected.remove(
+                                                      item.fileBase,
+                                                    );
+                                                  }
+                                                });
+                                              },
+                                      ),
+                                title: Text(
+                                  '${_farmLabel(item)} / ${_pointLabel(item, index)}',
+                                ),
+                                subtitle: Text(
+                                  '日時: ${_dateTimeLabel(item)}',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
                                 ),
                               );
                             },

@@ -1,7 +1,9 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math' as math;
 import 'dart:ui' as ui;
 
+import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
@@ -14,6 +16,8 @@ import '../../../services/geo_service.dart';
 import '../../../utils/polygon_area.dart';
 import '../../farms/data/farm_repository.dart';
 import '../../farms/domain/farm.dart';
+import '../../results/data/results_repository.dart';
+import '../../results/domain/result_map.dart';
 import '../constants/app_constants.dart';
 import '../data/measurement_local_paths.dart';
 import '../data/local_save_service.dart';
@@ -36,17 +40,153 @@ class _SpotProgress {
     required this.id,
     required this.position,
     required this.createdAt,
+    this.isResultPoint = false,
+    this.resultPointId,
   });
 
   final String id;
   LatLng position;
-  final DateTime createdAt;
+  DateTime createdAt;
+  final bool isResultPoint;
+  final int? resultPointId;
   int percent = 0;
   bool saveDone = false;
   bool uploadDone = false;
   bool failed = false;
   int iconVersion = 0;
   BitmapDescriptor? icon;
+}
+
+class MeasurementStateProvider extends ChangeNotifier {
+  final Map<String, List<_SpotProgress>> _pinsByFarmDate =
+      <String, List<_SpotProgress>>{};
+  final Map<String, List<_SpotProgress>> _resultPinsByFarmDate =
+      <String, List<_SpotProgress>>{};
+
+  Farm? selectedFarm;
+  LatLng? confirmedLocation;
+  String? activeSpotId;
+  String? correctingSpotId;
+  bool isConnected = false;
+  bool recallDone = false;
+  bool bgDone = false;
+
+  String _jstDateString() {
+    final utc = DateTime.now().toUtc();
+    final jst = utc.add(const Duration(hours: 9));
+    final month = jst.month.toString().padLeft(2, '0');
+    final day = jst.day.toString().padLeft(2, '0');
+    return '${jst.year}-$month-$day';
+  }
+
+  String _keyForFarm(int farmId) => '${farmId}_${_jstDateString()}';
+
+  void _purgeOldSessions() {
+    final today = _jstDateString();
+    _pinsByFarmDate.removeWhere((key, _) => !key.endsWith('_$today'));
+    _resultPinsByFarmDate.removeWhere((key, _) => !key.endsWith('_$today'));
+  }
+
+  void startSession(int farmId) {
+    _purgeOldSessions();
+    _pinsByFarmDate.putIfAbsent(_keyForFarm(farmId), () => <_SpotProgress>[]);
+    notifyListeners();
+  }
+
+  List<_SpotProgress> _pinsForFarm(int farmId) {
+    _purgeOldSessions();
+    return List.unmodifiable(_pinsByFarmDate[_keyForFarm(farmId)] ?? const []);
+  }
+
+  List<_SpotProgress> _resultPinsForFarm(int farmId) {
+    _purgeOldSessions();
+    return List.unmodifiable(
+      _resultPinsByFarmDate[_keyForFarm(farmId)] ?? const [],
+    );
+  }
+
+  void _addPin(int farmId, _SpotProgress pin) {
+    _purgeOldSessions();
+    final pins = _pinsByFarmDate.putIfAbsent(
+      _keyForFarm(farmId),
+      () => <_SpotProgress>[],
+    );
+    pins.add(pin);
+    notifyListeners();
+  }
+
+  void _removePins(int farmId, Set<String> ids) {
+    final key = _keyForFarm(farmId);
+    final pins = _pinsByFarmDate[key];
+    if (pins == null) return;
+    pins.removeWhere((spot) => ids.contains(spot.id));
+    notifyListeners();
+  }
+
+  void removeSyncedLocalPins({
+    required int farmId,
+    String? localPinId,
+    double? latitude,
+    double? longitude,
+  }) {
+    final key = _keyForFarm(farmId);
+    final pins = _pinsByFarmDate[key];
+    if (pins == null) return;
+    final ids = <String>{};
+    if (localPinId != null && localPinId.isNotEmpty) {
+      ids.add(localPinId);
+    }
+    if (latitude != null && longitude != null) {
+      for (final spot in pins) {
+        if (!spot.saveDone || spot.uploadDone) continue;
+        final distance = Geolocator.distanceBetween(
+          latitude,
+          longitude,
+          spot.position.latitude,
+          spot.position.longitude,
+        );
+        if (distance <= 5.0) {
+          ids.add(spot.id);
+        }
+      }
+    }
+    if (ids.isEmpty) return;
+    pins.removeWhere((spot) => ids.contains(spot.id));
+    notifyListeners();
+  }
+
+  void _removeResultPins(int farmId, Set<String> ids) {
+    final key = _keyForFarm(farmId);
+    final pins = _resultPinsByFarmDate[key];
+    if (pins == null) return;
+    pins.removeWhere((spot) => ids.contains(spot.id));
+    notifyListeners();
+  }
+
+  void _setResultPins(int farmId, List<_SpotProgress> pins) {
+    _purgeOldSessions();
+    _resultPinsByFarmDate[_keyForFarm(farmId)] = pins;
+    notifyListeners();
+  }
+
+  void update({
+    Farm? selectedFarm,
+    LatLng? confirmedLocation,
+    String? activeSpotId,
+    String? correctingSpotId,
+    required bool isConnected,
+    required bool recallDone,
+    required bool bgDone,
+  }) {
+    this.selectedFarm = selectedFarm;
+    this.confirmedLocation = confirmedLocation;
+    this.activeSpotId = activeSpotId;
+    this.correctingSpotId = correctingSpotId;
+    this.isConnected = isConnected;
+    this.recallDone = recallDone;
+    this.bgDone = bgDone;
+    notifyListeners();
+  }
 }
 
 class MeasurementSessionScreen extends StatefulWidget {
@@ -89,6 +229,7 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
   final AppSettings _settings = AppSettings();
   final MeasureSettingsStore _measureSettingsStore = MeasureSettingsStore();
   final PendingUploadStore _pendingUploadStore = PendingUploadStore();
+  late final ResultsRepository _resultsRepository;
 
   bool _isConnected = false;
   bool _isConnecting = false;
@@ -116,14 +257,33 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
   double _bgProgress = 0.0;
   bool _isSelectingFarm = false;
   bool _showMapHint = true;
+  int _fetchVersion = 0;
+  final Map<int, DateTime> _deletedPointIds = <int, DateTime>{};
 
   final List<ChartData> _chartData = [];
-  final List<_SpotProgress> _spots = <_SpotProgress>[];
   _SpotProgress? _activeSpot;
   String? _correctingSpotId;
   final Map<String, BitmapDescriptor> _markerIconCache =
       <String, BitmapDescriptor>{};
   Completer<bool>? _execCompleter;
+  late MeasurementStateProvider _sessionState;
+  bool _didBindSessionState = false;
+
+  List<_SpotProgress> get _spots {
+    final farm = _selectedFarm;
+    if (farm == null) return const <_SpotProgress>[];
+    return _sessionState._pinsForFarm(farm.id);
+  }
+
+  List<_SpotProgress> get _resultSpots {
+    final farm = _selectedFarm;
+    if (farm == null) return const <_SpotProgress>[];
+    return _sessionState._resultPinsForFarm(farm.id);
+  }
+
+  List<_SpotProgress> get _mapSpots {
+    return [..._resultSpots, ..._spots];
+  }
 
   bool get _isUploading =>
       _uploadPhase == UploadPhase.saving ||
@@ -151,10 +311,42 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
   @override
   void initState() {
     super.initState();
+    _resultsRepository = ResultsRepository(buildApiClient());
     SerialComm.init(_onReceive);
     SerialComm.addDisconnectListener(_onUsbDisconnected);
     _loadSavedMeasureSettings();
-    _autoSelectNearestFarm();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_didBindSessionState) return;
+    _sessionState = context.read<MeasurementStateProvider>();
+    _isConnected = SerialComm.isConnected();
+    _recallDone = _isConnected && _sessionState.recallDone;
+    _bgDone = _isConnected && _sessionState.bgDone;
+    _selectedFarm = _sessionState.selectedFarm;
+    final selectedFarm = _selectedFarm;
+    if (selectedFarm != null) {
+      _sessionState.startSession(selectedFarm.id);
+    }
+    _confirmedLocation = _sessionState.confirmedLocation;
+    _correctingSpotId = _sessionState.correctingSpotId;
+    _activeSpot = _spotById(_sessionState.activeSpotId);
+    _currentStep = !_isConnected
+        ? SessionStep.connect
+        : _bgDone
+        ? SessionStep.measure
+        : SessionStep.bg;
+    _didBindSessionState = true;
+    _setupSerialComm();
+    _loadTodayResultPinsForSelectedFarm();
+    for (final spot in _spots.where((spot) => spot.icon == null)) {
+      _refreshSpotIcon(spot);
+    }
+    if (_selectedFarm == null) {
+      _autoSelectNearestFarm();
+    }
   }
 
   Future<void> _loadSavedMeasureSettings() async {
@@ -211,6 +403,177 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
   int _averageValue() =>
       int.tryParse(_average.text.trim()) ?? MeasureSettings.defaults.average;
 
+  void _persistSessionState() {
+    if (!_didBindSessionState) return;
+    _sessionState.update(
+      selectedFarm: _selectedFarm,
+      confirmedLocation: _confirmedLocation,
+      activeSpotId: _activeSpot?.id,
+      correctingSpotId: _correctingSpotId,
+      isConnected: _isConnected,
+      recallDone: _recallDone,
+      bgDone: _bgDone,
+    );
+  }
+
+  String _todayJstIsoDate() => _sessionState._jstDateString();
+
+  Future<List<_SpotProgress>> _loadTodayResultPinsForSelectedFarm() async {
+    final farm = _selectedFarm;
+    if (farm == null) return const <_SpotProgress>[];
+    final myVersion = ++_fetchVersion;
+    final now = DateTime.now();
+    _deletedPointIds.removeWhere(
+      (_, time) => now.difference(time).inSeconds > 30,
+    );
+    try {
+      final result = await _resultsRepository.fetchFarmResultMap(
+        farmId: farm.id,
+        dateIso: _todayJstIsoDate(),
+      );
+      if (myVersion != _fetchVersion ||
+          !mounted ||
+          _selectedFarm?.id != farm.id) {
+        return const <_SpotProgress>[];
+      }
+      final activePoints = result.points
+          .where((point) {
+            final deletedAt = _deletedPointIds[point.pointId];
+            if (deletedAt == null) return true;
+            return DateTime.now().difference(deletedAt).inSeconds > 30;
+          })
+          .toList(growable: false);
+      final pins = _resultPointsToSpots(
+        activePoints,
+        measurementDate: result.measurementDate,
+      );
+      _sessionState._setResultPins(farm.id, pins);
+      await _removeLocalPinsCoveredByResults(farm.id, pins);
+      for (final spot in _mapSpots) {
+        await _refreshSpotIcon(spot);
+      }
+      return pins;
+    } catch (e) {
+      if (myVersion != _fetchVersion) return const <_SpotProgress>[];
+      if (mounted && _selectedFarm?.id == farm.id) {
+        _sessionState._setResultPins(farm.id, const <_SpotProgress>[]);
+      }
+      if (kDebugMode) {
+        debugPrint('当日測定結果ピンの取得に失敗しました: $e');
+      }
+      return const <_SpotProgress>[];
+    }
+  }
+
+  Future<void> _removeLocalPinsCoveredByResults(
+    int farmId,
+    List<_SpotProgress> resultSpots,
+  ) async {
+    if (resultSpots.isEmpty) return;
+    final pendingLocalPinIds = <String>{};
+    final pendingPositions = <LatLng>[];
+    for (final item in await _pendingUploadStore.listItems()) {
+      if (item.farmId != farmId) continue;
+      final localPinId = item.localPinId;
+      if (localPinId != null && localPinId.isNotEmpty) {
+        pendingLocalPinIds.add(localPinId);
+      }
+      var latitude = item.latitude;
+      var longitude = item.longitude;
+      if (latitude == null || longitude == null) {
+        try {
+          final jsonFile = await MeasurementLocalPaths.jsonFile(item.fileBase);
+          if (await jsonFile.exists()) {
+            final metadata =
+                jsonDecode(await jsonFile.readAsString())
+                    as Map<String, dynamic>;
+            latitude = (metadata['latitude'] as num?)?.toDouble();
+            longitude = (metadata['longitude'] as num?)?.toDouble();
+          }
+        } catch (_) {
+          // 座標が読めない古い pending は保守的にローカルピンを残す。
+        }
+      }
+      if (latitude != null && longitude != null) {
+        pendingPositions.add(LatLng(latitude, longitude));
+      }
+    }
+
+    final idsToRemove = <String>{};
+    for (final spot in _spots) {
+      if (!spot.saveDone || spot.uploadDone) continue;
+      if (pendingLocalPinIds.contains(spot.id)) continue;
+      if (_hasNearbyPosition(spot.position, pendingPositions)) continue;
+      if (_hasCorrespondingResultSpot(spot.position, resultSpots)) {
+        idsToRemove.add(spot.id);
+      }
+    }
+    if (idsToRemove.isEmpty) return;
+    _sessionState._removePins(farmId, idsToRemove);
+    if (_activeSpot != null && idsToRemove.contains(_activeSpot!.id)) {
+      setState(() => _activeSpot = null);
+      _persistSessionState();
+    }
+  }
+
+  bool _hasCorrespondingResultSpot(
+    LatLng localPinPosition,
+    List<_SpotProgress> resultSpots,
+  ) {
+    return _hasNearbyPosition(
+      localPinPosition,
+      resultSpots.map((spot) => spot.position),
+    );
+  }
+
+  bool _hasNearbyPosition(LatLng localPinPosition, Iterable<LatLng> positions) {
+    for (final position in positions) {
+      final distance = Geolocator.distanceBetween(
+        localPinPosition.latitude,
+        localPinPosition.longitude,
+        position.latitude,
+        position.longitude,
+      );
+      if (distance <= 5.0) return true;
+    }
+    return false;
+  }
+
+  List<_SpotProgress> _resultPointsToSpots(
+    List<ResultPoint> points, {
+    required DateTime measurementDate,
+  }) {
+    return [
+      for (var i = 0; i < points.length; i++)
+        _SpotProgress(
+            id: 'result_${points[i].pointId}',
+            position: LatLng(points[i].lat, points[i].lng),
+            createdAt: _createdAtForResultPoint(
+              points[i],
+              fallback: measurementDate.add(Duration(minutes: i)),
+            ),
+            isResultPoint: true,
+            resultPointId: points[i].pointId,
+          )
+          ..saveDone = true
+          ..uploadDone = true,
+    ];
+  }
+
+  DateTime _createdAtForResultPoint(
+    ResultPoint point, {
+    required DateTime fallback,
+  }) {
+    return point.createdAt ?? fallback;
+  }
+
+  String _resultMutationErrorMessage(Object error) {
+    if (error is DioException && error.response?.statusCode == 404) {
+      return '測定データ更新APIが見つかりません。サーバー側の反映状況を確認してください。';
+    }
+    return '測定データの更新に失敗しました。通信状態を確認してください。';
+  }
+
   MeasureSettings _currentSettings() {
     return MeasureSettings(
       fstart: _fstartValue(),
@@ -264,6 +627,7 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
       _isMeasuring = false;
       _bgProgress = 0.0;
     });
+    _persistSessionState();
     _appendLog('USBが切断されました。接続からやり直してください。\n');
   }
 
@@ -288,6 +652,7 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
       }
     }
     if (!mounted) return;
+    _persistSessionState();
     _appendLog(
       success
           ? '${AppConstants.messageConnectionSuccess}\n'
@@ -296,6 +661,26 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
     if (success) {
       _startAutoRecall();
     }
+  }
+
+  void _disconnect() {
+    if (_isConnecting || _isRecalling || _bgIsMeasuring || _isMeasuring) return;
+    _recallTimeoutTimer?.cancel();
+    SerialComm.disconnect();
+    setState(() {
+      _isConnected = false;
+      _isConnecting = false;
+      _isRecalling = false;
+      _recallDone = false;
+      _bgIsMeasuring = false;
+      _bgDone = false;
+      _bgProgress = 0.0;
+      _currentStep = SessionStep.connect;
+    });
+    _persistSessionState();
+    SerialComm.init(_onReceive);
+    SerialComm.addDisconnectListener(_onUsbDisconnected);
+    _appendLog('センサー接続を解除しました\n');
   }
 
   void _startAutoRecall() {
@@ -307,6 +692,7 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
       _isRecalling = true;
       _recallDone = false;
     });
+    _persistSessionState();
     _appendLog('送信: condition recall $sensorNumber\n');
     MeasurementService.sendRecallCommand(sensorNumber);
     _recallTimeoutTimer = Timer(const Duration(seconds: 20), () {
@@ -316,6 +702,7 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
         _recallDone = false;
         _currentStep = SessionStep.connect;
       });
+      _persistSessionState();
       _appendLog('Recallタイムアウト（20秒）\n');
     });
   }
@@ -389,21 +776,16 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
       _bgDone = false;
       _currentStep = SessionStep.bg;
     });
+    _persistSessionState();
     _appendLog(
       '送信: null ${_settings.excite} ${_settings.range} ${_settings.integrate} ${_settings.average}\n',
     );
     MeasurementService.sendBgMeasurementCommand(_settings);
   }
 
-  Future<void> _openFarmSelection({required bool clearSpots}) async {
+  Future<void> _openFarmSelection() async {
     if (_isSelectingFarm || _isSerialBusy) return;
     _isSelectingFarm = true;
-    if (clearSpots) {
-      setState(() {
-        _spots.clear();
-        _activeSpot = null;
-      });
-    }
     final result = await Navigator.push<FarmSelectResult>(
       context,
       MaterialPageRoute(
@@ -419,7 +801,16 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
         _confirmedLocation = null;
         _currentStep = SessionStep.bg;
       });
+      _persistSessionState();
       return;
+    }
+    if (result?.isFromCache ?? false) {
+      final shouldContinue = await _confirmUsingCachedFarms();
+      if (!mounted) return;
+      if (!shouldContinue) {
+        _isSelectingFarm = false;
+        return;
+      }
     }
     final polygon = farm.boundaryPolygon
         .map((p) => LatLng(p['lat']!, p['lng']!))
@@ -430,9 +821,17 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
     setState(() {
       _selectedFarm = farm;
       _confirmedLocation = center;
+      _activeSpot = null;
+      _correctingSpotId = null;
       _currentStep = SessionStep.measure;
       _showMapHint = true;
     });
+    _sessionState.startSession(farm.id);
+    _persistSessionState();
+    await _loadTodayResultPinsForSelectedFarm();
+    for (final spot in _spots.where((spot) => spot.icon == null)) {
+      _refreshSpotIcon(spot);
+    }
     _isSelectingFarm = false;
     await _mapController?.animateCamera(
       CameraUpdate.newCameraPosition(CameraPosition(target: center, zoom: 18)),
@@ -440,6 +839,28 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
     // GPS現在位置を取得して赤マーカーの初期位置を現在地に設定する。
     // GPS取得に失敗した場合はポリゴン中心のまま残る。
     await _fetchCurrentLocation(moveCamera: true);
+  }
+
+  Future<bool> _confirmUsingCachedFarms() async {
+    final shouldContinue = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('オフラインで続行しますか？'),
+        content: const Text('オフラインでは、地図が表示されない場合がありますが測定は可能です。'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('キャンセル'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('続行する'),
+          ),
+        ],
+      ),
+    );
+    return shouldContinue ?? false;
   }
 
   Future<void> _autoSelectNearestFarm() async {
@@ -457,6 +878,7 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
         return;
       }
 
+      final farmRepository = FarmRepository(buildApiClient());
       final results = await Future.wait([
         Geolocator.getCurrentPosition(
           locationSettings: const LocationSettings(
@@ -464,9 +886,10 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
             timeLimit: Duration(seconds: 5),
           ),
         ),
-        FarmRepository(buildApiClient()).getFarms(),
+        farmRepository.getFarms(),
       ]);
       if (!mounted || _selectedFarm != null) return;
+      if (farmRepository.wasLastResultFromCache) return;
       final pos = results[0] as Position;
       final farms = results[1] as List<Farm>;
       Farm? nearestFarm;
@@ -499,6 +922,9 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
         _currentStep = _bgDone ? SessionStep.measure : _currentStep;
         _showMapHint = true;
       });
+      _sessionState.startSession(nearestFarm.id);
+      _persistSessionState();
+      await _loadTodayResultPinsForSelectedFarm();
     } catch (e) {
       if (kDebugMode) {
         debugPrint('最近傍圃場の自動選択に失敗しました: $e');
@@ -540,6 +966,7 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
       setState(() {
         _confirmedLocation = here;
       });
+      _persistSessionState();
       if (moveCamera) {
         await _mapController?.animateCamera(
           CameraUpdate.newCameraPosition(
@@ -582,7 +1009,8 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
   }
 
   Future<void> _startMeasureSequence() async {
-    if (_isSerialBusy || _selectedFarm == null) return;
+    final farm = _selectedFarm;
+    if (_isSerialBusy || farm == null) return;
     var point = _confirmedLocation;
     final polygon = _farmPolygon;
     if (point == null && polygon.isNotEmpty) {
@@ -600,16 +1028,18 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
       );
       return;
     }
+    final localPinId = DateTime.now().millisecondsSinceEpoch.toString();
     final spot = _SpotProgress(
-      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      id: localPinId,
       position: point,
       createdAt: DateTime.now(),
     );
+    _sessionState._addPin(farm.id, spot);
     setState(() {
-      _spots.add(spot);
       _activeSpot = spot;
       _uploadLogController.clear();
     });
+    _persistSessionState();
     await _refreshSpotIcon(spot);
     final execOk = await _startExecAndWait();
     if (!mounted) return;
@@ -618,7 +1048,7 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
       await _markSpotFailed(spot);
       return;
     }
-    await _saveAndQueueThenUpload(spot);
+    await _saveAndQueueThenUpload(spot, localPinPosition: point);
   }
 
   Future<String?> _save(int farmId) async {
@@ -658,7 +1088,10 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
     }
   }
 
-  Future<void> _saveAndQueueThenUpload(_SpotProgress spot) async {
+  Future<void> _saveAndQueueThenUpload(
+    _SpotProgress spot, {
+    required LatLng localPinPosition,
+  }) async {
     final farm = _selectedFarm;
     if (farm == null) return;
     if (_isUploading) {
@@ -670,6 +1103,13 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
     });
     String? fileBase;
     String measurementDateForPending = DateTime.now().toIso8601String();
+    int? pointNumberForPending() {
+      final index = _mapSpots.indexWhere(
+        (candidate) => candidate.id == spot.id,
+      );
+      return index < 0 ? null : index + 1;
+    }
+
     try {
       _appendUploadLog('save: start');
       fileBase = await _save(farm.id);
@@ -718,6 +1158,14 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
       await _markSpotUploaded(spot);
       setState(() => _uploadPhase = UploadPhase.done);
       _appendUploadLog('done: upload_id=${result.uploadId} (受付完了: 処理中)');
+      final resultSpots = await _loadTodayResultPinsForSelectedFarm();
+      if (_hasCorrespondingResultSpot(localPinPosition, resultSpots)) {
+        _sessionState._removePins(farm.id, {spot.id});
+        if (_activeSpot?.id == spot.id) {
+          setState(() => _activeSpot = null);
+          _persistSessionState();
+        }
+      }
       try {
         await _pendingUploadStore.removeByFileBase(fileBase);
       } catch (e) {
@@ -730,6 +1178,11 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
           PendingUploadItem(
             fileBase: fileBase,
             farmId: farm.id,
+            farmName: farm.farmName,
+            pointNumber: pointNumberForPending(),
+            localPinId: spot.id,
+            latitude: localPinPosition.latitude,
+            longitude: localPinPosition.longitude,
             note1: _note1.text.trim().isEmpty ? null : _note1.text.trim(),
             note2: _note2.text.trim().isEmpty ? null : _note2.text.trim(),
             measurementDate: measurementDateForPending,
@@ -758,6 +1211,11 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
           PendingUploadItem(
             fileBase: fileBase,
             farmId: farm.id,
+            farmName: farm.farmName,
+            pointNumber: pointNumberForPending(),
+            localPinId: spot.id,
+            latitude: localPinPosition.latitude,
+            longitude: localPinPosition.longitude,
             note1: _note1.text.trim().isEmpty ? null : _note1.text.trim(),
             note2: _note2.text.trim().isEmpty ? null : _note2.text.trim(),
             measurementDate: measurementDateForPending,
@@ -853,6 +1311,7 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
 
   void _onReceive(String data) {
     if (!mounted) return;
+    var shouldPersist = false;
     setState(() {
       _logController.text += data;
       final newLines = data.split('\n');
@@ -872,11 +1331,13 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
             _isRecalling = false;
             _recallDone = true;
             _currentStep = SessionStep.bg;
+            shouldPersist = true;
             continue;
           }
           if (_currentStep == SessionStep.bg && _bgIsMeasuring) {
             _bgIsMeasuring = false;
             _bgDone = true;
+            shouldPersist = true;
             continue;
           }
           if (_isMeasuring) {
@@ -893,11 +1354,13 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
             _recallDone = false;
             _currentStep = SessionStep.connect;
             _logController.text += 'Recallに失敗しました\n';
+            shouldPersist = true;
             continue;
           }
           if (_currentStep == SessionStep.bg && _bgIsMeasuring) {
             _bgIsMeasuring = false;
             _logController.text += 'BG測定中にエラーが発生しました\n';
+            shouldPersist = true;
             continue;
           }
           if (_isMeasuring) {
@@ -934,42 +1397,33 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
         }
       }
     });
+    if (shouldPersist) {
+      _persistSessionState();
+    }
   }
 
   Future<void> _refreshSpotIcon(_SpotProgress spot) async {
     final requestVersion = ++spot.iconVersion;
-    final String label;
     final Color color;
-    final bool check;
-    if (spot.uploadDone) {
-      label = '✓';
-      color = Colors.green;
-      check = true;
+    final index = _mapSpots.indexOf(spot);
+    final label = index >= 0 ? '${index + 1}' : '?';
+    if (spot.isResultPoint || spot.uploadDone) {
+      color = const Color(0xFF27AE60);
     } else if (spot.saveDone) {
-      label = '✓';
       color = const Color(0xFFE67E22);
-      check = true;
     } else if (spot.failed) {
-      label = '!';
       color = Colors.red;
-      check = false;
     } else {
-      label = '${spot.percent}%';
       color = Colors.red;
-      check = false;
     }
-    final key = '$label-${color.toARGB32()}-$check';
+    final key = 'small-v2-$label-${color.toARGB32()}';
     final cached = _markerIconCache[key];
     if (cached != null) {
       if (requestVersion != spot.iconVersion) return;
       setState(() => spot.icon = cached);
       return;
     }
-    final icon = await _buildMarkerIcon(
-      label: label,
-      color: color,
-      check: check,
-    );
+    final icon = await _buildMarkerIcon(label: label, color: color);
     _markerIconCache[key] = icon;
     if (!mounted) return;
     if (requestVersion != spot.iconVersion) return;
@@ -979,38 +1433,32 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
   Future<BitmapDescriptor> _buildMarkerIcon({
     required String label,
     required Color color,
-    required bool check,
   }) async {
-    const size = 112.0;
+    const size = 40.0;
     final recorder = ui.PictureRecorder();
     final canvas = Canvas(recorder);
     final center = const Offset(size / 2, size / 2);
     final paint = Paint()..color = color;
-    canvas.drawCircle(center, 40, paint);
-    if (check) {
-      final path = Path()
-        ..moveTo(38, 57)
-        ..lineTo(49, 68)
-        ..lineTo(74, 43);
-      final checkPaint = Paint()
+    canvas.drawCircle(center, 15, paint);
+    canvas.drawCircle(
+      center,
+      15,
+      Paint()
         ..color = Colors.white
-        ..strokeCap = StrokeCap.round
-        ..strokeWidth = 9
-        ..style = PaintingStyle.stroke;
-      canvas.drawPath(path, checkPaint);
-    } else {
-      final tp = TextPainter(textDirection: TextDirection.ltr);
-      tp.text = TextSpan(
-        text: label,
-        style: const TextStyle(
-          color: Colors.white,
-          fontWeight: FontWeight.w700,
-          fontSize: 28,
-        ),
-      );
-      tp.layout();
-      tp.paint(canvas, Offset((size - tp.width) / 2, (size - tp.height) / 2));
-    }
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2,
+    );
+    final tp = TextPainter(textDirection: TextDirection.ltr);
+    tp.text = TextSpan(
+      text: label,
+      style: const TextStyle(
+        color: Colors.white,
+        fontWeight: FontWeight.w800,
+        fontSize: 15,
+      ),
+    );
+    tp.layout();
+    tp.paint(canvas, Offset((size - tp.width) / 2, (size - tp.height) / 2));
     final picture = recorder.endRecording();
     final img = await picture.toImage(size.toInt(), size.toInt());
     final bytes = await img.toByteData(format: ui.ImageByteFormat.png);
@@ -1026,10 +1474,45 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
 
   _SpotProgress? _spotById(String? id) {
     if (id == null) return null;
-    for (final spot in _spots) {
+    for (final spot in _mapSpots) {
       if (spot.id == id) return spot;
     }
     return null;
+  }
+
+  void _nudgeCorrectingSpot({double latMeters = 0, double lngMeters = 0}) {
+    if (_isSerialBusy) return;
+    final spot = _spotById(_correctingSpotId);
+    if (spot == null) return;
+    const metersPerLatitudeDegree = 111000.0;
+    final latDelta = latMeters / metersPerLatitudeDegree;
+    final lngScale = math.cos(spot.position.latitude * math.pi / 180);
+    if (lngScale.abs() < 0.000001) return;
+    final lngDelta = lngMeters / (metersPerLatitudeDegree * lngScale);
+    final next = LatLng(
+      spot.position.latitude + latDelta,
+      spot.position.longitude + lngDelta,
+    );
+    setState(() {
+      spot.position = next;
+      _confirmedLocation = next;
+    });
+    _persistSessionState();
+    _mapController?.animateCamera(CameraUpdate.newLatLng(next));
+  }
+
+  void _startPinCorrection(_SpotProgress spot) {
+    setState(() {
+      _correctingSpotId = spot.id;
+      _confirmedLocation = spot.position;
+      _showMapHint = true;
+    });
+    _persistSessionState();
+    _mapController?.animateCamera(
+      CameraUpdate.newCameraPosition(
+        CameraPosition(target: spot.position, zoom: 21),
+      ),
+    );
   }
 
   Future<void> _markSpotSaved(_SpotProgress spot) async {
@@ -1053,33 +1536,36 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
 
   Set<Marker> _buildMarkers() {
     final markers = <Marker>{};
-    for (final spot in _spots) {
+    for (final spot in _mapSpots) {
+      final icon = spot.icon;
+      if (icon == null) continue;
       markers.add(
         Marker(
           markerId: MarkerId('spot_${spot.id}'),
           position: spot.position,
-          icon: spot.icon ?? BitmapDescriptor.defaultMarker,
+          icon: icon,
           anchor: const Offset(0.5, 0.5),
-          infoWindow: InfoWindow(
-            title: spot.uploadDone
-                ? 'アップロード完了'
-                : spot.saveDone
-                ? '保存完了'
-                : '${spot.percent}%',
-          ),
-        ),
-      );
-    }
-    if (_confirmedLocation != null) {
-      markers.add(
-        Marker(
-          markerId: const MarkerId('confirmed'),
-          position: _confirmedLocation!,
-          icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
+          consumeTapEvents: false,
         ),
       );
     }
     return markers;
+  }
+
+  Set<Circle> _buildLocationCircles() {
+    final location = _confirmedLocation;
+    if (location == null) return const <Circle>{};
+    return {
+      Circle(
+        circleId: const CircleId('confirmed_location'),
+        center: location,
+        radius: 0.45,
+        strokeWidth: 3,
+        strokeColor: const Color(0xFFB02020),
+        fillColor: const Color(0xFFB02020).withValues(alpha: 0.45),
+        consumeTapEvents: false,
+      ),
+    };
   }
 
   void _openSettings() {
@@ -1143,9 +1629,7 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
               ),
               const SizedBox(height: 16),
               FilledButton.icon(
-                onPressed: _isSerialBusy
-                    ? null
-                    : () => _openFarmSelection(clearSpots: true),
+                onPressed: _isSerialBusy ? null : _openFarmSelection,
                 icon: const Icon(Icons.agriculture),
                 label: const Text('圃場を選択'),
               ),
@@ -1168,6 +1652,7 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
           myLocationEnabled: true,
           myLocationButtonEnabled: false,
           zoomControlsEnabled: false,
+          mapToolbarEnabled: false,
           polygons: {
             if (polygon.length >= 3)
               Polygon(
@@ -1179,6 +1664,7 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
               ),
           },
           markers: _buildMarkers(),
+          circles: _buildLocationCircles(),
           onTap: (p) {
             if (_isSerialBusy) return;
             // 赤マーカー位置を更新。ステータスは _markerGeoStatus getter で
@@ -1190,6 +1676,7 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
                 correctingSpot.position = p;
               }
             });
+            _persistSessionState();
           },
         ),
         Positioned(
@@ -1252,7 +1739,45 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
             child: _PinCorrectionBanner(
               spotNumber:
                   _spots.indexWhere((spot) => spot.id == _correctingSpotId) + 1,
-              onDone: () => setState(() => _correctingSpotId = null),
+              onDone: () {
+                setState(() => _correctingSpotId = null);
+                _persistSessionState();
+              },
+            ),
+          ),
+        if (_correctingSpotId != null)
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 132,
+            child: Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _NudgeButton(
+                    icon: Icons.arrow_upward,
+                    onTap: () => _nudgeCorrectingSpot(latMeters: 1),
+                  ),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _NudgeButton(
+                        icon: Icons.arrow_back,
+                        onTap: () => _nudgeCorrectingSpot(lngMeters: -1),
+                      ),
+                      const SizedBox(width: 48),
+                      _NudgeButton(
+                        icon: Icons.arrow_forward,
+                        onTap: () => _nudgeCorrectingSpot(lngMeters: 1),
+                      ),
+                    ],
+                  ),
+                  _NudgeButton(
+                    icon: Icons.arrow_downward,
+                    onTap: () => _nudgeCorrectingSpot(latMeters: -1),
+                  ),
+                ],
+              ),
             ),
           ),
         Positioned(
@@ -1332,32 +1857,33 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
       child: Row(
         children: [
           Expanded(
+            flex: 3,
             child: _FarmStatusChip(
               label: _selectedFarm?.farmName ?? '圃場を選択',
               isDone: _selectedFarm != null,
               isLoading: _isSelectingFarm,
-              onTap: _isSerialBusy
-                  ? null
-                  : () => _openFarmSelection(clearSpots: true),
+              onTap: _isSerialBusy ? null : _openFarmSelection,
             ),
           ),
           const SizedBox(width: 8),
           _ActionStatusChip(
-            label: '接続',
-            subLabel: 'センサ',
+            label: _isConnected ? '接続中' : '接続',
+            subLabel: _isConnected ? 'タップで切断' : 'センサ',
             isDone: _isConnected && _recallDone,
             isLoading: _isConnecting || _isRecalling,
-            onTap: (_isConnected && _recallDone) || _isSerialBusy
+            onTap: _isSerialBusy
                 ? null
+                : _isConnected
+                ? _disconnect
                 : _connect,
           ),
           const SizedBox(width: 8),
           _ActionStatusChip(
-            label: 'BG',
-            subLabel: '基準',
+            label: _bgDone ? 'BG 再測定' : 'BG',
+            subLabel: _bgDone ? 'タップで再測定' : '基準',
             isDone: _bgDone,
             isLoading: _bgIsMeasuring,
-            onTap: (_isConnected && _recallDone && !_bgDone && !_isSerialBusy)
+            onTap: (_isConnected && _recallDone && !_isSerialBusy)
                 ? _startBg
                 : null,
           ),
@@ -1414,23 +1940,69 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
     );
   }
 
-  void _confirmPinCorrection() {
+  Future<void> _confirmPinCorrection() async {
     if (_isSerialBusy) return;
+    final spot = _spotById(_correctingSpotId);
+    if (spot?.isResultPoint == true && spot?.resultPointId != null) {
+      try {
+        await _resultsRepository.updateResultPointLocation(
+          pointId: spot!.resultPointId!,
+          lat: spot.position.latitude,
+          lng: spot.position.longitude,
+        );
+        spot.createdAt = DateTime.now();
+        await _loadTodayResultPinsForSelectedFarm();
+      } catch (e) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(_resultMutationErrorMessage(e))));
+        return;
+      }
+    }
     setState(() => _correctingSpotId = null);
+    _persistSessionState();
     _openMeasurementList();
   }
 
   void _openMeasurementList() {
-    if (_isSerialBusy) return;
+    final farm = _selectedFarm;
+    if (_isSerialBusy || farm == null) return;
     Navigator.push<void>(
       context,
       MaterialPageRoute(
         builder: (_) => _MeasurementListScreen(
-          farmName: _selectedFarm?.farmName,
-          spots: _spots,
-          onDeleteSpots: (ids) {
+          spotsProvider: () => _mapSpots,
+          onDeleteSpots: (ids) async {
+            final selectedSpots = _mapSpots
+                .where((spot) => ids.contains(spot.id))
+                .toList(growable: false);
+            final resultSpots = selectedSpots
+                .where(
+                  (spot) => spot.isResultPoint && spot.resultPointId != null,
+                )
+                .toList(growable: false);
+            final deletedResultPointIds = {
+              for (final spot in resultSpots) spot.resultPointId!,
+            };
+            try {
+              for (final spot in resultSpots) {
+                await _resultsRepository.deleteResultPoint(spot.resultPointId!);
+              }
+            } catch (e) {
+              if (!mounted) return false;
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text(_resultMutationErrorMessage(e))),
+              );
+              return false;
+            }
+            final now = DateTime.now();
+            for (final pointId in deletedResultPointIds) {
+              _deletedPointIds[pointId] = now;
+            }
+            _sessionState._removeResultPins(farm.id, ids);
+            _sessionState._removePins(farm.id, ids);
             setState(() {
-              _spots.removeWhere((spot) => ids.contains(spot.id));
               if (_activeSpot != null && ids.contains(_activeSpot!.id)) {
                 _activeSpot = null;
               }
@@ -1439,13 +2011,15 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
                 _correctingSpotId = null;
               }
             });
+            _persistSessionState();
+            await _loadTodayResultPinsForSelectedFarm();
+            for (final spot in _mapSpots) {
+              _refreshSpotIcon(spot);
+            }
+            return true;
           },
           onCorrectSpot: (spot) {
-            setState(() {
-              _correctingSpotId = spot.id;
-              _confirmedLocation = spot.position;
-              _showMapHint = true;
-            });
+            _startPinCorrection(spot);
             Navigator.pop(context);
           },
         ),
@@ -1472,7 +2046,27 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
           children: [
             _buildTopStatusBar(),
             if (_bgIsMeasuring)
-              LinearProgressIndicator(value: _bgProgress.clamp(0.0, 1.0)),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+                child: Column(
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: LinearProgressIndicator(
+                        value: _bgProgress.clamp(0.0, 1.0),
+                        minHeight: 16,
+                        backgroundColor: Colors.grey.shade200,
+                        color: const Color(0xFF2E5C39),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '${(_bgProgress.clamp(0.0, 1.0) * 100).toInt()}%',
+                      style: TextStyle(fontSize: 12, color: Colors.grey[700]),
+                    ),
+                  ],
+                ),
+              ),
             Expanded(child: _buildMeasureBody()),
             _buildBottomMeasureButton(),
           ],
@@ -1507,35 +2101,35 @@ class _FarmStatusChip extends StatelessWidget {
       child: InkWell(
         borderRadius: BorderRadius.circular(999),
         onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-          child: Row(
-            children: [
-              if (isLoading) ...[
-                SizedBox(
-                  width: 14,
-                  height: 14,
-                  child: CircularProgressIndicator(strokeWidth: 2, color: fg),
-                ),
-                const SizedBox(width: 8),
-              ] else ...[
-                Icon(Icons.agriculture, size: 16, color: fg),
-                const SizedBox(width: 6),
-              ],
-              Expanded(
-                child: Text(
-                  label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: fg,
-                    fontWeight: FontWeight.w800,
-                    fontSize: 13,
+        child: SizedBox(
+          height: 50,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: Row(
+              children: [
+                if (isLoading) ...[
+                  SizedBox(
+                    width: 14,
+                    height: 14,
+                    child: CircularProgressIndicator(strokeWidth: 2, color: fg),
+                  ),
+                  const SizedBox(width: 8),
+                ],
+                Expanded(
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: fg,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 13,
+                    ),
                   ),
                 ),
-              ),
-              Icon(Icons.arrow_drop_down, size: 18, color: fg),
-            ],
+                Icon(Icons.arrow_drop_down, size: 18, color: fg),
+              ],
+            ),
           ),
         ),
       ),
@@ -1574,8 +2168,8 @@ class _ActionStatusChip extends StatelessWidget {
         borderRadius: BorderRadius.circular(999),
         onTap: onTap,
         child: SizedBox(
-          width: 64,
-          height: 42,
+          width: 96,
+          height: 50,
           child: Center(
             child: isLoading
                 ? SizedBox(
@@ -1588,6 +2182,8 @@ class _ActionStatusChip extends StatelessWidget {
                     children: [
                       Text(
                         isDone ? '✓ $label' : label,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                           color: fg,
                           fontSize: 12,
@@ -1596,6 +2192,8 @@ class _ActionStatusChip extends StatelessWidget {
                       ),
                       Text(
                         subLabel,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                           color: fg.withValues(alpha: 0.78),
                           fontSize: 10,
@@ -1648,17 +2246,43 @@ class _PinCorrectionBanner extends StatelessWidget {
   }
 }
 
+class _NudgeButton extends StatelessWidget {
+  const _NudgeButton({required this.icon, required this.onTap});
+
+  final IconData icon;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(3),
+      child: Material(
+        color: Colors.white.withValues(alpha: 0.94),
+        shape: const CircleBorder(),
+        elevation: 3,
+        child: InkWell(
+          customBorder: const CircleBorder(),
+          onTap: onTap,
+          child: SizedBox(
+            width: 44,
+            height: 44,
+            child: Icon(icon, size: 21, color: Colors.black87),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _MeasurementListScreen extends StatefulWidget {
   const _MeasurementListScreen({
-    required this.farmName,
-    required this.spots,
+    required this.spotsProvider,
     required this.onDeleteSpots,
     required this.onCorrectSpot,
   });
 
-  final String? farmName;
-  final List<_SpotProgress> spots;
-  final ValueChanged<Set<String>> onDeleteSpots;
+  final List<_SpotProgress> Function() spotsProvider;
+  final Future<bool> Function(Set<String>) onDeleteSpots;
   final ValueChanged<_SpotProgress> onCorrectSpot;
 
   @override
@@ -1667,35 +2291,60 @@ class _MeasurementListScreen extends StatefulWidget {
 
 class _MeasurementListScreenState extends State<_MeasurementListScreen> {
   final Set<String> _selected = <String>{};
-  bool _showUnconfirmedOnly = false;
+  late List<_SpotProgress> _currentSpots;
+
+  Map<String, int> get _spotNumbers => {
+    for (var i = 0; i < _currentSpots.length; i++) _currentSpots[i].id: i + 1,
+  };
+
+  @override
+  void initState() {
+    super.initState();
+    _currentSpots = widget.spotsProvider();
+  }
+
+  Future<void> _confirmDeleteSelected() async {
+    if (_selected.isEmpty) return;
+    final count = _selected.length;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('測定データを削除'),
+        content: Text('$count件のデータ点を削除しますか？\nこの操作は取り消せません。'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('キャンセル'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(context).colorScheme.error,
+              foregroundColor: Theme.of(context).colorScheme.onError,
+            ),
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('削除'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    final deleted = await widget.onDeleteSpots(Set<String>.from(_selected));
+    if (deleted && mounted) {
+      setState(() {
+        _selected.clear();
+        _currentSpots = widget.spotsProvider();
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    final spots = _showUnconfirmedOnly
-        ? widget.spots.where((spot) => !spot.uploadDone).toList()
-        : widget.spots;
+    final spots = _currentSpots;
     return Scaffold(
       appBar: AppBar(
-        title: Text(
-          widget.farmName == null ? '測定リスト' : '測定リスト - ${widget.farmName}',
-        ),
+        title: const Text('測定リスト'),
         backgroundColor: const Color(0xFF1A2318),
         foregroundColor: Colors.white,
-        actions: [
-          TextButton(
-            onPressed: () {
-              setState(() => _showUnconfirmedOnly = !_showUnconfirmedOnly);
-            },
-            child: Text(
-              '未確定のみ',
-              style: TextStyle(
-                color: _showUnconfirmedOnly
-                    ? const Color(0xFF7DD3A8)
-                    : Colors.white70,
-              ),
-            ),
-          ),
-        ],
       ),
       body: Column(
         children: [
@@ -1704,7 +2353,7 @@ class _MeasurementListScreenState extends State<_MeasurementListScreen> {
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             color: const Color(0xFFF5F5F0),
             child: Text(
-              '全 ${widget.spots.length} 件 / 表示 ${spots.length} 件',
+              '全 ${_currentSpots.length} 件 / 表示 ${spots.length} 件',
               style: TextStyle(color: Colors.grey.shade700, fontSize: 13),
             ),
           ),
@@ -1717,6 +2366,9 @@ class _MeasurementListScreenState extends State<_MeasurementListScreen> {
                     itemBuilder: (context, index) {
                       final spot = spots[index];
                       final selected = _selected.contains(spot.id);
+                      final spotNumber =
+                          _spotNumbers[spot.id] ??
+                          _currentSpots.indexOf(spot) + 1;
                       return CheckboxListTile(
                         value: selected,
                         onChanged: (value) {
@@ -1732,7 +2384,7 @@ class _MeasurementListScreenState extends State<_MeasurementListScreen> {
                           radius: 15,
                           backgroundColor: _spotColor(spot),
                           child: Text(
-                            '${widget.spots.indexOf(spot) + 1}',
+                            '$spotNumber',
                             style: const TextStyle(
                               color: Colors.white,
                               fontSize: 11,
@@ -1740,7 +2392,7 @@ class _MeasurementListScreenState extends State<_MeasurementListScreen> {
                             ),
                           ),
                         ),
-                        title: Text(_spotTitle(spot)),
+                        title: Text(_spotTitle(spot, spotNumber)),
                         subtitle: Text(
                           '${spot.position.latitude.toStringAsFixed(6)}, '
                           '${spot.position.longitude.toStringAsFixed(6)}\n'
@@ -1759,20 +2411,20 @@ class _MeasurementListScreenState extends State<_MeasurementListScreen> {
                   OutlinedButton(
                     onPressed: _selected.isEmpty
                         ? null
-                        : () {
-                            widget.onDeleteSpots(_selected);
-                            setState(() => _selected.clear());
-                          },
-                    child: const Text('選択を削除'),
+                        : _confirmDeleteSelected,
+                    child: const Text('削除'),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
                     child: FilledButton(
                       onPressed: _selected.length == 1
                           ? () {
-                              final spot = widget.spots.firstWhere(
+                              final spot = _currentSpots.firstWhere(
                                 (spot) => spot.id == _selected.first,
                               );
+                              setState(() {
+                                _currentSpots = widget.spotsProvider();
+                              });
                               widget.onCorrectSpot(spot);
                             }
                           : null,
@@ -1801,10 +2453,10 @@ class _MeasurementListScreenState extends State<_MeasurementListScreen> {
     return '${spot.percent}%';
   }
 
-  String _spotTitle(_SpotProgress spot) {
+  String _spotTitle(_SpotProgress spot, int spotNumber) {
     final created = spot.createdAt;
     final time =
         '${created.hour.toString().padLeft(2, '0')}:${created.minute.toString().padLeft(2, '0')}';
-    return '測定点 ${widget.spots.indexOf(spot) + 1} / $time';
+    return '測定点 $spotNumber / $time';
   }
 }
