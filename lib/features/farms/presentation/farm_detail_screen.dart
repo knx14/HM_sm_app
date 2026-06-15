@@ -76,45 +76,48 @@ class _FarmDetailScreenState extends State<FarmDetailScreen> {
             ],
           ),
         ),
-        body: Column(
-          children: [
-            _FarmHeader(farm: widget.farm),
-            if (_datesError != null)
-              Material(
-                color: colorScheme.errorContainer,
-                child: ListTile(
-                  dense: true,
-                  title: Text(
-                    '測定日一覧を取得できませんでした',
-                    style: TextStyle(color: colorScheme.onErrorContainer),
-                  ),
-                  trailing: TextButton(
-                    onPressed: _loadDates,
-                    child: const Text('再試行'),
+        body: SafeArea(
+          top: false,
+          child: Column(
+            children: [
+              _FarmHeader(farm: widget.farm),
+              if (_datesError != null)
+                Material(
+                  color: colorScheme.errorContainer,
+                  child: ListTile(
+                    dense: true,
+                    title: Text(
+                      '測定日一覧を取得できませんでした',
+                      style: TextStyle(color: colorScheme.onErrorContainer),
+                    ),
+                    trailing: TextButton(
+                      onPressed: _loadDates,
+                      child: const Text('再試行'),
+                    ),
                   ),
                 ),
-              ),
-            Expanded(
-              child: TabBarView(
-                children: [
-                  FarmMapTab(
-                    key: ValueKey(
-                      '${widget.farm.id}_${_selectedDate?.toIso8601String() ?? 'none'}',
+              Expanded(
+                child: TabBarView(
+                  children: [
+                    FarmMapTab(
+                      key: ValueKey(
+                        '${widget.farm.id}_${_selectedDate?.toIso8601String() ?? 'none'}',
+                      ),
+                      farm: widget.farm,
+                      dates: _dates,
+                      selectedDate: _selectedDate,
+                      isLoadingDates: _isLoadingDates,
+                      onRefreshDates: _loadDates,
+                      onDateSelected: (date) =>
+                          setState(() => _selectedDate = date),
                     ),
-                    farm: widget.farm,
-                    dates: _dates,
-                    selectedDate: _selectedDate,
-                    isLoadingDates: _isLoadingDates,
-                    onRefreshDates: _loadDates,
-                    onDateSelected: (date) =>
-                        setState(() => _selectedDate = date),
-                  ),
-                  FarmTimeseriesTab(farmId: widget.farm.id),
-                  FarmTimelineTab(farmId: widget.farm.id),
-                ],
+                    FarmTimeseriesTab(farmId: widget.farm.id),
+                    FarmTimelineTab(farmId: widget.farm.id),
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

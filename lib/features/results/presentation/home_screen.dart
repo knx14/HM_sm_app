@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../../app/routes.dart';
+import '../../auth/data/amplify_auth_service.dart';
+import '../../auth/domain/auth_repository.dart';
 import '../../../providers/user_provider.dart';
 import '../../measure/data/pending_upload_store.dart';
 
@@ -34,6 +36,83 @@ class _HomeScreenState extends State<HomeScreen> {
     _refreshPendingCount();
   }
 
+  void _showAccountModal() {
+    final user = context.read<UserProvider>();
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheetContext) {
+        final colorScheme = Theme.of(sheetContext).colorScheme;
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
+                child: Row(
+                  children: [
+                    const CircleAvatar(
+                      backgroundColor: Color(0xFF2E5C39),
+                      child: Icon(Icons.person, color: Colors.white),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        user.displayName,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w800,
+                          fontSize: 16,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Divider(height: 1),
+              ListTile(
+                leading: const Icon(Icons.settings_outlined),
+                title: const Text('設定'),
+                onTap: () {
+                  Navigator.pop(sheetContext);
+                  _pushNamed(AppRoutes.settings);
+                },
+              ),
+              ListTile(
+                leading: Icon(Icons.logout, color: colorScheme.error),
+                title: Text(
+                  'ログアウト',
+                  style: TextStyle(color: colorScheme.error),
+                ),
+                onTap: () async {
+                  Navigator.pop(sheetContext);
+                  await _logout();
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _logout() async {
+    try {
+      await AuthRepository(AmplifyAuthService()).signOut();
+      if (!mounted) return;
+      context.read<UserProvider>().clearUserId();
+      Navigator.pushNamedAndRemoveUntil(
+        context,
+        AppRoutes.splash,
+        (route) => false,
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('ログアウトに失敗しました: $e')));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -52,7 +131,7 @@ class _HomeScreenState extends State<HomeScreen> {
               _AccountTile(
                 label: userLabel,
                 isLoading: user.userId == null,
-                onTap: () => _pushNamed(AppRoutes.settings),
+                onTap: _showAccountModal,
               ),
               const SizedBox(height: 22),
               Expanded(
