@@ -2,25 +2,66 @@ import 'dart:convert';
 import 'package:dio/dio.dart';
 import '../../../core/api/api_client.dart';
 import '../domain/farm.dart';
+import 'farm_cache_store.dart';
+
+class FarmCacheUnavailableException implements Exception {
+  const FarmCacheUnavailableException();
+
+  @override
+  String toString() {
+    return 'ネットワークに接続できません。一度オンラインで起動すると、次回からオフラインでも使用できます。';
+  }
+}
 
 class FarmRepository {
   final ApiClient apiClient;
+  final FarmCacheStore _cache;
+  bool wasLastResultFromCache = false;
 
-  FarmRepository(this.apiClient);
+  FarmRepository(this.apiClient, {FarmCacheStore? cache})
+    : _cache = cache ?? FarmCacheStore();
 
   /// 自分の圃場一覧を取得
   Future<List<Farm>> getFarms() async {
+    wasLastResultFromCache = false;
     try {
       final response = await apiClient.dio.get('/api/v1/farms');
       print('=== 圃場一覧取得レスポンス ===');
       print('Response status: ${response.statusCode}');
       print('Response data type: ${response.data.runtimeType}');
-      final List<dynamic> data = response.data['data'] ?? response.data;
-      return data.map((json) => Farm.fromJson(json)).toList();
-    } catch (e) {
+      final data = _extractFarmList(response.data);
+      final farms = data.map((json) => Farm.fromJson(json)).toList();
+      await _cache.save(farms.map((farm) => farm.toJson()).toList());
+      return farms;
+    } on DioException catch (e) {
       print('Error fetching farms: $e');
+      if (_isOfflineError(e)) {
+        final cached = await _cache.load();
+        if (cached == null) {
+          throw const FarmCacheUnavailableException();
+        }
+        wasLastResultFromCache = true;
+        return cached.map((json) => Farm.fromJson(json)).toList();
+      }
       rethrow;
     }
+  }
+
+  List<Map<String, dynamic>> _extractFarmList(dynamic data) {
+    final rawList = data is Map ? data['data'] ?? data['farms'] ?? data : data;
+    if (rawList is! List) {
+      throw const FormatException('Invalid farms response');
+    }
+    return rawList
+        .whereType<Map>()
+        .map((json) => Map<String, dynamic>.from(json))
+        .toList();
+  }
+
+  bool _isOfflineError(DioException e) {
+    return e.type == DioExceptionType.connectionTimeout ||
+        e.type == DioExceptionType.connectionError ||
+        e.type == DioExceptionType.receiveTimeout;
   }
 
   /// 圃場を登録

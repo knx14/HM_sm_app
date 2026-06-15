@@ -143,6 +143,7 @@ class _FarmMapViewState extends State<_FarmMapView> {
                     mapType: MapType.satellite,
                     myLocationButtonEnabled: false,
                     zoomControlsEnabled: false,
+                    mapToolbarEnabled: false,
                     onMapCreated: (controller) {
                       setState(() => _mapController = controller);
                     },

@@ -56,6 +56,21 @@ class ResultsRepository {
     return ResultMapResponse.fromJson(response.data as Map<String, dynamic>);
   }
 
+  Future<void> updateResultPointLocation({
+    required int pointId,
+    required double lat,
+    required double lng,
+  }) async {
+    await apiClient.dio.patch(
+      '/api/v1/results/$pointId/location',
+      data: {'latitude': lat, 'longitude': lng},
+    );
+  }
+
+  Future<void> deleteResultPoint(int pointId) async {
+    await apiClient.dio.delete('/api/v1/results/$pointId');
+  }
+
   Future<ResultMapDiffResponse> fetchFarmResultMapDiff({
     required int farmId,
     required String dateIso,
