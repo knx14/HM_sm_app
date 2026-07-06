@@ -1,0 +1,1127 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>HenryMonitor — 担当者 FB 対応 工程書</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&family=Noto+Serif+JP:wght@700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#f8f7f1;--paper:#fff;--ink:#1a2318;--ink2:#3d4f3a;--ink3:#6b7e68;
+  --line:#dbd6c4;--lines:#eae6d6;
+  --leaf:#2e5c39;--leafl:#4a8459;--leafp:#e2ede4;
+  --soil:#7a4525;--soilp:#f2e8e0;
+  --amber:#b85c00;--amberp:#fef0d8;
+  --red:#b02020;--redp:#fce4e4;
+  --blue:#1a4f7a;--bluep:#ddeaf5;
+  --teal:#1a6a6a;--tealp:#d8efef;
+  --code-bg:#181f16;--code-fg:#d4e8cc;
+  --ccm:#5a8f58;--ckw:#7dd3a8;--cst:#f7c07a;--cnm:#7ec8e3;--ccl:#e8d07a;--cwg:#f0b060;
+  --sl:#b0c8b0;
+}
+*{box-sizing:border-box;}html{scroll-behavior:smooth;}
+body{margin:0;padding:0;background:var(--bg);color:var(--ink);font-family:"Noto Sans JP",sans-serif;font-size:14.5px;line-height:1.8;-webkit-font-smoothing:antialiased;}
+.layout{display:flex;min-height:100vh;}
+
+.toc{width:260px;flex-shrink:0;background:#0f1a0e;color:#c8d8c4;padding:28px 0 60px;position:sticky;top:0;height:100vh;overflow-y:auto;}
+.toc-logo{padding:0 20px 18px;border-bottom:1px solid rgba(255,255,255,.08);margin-bottom:14px;}
+.toc-logo .proj{font-size:11px;letter-spacing:.18em;color:#5a9a56;text-transform:uppercase;}
+.toc-logo .phase{font-family:"Noto Serif JP",serif;font-size:16px;color:#e8f0e4;font-weight:700;margin-top:4px;line-height:1.5;}
+.toc-logo .sub{font-size:11px;color:#5a9a56;margin-top:2px;line-height:1.5;}
+.toc ul{list-style:none;margin:0;padding:0;}
+.toc li a{display:block;padding:5px 20px;font-size:11.5px;color:#8ab88a;text-decoration:none;border-left:3px solid transparent;transition:all .15s;}
+.toc li a:hover{background:rgba(255,255,255,.06);color:#e8f0e4;border-left-color:var(--leafl);}
+.toc li a.sec{font-weight:700;color:#c4dcc0;font-size:12px;margin-top:6px;}
+.toc li a.sub{padding-left:32px;font-size:11px;color:#6a9a66;}
+.toc hr{border:none;border-top:1px solid rgba(255,255,255,.06);margin:6px 20px;}
+
+.main{flex:1;padding:48px 56px 100px;max-width:940px;}
+
+.cover{background:var(--paper);border:1px solid var(--line);padding:36px 44px;position:relative;overflow:hidden;margin-bottom:52px;}
+.cover::after{content:"";position:absolute;top:0;left:0;right:0;height:5px;background:linear-gradient(90deg,var(--red) 0%,var(--amber) 40%,var(--leaf) 80%,var(--blue) 100%);}
+.badge{font-family:"JetBrains Mono",monospace;font-size:11px;letter-spacing:.2em;background:var(--amberp);color:var(--amber);padding:3px 10px;border-radius:2px;display:inline-block;margin-bottom:14px;text-transform:uppercase;}
+.cover h1{font-family:"Noto Serif JP",serif;font-size:26px;font-weight:700;margin:0 0 8px;line-height:1.4;}
+.cover .desc{color:var(--ink2);font-size:14px;margin:0 0 24px;}
+.cmeta{display:flex;gap:24px;flex-wrap:wrap;border-top:1px solid var(--lines);padding-top:16px;}
+.cmeta dl{margin:0;}.cmeta dt{font-family:"JetBrains Mono",monospace;font-size:10px;letter-spacing:.15em;text-transform:uppercase;color:var(--ink3);margin:0 0 2px;}.cmeta dd{margin:0;font-size:13px;font-weight:500;}
+
+section{margin-bottom:56px;}
+h2{font-family:"Noto Serif JP",serif;font-size:20px;font-weight:700;margin:0 0 18px;padding:12px 18px;background:var(--ink);color:#e8f0e4;display:flex;align-items:center;gap:12px;}
+h2 .n{font-family:"JetBrains Mono",monospace;font-size:12px;color:var(--leafl);letter-spacing:.1em;}
+h2 .en{font-family:"JetBrains Mono",monospace;font-size:10px;color:#6a9a66;letter-spacing:.2em;text-transform:uppercase;margin-left:auto;}
+h3{font-size:15px;font-weight:700;margin:28px 0 8px;padding-bottom:6px;border-bottom:2px solid var(--leafp);color:var(--leaf);}
+h4{font-size:14px;font-weight:700;margin:16px 0 6px;color:var(--ink2);}
+p{margin:0 0 10px;}ul,ol{margin:0 0 10px;padding-left:20px;}li{margin-bottom:4px;}strong{color:var(--ink);}
+
+/* task items */
+.task{border:1px solid var(--line);background:var(--paper);margin-bottom:8px;}
+.task-header{padding:12px 16px;display:flex;align-items:flex-start;gap:12px;cursor:default;}
+.task-id{font-family:"JetBrains Mono",monospace;font-size:12px;font-weight:700;color:var(--ink3);flex-shrink:0;padding-top:2px;}
+.task-title{font-weight:700;font-size:14px;flex:1;}
+.task-body{padding:0 16px 16px 16px;border-top:1px solid var(--lines);}
+.task-body p:first-child{margin-top:12px;}
+
+.steps{position:relative;}
+.step{display:grid;grid-template-columns:48px 1fr;gap:0 16px;margin-bottom:6px;position:relative;}
+.step::before{content:"";position:absolute;left:23px;top:48px;bottom:-6px;width:2px;background:var(--sl);}
+.step:last-child::before{display:none;}
+.snum{width:48px;height:48px;border-radius:50%;background:var(--leaf);color:#fff;display:flex;align-items:center;justify-content:center;font-family:"JetBrains Mono",monospace;font-size:13px;font-weight:700;flex-shrink:0;position:relative;z-index:1;align-self:start;margin-top:10px;}
+.snum.red{background:var(--red);}.snum.blue{background:var(--blue);}.snum.amber{background:var(--amber);}
+.sbody{background:var(--paper);border:1px solid var(--line);padding:14px 18px 12px;}
+.sbody h4{margin-top:0;font-size:14px;color:var(--ink);}
+.sbody p:last-child,.sbody ul:last-child{margin-bottom:0;}
+.sloc{font-family:"JetBrains Mono",monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink3);background:var(--bg);border:1px solid var(--lines);padding:2px 8px;border-radius:2px;display:inline-block;margin-bottom:6px;}
+
+pre{background:var(--code-bg);color:var(--code-fg);padding:14px 16px;border-radius:3px;overflow-x:auto;font-family:"JetBrains Mono",monospace;font-size:12px;line-height:1.7;margin:8px 0 10px;}
+pre .fn{display:block;font-size:10px;letter-spacing:.1em;color:#486a46;margin-bottom:8px;border-bottom:1px solid rgba(255,255,255,.06);padding-bottom:6px;}
+pre .cm{color:var(--ccm);}pre .kw{color:var(--ckw);}pre .st{color:var(--cst);}
+pre .nm{color:var(--cnm);}pre .cl{color:var(--ccl);}pre .wg{color:var(--cwg);}
+code{font-family:"JetBrains Mono",monospace;font-size:12px;background:#edeadc;color:var(--soil);padding:1px 5px;border-radius:2px;}
+.shell{background:#090f08;color:#a8d8a0;padding:12px 16px;border-radius:3px;font-family:"JetBrains Mono",monospace;font-size:12px;line-height:1.7;margin:8px 0 10px;border-left:3px solid var(--leafl);overflow-x:auto;}
+.shell .p{color:#4a8a48;user-select:none;}.shell .c{color:#326030;}.shell .cmd{color:#c0e0b8;}
+
+.callout{padding:10px 14px;margin:10px 0;font-size:13px;border-left:4px solid var(--leaf);background:var(--leafp);}
+.callout.warn{border-color:var(--amber);background:var(--amberp);}
+.callout.danger{border-color:var(--red);background:var(--redp);}
+.callout.info{border-color:var(--blue);background:var(--bluep);}
+.callout.note{border-color:var(--soil);background:var(--soilp);}
+.callout strong{display:block;margin-bottom:2px;}
+
+table{border-collapse:collapse;width:100%;margin:8px 0 12px;font-size:13px;}
+th,td{padding:7px 11px;border-bottom:1px solid var(--lines);text-align:left;vertical-align:top;}
+th{background:var(--leafp);font-weight:700;font-size:11px;letter-spacing:.04em;border-bottom:2px solid var(--leaf);color:var(--leaf);}
+tr:hover td{background:#f5f2e8;}
+
+.tag{display:inline-block;font-family:"JetBrains Mono",monospace;font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:2px 7px;border-radius:2px;vertical-align:middle;margin:0 2px;}
+.tag.bug{background:var(--redp);color:var(--red);}
+.tag.ux{background:var(--amberp);color:var(--amber);}
+.tag.feat{background:var(--leafp);color:var(--leaf);}
+.tag.be{background:var(--soilp);color:var(--soil);}
+.tag.fe{background:var(--leafp);color:var(--leaf);}
+.tag.l{background:var(--leafp);color:var(--leaf);}
+.tag.ci{background:var(--bluep);color:var(--blue);}
+.tag.e{background:var(--soilp);color:var(--soil);}
+
+.prio-h{color:var(--red);font-weight:700;}
+.prio-m{color:var(--amber);font-weight:700;}
+.prio-l{color:var(--ink3);}
+
+.dod-list{list-style:none;padding-left:0;}
+.dod-list li{padding:8px 14px 8px 38px;position:relative;border-bottom:1px solid var(--lines);font-size:13px;}
+.dod-list li::before{content:"☐";position:absolute;left:10px;color:var(--leaf);font-size:16px;line-height:1;top:9px;}
+.dod-list li:last-child{border-bottom:none;}
+
+@media(max-width:900px){.layout{display:block;}.toc{width:100%;height:auto;position:static;}.main{padding:28px 20px 60px;}}
+</style>
+</head>
+<body>
+<div class="layout">
+
+<!-- ======== TOC ======== -->
+<nav class="toc">
+  <div class="toc-logo">
+    <div class="proj">HenryMonitor</div>
+    <div class="phase">担当者 FB 対応<br>工程書</div>
+    <div class="sub">改善 11件 + バグ 2件</div>
+  </div>
+  <ul>
+    <li><a class="sec" href="#overview">0. タスク一覧と優先度</a></li>
+    <li><a class="sub" href="#prereq">前提確認</a></li>
+    <hr>
+    <li><a class="sec" href="#F1">F1 パスワードリセット</a></li>
+    <li><a class="sec" href="#F2">F2 センサー接続解除</a></li>
+    <li><a class="sec" href="#F3">F3 ホーム上部 → ログアウトモーダル</a></li>
+    <li><a class="sec" href="#F4">F4 BGシークバーを大きく</a></li>
+    <li><a class="sec" href="#F5">F5 BG再測定を可能に</a></li>
+    <li><a class="sec" href="#F6">F6 測定地点補正を細かく</a></li>
+    <li><a class="sec" href="#F7">F7 測定アイコン小型化・番号表示</a></li>
+    <li><a class="sec" href="#F8">F8 ルート検索ボタン非表示</a></li>
+    <li><a class="sec" href="#F9">F9 離脱後も当日測定地点を表示</a></li>
+    <li><a class="sec" href="#F10">F10 離脱後もセンサー接続継続</a></li>
+    <li><a class="sec" href="#F11">F11 同期画面のリロードアイコン削除</a></li>
+    <hr>
+    <li><a class="sec" href="#B1">B1 削除後の表示バグ</a></li>
+    <li><a class="sec" href="#B2">B2 ナビゲーションバー隠れ</a></li>
+    <hr>
+    <li><a class="sec" href="#check">動作確認チェックリスト</a></li>
+    <li><a class="sec" href="#deploy">commit → PR → CI/CD</a></li>
+    <li><a class="sec" href="#dod">✓ 完了条件</a></li>
+  </ul>
+</nav>
+
+<!-- ======== Main ======== -->
+<main class="main">
+
+<div class="cover">
+  <span class="badge">担当者 FB 対応</span>
+  <h1>改善要項・バグ対応 工程書</h1>
+  <p class="desc">
+    担当者から挙がった改善要項 11 件とバグ報告 2 件の実装手順書です。
+    Laravel への変更は F1（パスワードリセット）のみ。その他はすべて Flutter（<code>MeasurementSessionScreen</code> 中心）の変更です。
+  </p>
+  <div class="cmeta">
+    <dl><dt>Laravel 変更</dt><dd>F1 のみ</dd></dl>
+    <dl><dt>Flutter 変更</dt><dd>F2〜F11 / B1 / B2</dd></dl>
+    <dl><dt>ブランチ</dt><dd><code>feature/fb-improvements</code></dd></dl>
+    <dl><dt>analyze baseline</dt><dd>117 件以下を維持</dd></dl>
+  </div>
+</div>
+
+<!-- ====== 0. OVERVIEW ====== -->
+<section id="overview">
+  <h2><span class="n">00</span>タスク一覧と優先度 <span class="en">overview</span></h2>
+
+  <table>
+    <thead><tr><th>ID</th><th>種別</th><th>内容</th><th>変更対象</th><th>優先度</th></tr></thead>
+    <tbody>
+      <tr><td><a href="#F1"><strong>F1</strong></a></td><td><span class="tag bug">バグ</span></td><td>パスワードリセットが存在しないアカウントにも送信できる（ように見える）</td><td>Laravel</td><td class="prio-h">🔴 高</td></tr>
+      <tr><td><a href="#F2"><strong>F2</strong></a></td><td><span class="tag feat">機能</span></td><td>センサー接続中に接続ボタンをタップして接続解除できるようにする</td><td>Flutter</td><td class="prio-h">🔴 高</td></tr>
+      <tr><td><a href="#F3"><strong>F3</strong></a></td><td><span class="tag ux">UX</span></td><td>ホーム上部アカウントタップ → 設定画面ではなくログアウトモーダルを表示</td><td>Flutter</td><td class="prio-m">🟡 中</td></tr>
+      <tr><td><a href="#F4"><strong>F4</strong></a></td><td><span class="tag ux">UX</span></td><td>BG測定中のシークバーを大きくする</td><td>Flutter</td><td class="prio-m">🟡 中</td></tr>
+      <tr><td><a href="#F5"><strong>F5</strong></a></td><td><span class="tag feat">機能</span></td><td>BG測定完了後に再度BG測定ができるようにする</td><td>Flutter</td><td class="prio-m">🟡 中</td></tr>
+      <tr><td><a href="#F6"><strong>F6</strong></a></td><td><span class="tag ux">UX</span></td><td>測定地点補正を 1m 単位で行えるようにする（現状は大きくずらさないと反映されない）</td><td>Flutter</td><td class="prio-h">🔴 高</td></tr>
+      <tr><td><a href="#F7"><strong>F7</strong></a></td><td><span class="tag ux">UX</span></td><td>測定完了アイコンを小型化し、仕様書通りに測定地点番号を表示する</td><td>Flutter</td><td class="prio-h">🔴 高</td></tr>
+      <tr><td><a href="#F8"><strong>F8</strong></a></td><td><span class="tag bug">バグ</span></td><td>測定完了アイコンタップでルート検索ボタン等が出現する → 出ないようにする</td><td>Flutter</td><td class="prio-m">🟡 中</td></tr>
+      <tr><td><a href="#F9"><strong>F9</strong></a></td><td><span class="tag feat">機能</span></td><td>測定画面を離脱・再表示しても同日の測定地点が表示されたままにする</td><td>Flutter</td><td class="prio-h">🔴 高</td></tr>
+      <tr><td><a href="#F10"><strong>F10</strong></a></td><td><span class="tag feat">機能</span></td><td>測定画面を離脱しても USB センサー接続を維持する</td><td>Flutter</td><td class="prio-h">🔴 高</td></tr>
+      <tr><td><a href="#F11"><strong>F11</strong></a></td><td><span class="tag ux">UX</span></td><td>同期画面の個別リロードアイコンを削除する</td><td>Flutter</td><td class="prio-l">🟢 低</td></tr>
+      <tr><td><a href="#B1"><strong>B1</strong></a></td><td><span class="tag bug">バグ</span></td><td>測定リストで削除しても圃場詳細に残る</td><td>Flutter</td><td class="prio-h">🔴 高</td></tr>
+      <tr><td><a href="#B2"><strong>B2</strong></a></td><td><span class="tag bug">バグ</span></td><td>圃場画面下部が Android 3ボタンナビゲーションに隠れる</td><td>Flutter</td><td class="prio-h">🔴 高</td></tr>
+    </tbody>
+  </table>
+
+  <h3 id="prereq">前提確認（Cursor セッション開始前）</h3>
+  <div class="steps">
+    <div class="step">
+      <div class="snum blue">✓</div>
+      <div class="sbody">
+        <h4>ブランチ作成と既存実装の確認</h4>
+        <span class="sloc">ターミナル / ローカル</span>
+        <div class="shell">
+<span class="p">$ </span><span class="cmd">git checkout main && git pull origin main</span>
+<span class="p">$ </span><span class="cmd">git checkout -b feature/fb-improvements</span>
+
+<span class="c"># F2/F4/F5/F6/F7/F8/F9/F10 はすべて MeasurementSessionScreen が対象</span>
+<span class="p">$ </span><span class="cmd">find lib/features/measure -name "*.dart" | sort</span>
+<span class="p">$ </span><span class="cmd">wc -l $(find lib/features/measure -name "measurement_session_screen.dart")</span>
+
+<span class="c"># BG測定・シークバーの実装を確認</span>
+<span class="p">$ </span><span class="cmd">grep -n "LinearProgressIndicator\|Slider\|BG\|isBg\|bgProgress" \
+  $(find lib/features/measure -name "measurement_session_screen.dart")</span>
+
+<span class="c"># センサー接続状態の管理変数を確認</span>
+<span class="p">$ </span><span class="cmd">grep -n "isConnected\|isSensor\|_connect\|UsbSerial" \
+  $(find lib/features/measure -name "measurement_session_screen.dart") | head -20</span>
+
+<span class="c"># 測定ピンの描画処理を確認</span>
+<span class="p">$ </span><span class="cmd">grep -n "Marker\|BitmapDescriptor\|_SpotProgress\|pinIcon\|markerIcon" \
+  $(find lib/features/measure -name "measurement_session_screen.dart") | head -20</span>
+
+<span class="c"># B2 の SafeArea 状況確認</span>
+<span class="p">$ </span><span class="cmd">grep -rn "SafeArea\|bottomNavigationBar\|MediaQuery" \
+  lib/features/farms/presentation/farm_screen.dart | head -10</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ====== F1 ====== -->
+<section id="F1">
+  <h2><span class="n">F1</span>パスワードリセットメール — 未登録アカウントにエラー表示 <span class="en">laravel</span></h2>
+  <span class="tag be">Laravel</span> <span class="tag bug">バグ</span>
+
+  <p>
+    現状、パスワードリセット画面で存在しないメールアドレスを入力してもエラーが出ず、
+    「メールを送信した」ような表示になっています（Laravel のデフォルト動作）。
+    未登録アドレスの場合は明示的なエラーメッセージを表示するよう修正します。
+  </p>
+
+  <div class="callout info">
+    <strong>セキュリティ上の注意。</strong>
+    一般的に「そのメールは登録されていません」と明示すると、
+    攻撃者にアカウント存在確認の手段を与えることになります。
+    本プロダクトは農家向けの業務ツールで一般公開されていないため、
+    利便性優先でエラー表示する方針とします。
+  </div>
+
+  <div class="steps">
+    <div class="step">
+      <div class="snum">1</div>
+      <div class="sbody">
+        <h4>パスワードリセットコントローラーのバリデーションを修正</h4>
+        <span class="sloc">app/Http/Controllers/Auth/PasswordResetLinkController.php（または相当するファイル）</span>
+        <div class="shell">
+<span class="c"># パスワードリセット関連のコントローラーを確認</span>
+<span class="p">$ </span><span class="cmd">find app/Http/Controllers -name "*Password*" -o -name "*Reset*" | sort</span>
+        </div>
+<pre><span class="fn">store メソッドの修正（バリデーションに email exists を追加）</span><span class="kw">public function</span> <span class="nm">store</span>(<span class="cl">Request</span> $request): <span class="cl">RedirectResponse</span>
+{
+    $request->validate([
+        <span class="st">'email'</span> =&gt; [
+            <span class="st">'required'</span>,
+            <span class="st">'email'</span>,
+            <span class="cm">// ↓ この行を追加: app_users テーブルに存在するメールのみ受け付ける</span>
+            <span class="st">'exists:app_users,email'</span>,
+        ],
+    ], [
+        <span class="cm">// バリデーションエラーメッセージ</span>
+        <span class="st">'email.exists'</span> =&gt; <span class="st">'このメールアドレスは登録されていません。'</span>,
+    ]);
+
+    <span class="cm">// 以降は既存の処理をそのまま維持</span>
+}</pre>
+        <div class="callout note">
+          <strong>使用するテーブルを確認してください。</strong>
+          モバイルアプリの認証は Cognito 経由ですが、パスワードリセット機能が
+          <code>app_users</code> テーブルを見ているのか <code>users</code> テーブルを見ているのか、
+          既存のコントローラーの実装を確認してから <code>exists:</code> のテーブル名を決めてください。
+        </div>
+        <div class="shell">
+<span class="c"># テスト（ローカルのみ）</span>
+<span class="p">$ </span><span class="cmd">php artisan test --filter=PasswordReset</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ====== F2 ====== -->
+<section id="F2">
+  <h2><span class="n">F2</span>センサー接続中に接続ボタンで切断できるようにする <span class="en">flutter</span></h2>
+  <span class="tag fe">Flutter</span> <span class="tag feat">機能</span>
+
+  <div class="steps">
+    <div class="step">
+      <div class="snum">2</div>
+      <div class="sbody">
+        <h4>接続ボタンのロジックをトグル（接続 / 切断）に変更</h4>
+        <span class="sloc">lib/features/measure/presentation/measurement_session_screen.dart（編集）</span>
+        <p>
+          接続チップ（または接続ボタン）の <code>onTap</code> を以下のように変更します。
+          既存の <code>connectSensor()</code> の呼び出しをラップして、
+          接続済みの場合は切断処理を呼ぶようにします。
+        </p>
+<pre><span class="fn">接続チップの onTap をトグルに変更</span><span class="cm">// 変更前</span>
+onTap: n.isSensorConnected ? <span class="kw">null</span> : n.connectSensor,
+
+<span class="cm">// 変更後: 接続済みなら切断、未接続なら接続</span>
+onTap: n.isConnecting ? <span class="kw">null</span> : <span class="cm">// 接続処理中は無効</span>
+    n.isSensorConnected
+        ? () =&gt; n.disconnectSensor()   <span class="cm">// 接続済み → 切断</span>
+        : () =&gt; n.connectSensor(),     <span class="cm">// 未接続 → 接続</span>
+
+<span class="cm">// チップのラベルも状態に応じて変える</span>
+label:    n.isSensorConnected ? <span class="st">'✓ 接続中'</span> : <span class="st">'接続'</span>,
+subLabel: n.isSensorConnected ? <span class="st">'タップで切断'</span> : <span class="st">'センサ'</span>,</pre>
+
+        <p>
+          <code>disconnectSensor()</code> メソッドを <code>MeasurementSessionScreen</code>（または相当する Notifier）に追加します。
+        </p>
+<pre><span class="fn">disconnectSensor() メソッドを追加</span><span class="kw">Future</span>&lt;<span class="kw">void</span>&gt; disconnectSensor() <span class="kw">async</span> {
+  <span class="kw">try</span> {
+    <span class="cm">// 既存の USB シリアル接続を閉じる処理（実際の変数名に合わせること）</span>
+    <span class="kw">await</span> _usbPort?.close();
+    _usbPort = <span class="kw">null</span>;
+  } <span class="kw">catch</span> (_) {}
+  setState(() {
+    isSensorConnected = <span class="kw">false</span>;
+    isBgDone          = <span class="kw">false</span>;  <span class="cm">// 切断したら BG もリセット</span>
+  });
+}</pre>
+        <div class="callout warn">
+          <strong>切断時の BG リセットについて。</strong>
+          センサーを切断したら BG 完了フラグもリセットします。
+          再接続時に再度 BG 測定が必要になりますが、これは正しい仕様です（別のセンサーを繋ぐ場合もある）。
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ====== F3 ====== -->
+<section id="F3">
+  <h2><span class="n">F3</span>ホーム上部アカウントタップ → ログアウトモーダルに変更 <span class="en">flutter</span></h2>
+  <span class="tag fe">Flutter</span> <span class="tag ux">UX</span>
+
+  <div class="steps">
+    <div class="step">
+      <div class="snum">3</div>
+      <div class="sbody">
+        <h4>HomeScreen 上部アカウント行のタップ先を設定画面からモーダルに変更</h4>
+        <span class="sloc">lib/screens/home/home_screen.dart（編集）</span>
+<pre><span class="fn">アカウント行の onTap を変更</span><span class="cm">// 変更前: 設定画面へ遷移</span>
+onTap: () =&gt; <span class="wg">Navigator</span>.pushNamed(context, <span class="cl">AppRoutes</span>.settings),
+
+<span class="cm">// 変更後: ログアウト確認モーダルを表示</span>
+onTap: () =&gt; _showAccountModal(context),</pre>
+
+<pre><span class="fn">_showAccountModal メソッドを追加</span><span class="kw">void</span> _showAccountModal(<span class="cl">BuildContext</span> context) {
+  <span class="kw">final</span> user = context.read&lt;<span class="cl">UserProvider</span>&gt;();
+  showModalBottomSheet(
+    context: context,
+    builder: (_) =&gt; <span class="wg">SafeArea</span>(
+      child: <span class="wg">Column</span>(mainAxisSize: <span class="wg">MainAxisSize</span>.min, children: [
+        <span class="wg">Padding</span>(
+          padding: <span class="kw">const</span> <span class="wg">EdgeInsets</span>.symmetric(vertical: <span class="nm">16</span>),
+          child: <span class="wg">Text</span>(user.displayName,
+              style: <span class="kw">const</span> <span class="wg">TextStyle</span>(fontWeight: <span class="wg">FontWeight</span>.bold, fontSize: <span class="nm">16</span>)),
+        ),
+        <span class="kw">const</span> <span class="wg">Divider</span>(height: <span class="nm">1</span>),
+        <span class="wg">ListTile</span>(
+          leading: <span class="kw">const</span> <span class="wg">Icon</span>(<span class="wg">Icons</span>.settings_outlined),
+          title: <span class="kw">const</span> <span class="wg">Text</span>(<span class="st">'設定'</span>),
+          onTap: () {
+            <span class="wg">Navigator</span>.pop(context);
+            <span class="wg">Navigator</span>.pushNamed(context, <span class="cl">AppRoutes</span>.settings);
+          },
+        ),
+        <span class="wg">ListTile</span>(
+          leading: <span class="kw">const</span> <span class="wg">Icon</span>(<span class="wg">Icons</span>.logout, color: <span class="wg">Colors</span>.red),
+          title: <span class="kw">const</span> <span class="wg">Text</span>(<span class="st">'ログアウト'</span>,
+              style: <span class="wg">TextStyle</span>(color: <span class="wg">Colors</span>.red)),
+          onTap: () <span class="kw">async</span> {
+            <span class="wg">Navigator</span>.pop(context);
+            <span class="kw">await</span> user.signOut();
+            <span class="kw">if</span> (context.mounted) {
+              <span class="wg">Navigator</span>.of(context)
+                  .pushNamedAndRemoveUntil(<span class="st">'/'</span>, (_) =&gt; <span class="kw">false</span>);
+            }
+          },
+        ),
+        <span class="kw">const</span> <span class="wg">SizedBox</span>(height: <span class="nm">8</span>),
+      ]),
+    ),
+  );
+}</pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ====== F4 ====== -->
+<section id="F4">
+  <h2><span class="n">F4</span>BG 測定中のシークバーを大きくする <span class="en">flutter</span></h2>
+  <span class="tag fe">Flutter</span> <span class="tag ux">UX</span>
+
+  <div class="steps">
+    <div class="step">
+      <div class="snum">4</div>
+      <div class="sbody">
+        <h4>BG 測定プログレスの LinearProgressIndicator を大きくする</h4>
+        <span class="sloc">lib/features/measure/presentation/measurement_session_screen.dart（編集）</span>
+        <div class="shell">
+<span class="c"># BG 測定のプログレス表示箇所を確認</span>
+<span class="p">$ </span><span class="cmd">grep -n "LinearProgressIndicator\|Slider\|bgProgress\|minHeight" \
+  $(find lib/features/measure -name "measurement_session_screen.dart")</span>
+        </div>
+<pre><span class="fn">LinearProgressIndicator の minHeight を変更</span><span class="cm">// 変更前（デフォルト 4px のまま）</span>
+<span class="wg">LinearProgressIndicator</span>(
+  value: bgProgress,
+)
+
+<span class="cm">// 変更後: minHeight を 16px に拡大し、角丸をつけて視認性を向上</span>
+<span class="wg">ClipRRect</span>(
+  borderRadius: <span class="wg">BorderRadius</span>.circular(<span class="nm">8</span>),
+  child: <span class="wg">LinearProgressIndicator</span>(
+    value:     bgProgress,
+    minHeight: <span class="nm">16</span>,             <span class="cm">// デフォルト 4 → 16</span>
+    backgroundColor: <span class="wg">Colors</span>.grey[<span class="nm">200</span>],
+    color: <span class="kw">const</span> <span class="wg">Color</span>(<span class="nm">0xFF2E5C39</span>),
+  ),
+),
+<span class="kw">const</span> <span class="wg">SizedBox</span>(height: <span class="nm">4</span>),
+<span class="wg">Text</span>(
+  <span class="st">'${(bgProgress * 100).toInt()}%'</span>,
+  style: <span class="wg">TextStyle</span>(fontSize: <span class="nm">12</span>, color: <span class="wg">Colors</span>.grey[<span class="nm">600</span>]),
+)</pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ====== F5 ====== -->
+<section id="F5">
+  <h2><span class="n">F5</span>BG 測定完了後に再測定できるようにする <span class="en">flutter</span></h2>
+  <span class="tag fe">Flutter</span> <span class="tag feat">機能</span>
+
+  <div class="steps">
+    <div class="step">
+      <div class="snum">5</div>
+      <div class="sbody">
+        <h4>BG チップを完了後もタップ可能にし、再測定を呼ぶ</h4>
+        <span class="sloc">lib/features/measure/presentation/measurement_session_screen.dart（編集）</span>
+<pre><span class="fn">BG チップの onTap 条件を変更</span><span class="cm">// 変更前: BG 完了後は null（タップ不可）</span>
+onTap: n.isSensorConnected && !n.isBgDone ? n.startBg : <span class="kw">null</span>,
+
+<span class="cm">// 変更後: 接続済みならいつでもタップ可（完了後は「再測定」として機能）</span>
+onTap: n.isSensorConnected && !n.isBgRunning ? n.startBg : <span class="kw">null</span>,
+
+<span class="cm">// ラベルも完了後は「再測定」に変更</span>
+label: n.isBgDone
+    ? (n.isBgRunning ? <span class="st">'BG 測定中'</span> : <span class="st">'✓ BG 再測定'</span>)
+    : <span class="st">'BG'</span>,
+subLabel: n.isBgDone ? <span class="st">'タップで再測定'</span> : <span class="st">'基準'</span>,</pre>
+
+        <p>
+          <code>startBg()</code> 内で <code>isBgDone = false</code> にしてからコマンドを送信するよう確認してください。
+          既存の実装が完了フラグを立てるだけなら、再実行時に先にフラグをリセットする処理を追加します。
+        </p>
+<pre><span class="fn">startBg() 冒頭でフラグをリセット（既存実装を確認して必要なら追加）</span><span class="kw">Future</span>&lt;<span class="kw">void</span>&gt; startBg() <span class="kw">async</span> {
+  setState(() {
+    isBgDone    = <span class="kw">false</span>;   <span class="cm">// ← リセット（再測定時にも対応）</span>
+    isBgRunning = <span class="kw">true</span>;
+    bgProgress  = <span class="nm">0.0</span>;
+  });
+  <span class="cm">// 既存のBG測定コマンド送信処理...</span>
+}</pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ====== F6 ====== -->
+<section id="F6">
+  <h2><span class="n">F6</span>測定地点補正を 1m 単位で行えるようにする <span class="en">flutter</span></h2>
+  <span class="tag fe">Flutter</span> <span class="tag ux">UX</span>
+
+  <div class="callout info">
+    <strong>原因の推定。</strong>
+    現行実装では地図タップで <code>_confirmedLocation</code> を直接更新していますが、
+    Google Maps の <code>onTap</code> コールバックは画面上のピクセル座標を LatLng に変換するため、
+    ズームレベルが低いと同じピクセルが数十メートル以上の範囲をカバーしてしまいます。
+    解決策は「最大ズームに強制する」または「方向キー（矢印ボタン）で 1m ずつ移動する」の 2 通りです。
+    両方組み合わせることを推奨します。
+  </div>
+
+  <div class="steps">
+    <div class="step">
+      <div class="snum">6</div>
+      <div class="sbody">
+        <h4>補正モード時に最大ズームを強制する</h4>
+        <span class="sloc">lib/features/measure/presentation/measurement_session_screen.dart（編集）</span>
+<pre><span class="fn">補正モード開始時（startPinCorrection 呼び出し後）に最大ズームへ移動</span><span class="kw">void</span> startPinCorrection(<span class="kw">int</span> spotId) {
+  setState(() =&gt; _correctingSpotId = spotId);
+
+  <span class="cm">// 補正対象ピンの位置に最大ズームで移動</span>
+  <span class="kw">final</span> pin = _spots.firstWhereOrNull((s) =&gt; s.id == spotId);
+  <span class="kw">if</span> (pin != <span class="kw">null</span> && _mapController != <span class="kw">null</span>) {
+    _mapController!.animateCamera(
+      <span class="cl">CameraUpdate</span>.newCameraPosition(<span class="cl">CameraPosition</span>(
+        target: <span class="cl">LatLng</span>(pin.position.latitude, pin.position.longitude),
+        zoom:   <span class="nm">21</span>,  <span class="cm">// Google Maps の最大ズーム（衛星: 20〜21）</span>
+      )),
+    );
+  }
+}</pre>
+
+        <h4>方向キー（東西南北ボタン）で 1m ずつ移動できる UI を追加</h4>
+<pre><span class="fn">補正モード中にオーバーレイとして表示する方向キー</span><span class="cm">// Stack の子として補正モード中にのみ表示</span>
+<span class="kw">if</span> (_correctingSpotId != <span class="kw">null</span>)
+  <span class="wg">Positioned</span>(
+    bottom: <span class="nm">80</span>, left: <span class="nm">0</span>, right: <span class="nm">0</span>,
+    child: <span class="wg">Center</span>(
+      child: <span class="wg">Column</span>(mainAxisSize: <span class="wg">MainAxisSize</span>.min, children: [
+        <span class="cm">// 北</span>
+        _ArrowButton(<span class="wg">Icons</span>.arrow_upward,    () =&gt; _nudge( <span class="nm">1</span>,  <span class="nm">0</span>)),
+        <span class="wg">Row</span>(mainAxisSize: <span class="wg">MainAxisSize</span>.min, children: [
+          <span class="cm">// 西</span>
+          _ArrowButton(<span class="wg">Icons</span>.arrow_back,      () =&gt; _nudge( <span class="nm">0</span>, -<span class="nm">1</span>)),
+          <span class="kw">const</span> <span class="wg">SizedBox</span>(width: <span class="nm">48</span>),
+          <span class="cm">// 東</span>
+          _ArrowButton(<span class="wg">Icons</span>.arrow_forward,   () =&gt; _nudge( <span class="nm">0</span>,  <span class="nm">1</span>)),
+        ]),
+        <span class="cm">// 南</span>
+        _ArrowButton(<span class="wg">Icons</span>.arrow_downward,   () =&gt; _nudge(-<span class="nm">1</span>,  <span class="nm">0</span>)),
+      ]),
+    ),
+  ),
+
+<span class="cm">// 1m ずつ LatLng を動かすヘルパー</span>
+<span class="cm">// 緯度 1° ≒ 111,000m。経度は cos(lat) 倍</span>
+<span class="kw">void</span> _nudge(<span class="kw">int</span> latDir, <span class="kw">int</span> lngDir) {
+  <span class="kw">final</span> spot = _spots.firstWhereOrNull((s) =&gt; s.id == _correctingSpotId);
+  <span class="kw">if</span> (spot == <span class="kw">null</span>) <span class="kw">return</span>;
+
+  <span class="kw">const</span> mPerDeg = <span class="nm">111000.0</span>;
+  <span class="kw">final</span> latDelta = latDir / mPerDeg;
+  <span class="kw">final</span> lngDelta = lngDir / (mPerDeg * cos(spot.position.latitude * pi / <span class="nm">180</span>));
+
+  <span class="kw">final</span> newPos = <span class="cl">LatLng</span>(
+    spot.position.latitude  + latDelta,
+    spot.position.longitude + lngDelta,
+  );
+  setState(() =&gt; spot.position = newPos);
+  <span class="cm">// _confirmedLocation も更新（既存の位置補正ロジックと合わせること）</span>
+  _confirmedLocation = newPos;
+}
+
+<span class="cm">// 矢印ボタンウィジェット</span>
+<span class="kw">class</span> <span class="cl">_ArrowButton</span> <span class="kw">extends</span> <span class="cl">StatelessWidget</span> {
+  <span class="kw">const</span> <span class="cl">_ArrowButton</span>(<span class="kw">this</span>.icon, <span class="kw">this</span>.onTap);
+  <span class="kw">final</span> <span class="cl">IconData</span>   icon;
+  <span class="kw">final</span> <span class="wg">VoidCallback</span> onTap;
+  <span class="kw">@override</span>
+  <span class="cl">Widget</span> build(<span class="cl">BuildContext</span> _) =&gt; <span class="wg">GestureDetector</span>(
+    onTap: onTap,
+    child: <span class="wg">Container</span>(
+      width: <span class="nm">44</span>, height: <span class="nm">44</span>,
+      decoration: <span class="wg">BoxDecoration</span>(
+        color: <span class="wg">Colors</span>.white.withValues(alpha: <span class="nm">0.9</span>),
+        shape: <span class="wg">BoxShape</span>.circle,
+        boxShadow: [<span class="wg">BoxShadow</span>(
+          color: <span class="wg">Colors</span>.black.withValues(alpha: <span class="nm">0.2</span>),
+          blurRadius: <span class="nm">4</span>)],
+      ),
+      child: <span class="wg">Icon</span>(icon, size: <span class="nm">20</span>),
+    ),
+  );
+}</pre>
+        <div class="callout note">
+          <strong><code>import 'dart:math' show cos, pi;</code> を追加してください。</strong>
+          経度方向の 1m の計算に使います。
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ====== F7 ====== -->
+<section id="F7">
+  <h2><span class="n">F7</span>測定完了アイコンを小型化・番号表示 <span class="en">flutter</span></h2>
+  <span class="tag fe">Flutter</span> <span class="tag ux">UX</span>
+
+  <div class="steps">
+    <div class="step">
+      <div class="snum">7</div>
+      <div class="sbody">
+        <h4>Marker を番号付きカスタムアイコンに変更</h4>
+        <span class="sloc">lib/features/measure/presentation/measurement_session_screen.dart（編集）</span>
+        <p>
+          現状は <code>BitmapDescriptor.defaultMarkerWithHue</code> の標準ピンを使っているため大きく見えます。
+          Canvas でサイズを抑えた番号付き円アイコンを生成して置き換えます。
+        </p>
+<pre><span class="fn">番号付き小型カスタムマーカーアイコンを生成するヘルパー</span><span class="kw">import</span> <span class="st">'dart:ui'</span> <span class="kw">as</span> ui;
+<span class="kw">import</span> <span class="st">'dart:typed_data'</span>;
+
+<span class="cm">/// 番号付き小型円アイコンを生成する。
+/// [number]: 表示する番号（1始まり）
+/// [status]: 測定中=赤 / 完了=黄 / 推定完了=緑
+/// [size]:   円の直径 px（推奨: 48〜56）</span>
+<span class="kw">Future</span>&lt;<span class="cl">BitmapDescriptor</span>&gt; createNumberedMarker(
+    <span class="kw">int</span> number, <span class="cl">PinStatus</span> status, {<span class="kw">double</span> size = <span class="nm">52</span>}) <span class="kw">async</span> {
+  <span class="kw">final</span> color = <span class="kw">switch</span> (status) {
+    <span class="cl">PinStatus</span>.measuring =&gt; <span class="kw">const</span> <span class="cl">Color</span>(<span class="nm">0xFFC0392B</span>),
+    <span class="cl">PinStatus</span>.measured  =&gt; <span class="kw">const</span> <span class="cl">Color</span>(<span class="nm">0xFFE67E22</span>),
+    <span class="cl">PinStatus</span>.completed =&gt; <span class="kw">const</span> <span class="cl">Color</span>(<span class="nm">0xFF27AE60</span>),
+  };
+
+  <span class="kw">final</span> recorder = ui.PictureRecorder();
+  <span class="kw">final</span> canvas    = Canvas(recorder);
+  <span class="kw">final</span> r         = size / <span class="nm">2</span>;
+
+  <span class="cm">// 円背景</span>
+  canvas.drawCircle(
+    Offset(r, r), r,
+    Paint()..color = color,
+  );
+  <span class="cm">// 白い縁取り</span>
+  canvas.drawCircle(
+    Offset(r, r), r,
+    Paint()..color = Colors.white..style = PaintingStyle.stroke..strokeWidth = <span class="nm">2</span>,
+  );
+  <span class="cm">// 番号テキスト</span>
+  <span class="kw">final</span> tp = TextPainter(
+    text: TextSpan(
+      text: <span class="st">'$number'</span>,
+      style: TextStyle(
+        color: Colors.white,
+        fontSize: size * <span class="nm">0.42</span>,
+        fontWeight: FontWeight.bold,
+      ),
+    ),
+    textDirection: TextDirection.ltr,
+  )..layout();
+  tp.paint(canvas, Offset(r - tp.width / <span class="nm">2</span>, r - tp.height / <span class="nm">2</span>));
+
+  <span class="kw">final</span> img   = <span class="kw">await</span> recorder.endRecording().toImage(size.toInt(), size.toInt());
+  <span class="kw">final</span> bytes = <span class="kw">await</span> img.toByteData(format: ui.ImageByteFormat.png);
+  <span class="kw">return</span> BitmapDescriptor.fromBytes(bytes!.buffer.asUint8List());
+}
+
+<span class="cm">// 使用例（Marker 生成時）</span>
+<span class="kw">final</span> icon = <span class="kw">await</span> createNumberedMarker(pin.index, pin.status);
+<span class="wg">Marker</span>(
+  markerId: <span class="wg">MarkerId</span>(<span class="st">'pin_${pin.index}'</span>),
+  position: <span class="cl">LatLng</span>(pin.latitude, pin.longitude),
+  icon:     icon,
+  <span class="cm">// InfoWindow は F8 で無効化するため省略</span>
+)</pre>
+
+        <div class="callout warn">
+          <strong>アイコン生成は非同期処理です。</strong>
+          <code>createNumberedMarker</code> は <code>Future</code> を返すため、
+          ピンを追加するたびに <code>await</code> してからマーカーセットに入れてください。
+          パフォーマンスが気になる場合はキャッシュ（<code>Map&lt;int, BitmapDescriptor&gt;</code>）を使ってください。
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ====== F8 ====== -->
+<section id="F8">
+  <h2><span class="n">F8</span>マーカータップで出現するルート検索ボタンを非表示 <span class="en">flutter</span></h2>
+  <span class="tag fe">Flutter</span> <span class="tag bug">バグ</span>
+
+  <div class="steps">
+    <div class="step">
+      <div class="snum">8</div>
+      <div class="sbody">
+        <h4>GoogleMap の myLocationEnabled / zoomControlsEnabled などを確認し、InfoWindow を削除</h4>
+        <span class="sloc">lib/features/measure/presentation/measurement_session_screen.dart（編集）</span>
+        <p>
+          「ルート検索ボタン」は Google Maps の <code>InfoWindow</code> タップ時に
+          ネイティブの経路案内が起動するために現れます。
+          <code>Marker</code> から <code>InfoWindow</code> を削除するか、
+          <code>onTap</code> で <code>InfoWindow</code> を閉じるようにします。
+        </p>
+<pre><span class="fn">Marker から InfoWindow を削除</span><span class="cm">// 変更前</span>
+<span class="wg">Marker</span>(
+  markerId: ...,
+  position: ...,
+  icon:     ...,
+  infoWindow: <span class="wg">InfoWindow</span>(title: <span class="st">'...'</span>),  <span class="cm">// ← これを削除</span>
+)
+
+<span class="cm">// 変更後: InfoWindow を省略（デフォルトなし）</span>
+<span class="wg">Marker</span>(
+  markerId: ...,
+  position: ...,
+  icon:     ...,
+  <span class="cm">// infoWindow を指定しない → ルート検索ボタンが出なくなる</span>
+)
+
+<span class="cm">// また GoogleMap ウィジェットで以下を設定して余計なボタンを全部消す</span>
+<span class="wg">GoogleMap</span>(
+  myLocationButtonEnabled: <span class="kw">false</span>,   <span class="cm">// 現在地ボタン（独自実装で代替）</span>
+  zoomControlsEnabled:     <span class="kw">false</span>,   <span class="cm">// +/- ズームボタン</span>
+  mapToolbarEnabled:       <span class="kw">false</span>,   <span class="cm">// ← ルート検索など地図ツールバーを無効化</span>
+  <span class="cm">// ...既存オプション</span>
+)</pre>
+        <div class="callout note">
+          <strong><code>mapToolbarEnabled: false</code> が最も直接的な対処法です。</strong>
+          このオプションを <code>false</code> にすると、マーカータップ時のルート検索・
+          Google Maps アプリ起動ボタンが表示されなくなります。
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ====== F9 ====== -->
+<section id="F9">
+  <h2><span class="n">F9</span>測定画面を離脱・再表示しても当日測定地点を表示する <span class="en">flutter</span></h2>
+  <span class="tag fe">Flutter</span> <span class="tag feat">機能</span>
+
+  <div class="callout warn">
+    <strong>F10 と合わせて実装してください。</strong>
+    F9（測定地点の保持）と F10（センサー接続の保持）は同じ根本原因
+    （<code>MeasurementSessionScreen</code> のスコープが狭く、画面離脱時に破棄される）から来ています。
+    2 つをまとめて対応することで、状態管理のリファクタリングが 1 回で済みます。
+  </div>
+
+  <div class="steps">
+    <div class="step">
+      <div class="snum">9</div>
+      <div class="sbody">
+        <h4>MeasurementSessionScreen の状態をアプリレベルの Provider に昇格させる</h4>
+        <span class="sloc">lib/main.dart または MultiProvider の定義ファイル（編集）</span>
+        <p>
+          現状、<code>MeasurementSessionScreen</code> のウィジェット（または内部の State）が
+          測定状態（ピン・接続状態）を保持しているため、
+          画面を離脱すると Widget ツリーから外れて状態が破棄されます。
+          解決策は、状態をアプリルートの <code>MultiProvider</code> に登録することです。
+        </p>
+<pre><span class="fn">main.dart の MultiProvider に MeasurementSessionNotifier を追加</span><span class="cm">// 変更前: MeasurementSessionScreen 内でローカルに State を持つ</span>
+
+<span class="cm">// 変更後: アプリ起動時に Provider として登録する</span>
+<span class="kw">import</span> <span class="st">'features/measure/presentation/measurement_session_screen.dart'</span>;
+
+<span class="cm">// MultiProvider の providers リストに追加</span>
+<span class="wg">ChangeNotifierProvider</span>&lt;<span class="cl">MeasurementStateProvider</span>&gt;(
+  create: (_) =&gt; <span class="cl">MeasurementStateProvider</span>(),
+),</pre>
+
+        <h4>MeasurementStateProvider を新規作成</h4>
+        <span class="sloc">lib/features/measure/presentation/measurement_state_provider.dart（新規作成）</span>
+<pre><span class="fn">measurement_state_provider.dart — 画面をまたいで保持すべき状態のみ管理</span><span class="kw">import</span> <span class="st">'package:flutter/foundation.dart'</span>;
+<span class="kw">import</span> <span class="st">'package:google_maps_flutter/google_maps_flutter.dart'</span>;
+<span class="cm">// 実際のファイルパスに合わせること</span>
+<span class="kw">import</span> <span class="st">'../domain/measurement_pin.dart'</span>;
+
+<span class="cm">/// アプリ全体で保持する測定状態（画面離脱後も維持）。
+/// - ピン一覧（当日の測定地点）
+/// - USB センサーの接続状態（F10 と共通）
+/// - BG 完了フラグ</span>
+<span class="kw">class</span> <span class="cl">MeasurementStateProvider</span> <span class="kw">extends</span> <span class="cl">ChangeNotifier</span> {
+
+  <span class="cm">// ピン一覧</span>
+  <span class="kw">final</span> <span class="cl">List</span>&lt;<span class="cl">MeasurementPin</span>&gt; pins = [];
+
+  <span class="cm">// センサー接続状態（F10 で USB ポートもここに持つ）</span>
+  <span class="kw">bool</span>    isSensorConnected = <span class="kw">false</span>;
+  <span class="kw">bool</span>    isBgDone          = <span class="kw">false</span>;
+
+  <span class="cm">// 同日の測定か判断するための基準日</span>
+  <span class="cl">String</span>? _sessionDate;  <span class="cm">// "YYYY-MM-DD"</span>
+
+  <span class="cm">/// 新しい測定日を開始するとき（日付が変わったらピンをリセット）</span>
+  <span class="kw">void</span> startSession(<span class="cl">String</span> today) {
+    <span class="kw">if</span> (_sessionDate != today) {
+      pins.clear();
+      _sessionDate = today;
+    }
+    notifyListeners();
+  }
+
+  <span class="cm">/// ピンを追加</span>
+  <span class="kw">void</span> addPin(<span class="cl">MeasurementPin</span> pin) {
+    pins.add(pin);
+    notifyListeners();
+  }
+
+  <span class="cm">/// ピン状態を更新（測定中→完了→推定完了）</span>
+  <span class="kw">void</span> updatePin(<span class="kw">int</span> index, <span class="cl">PinStatus</span> status, {<span class="kw">double</span>? cec}) {
+    <span class="kw">final</span> i = pins.indexWhere((p) =&gt; p.index == index);
+    <span class="kw">if</span> (i &lt; <span class="nm">0</span>) <span class="kw">return</span>;
+    pins[i] = pins[i].copyWith(status: status, cec: cec);
+    notifyListeners();
+  }
+
+  <span class="cm">/// ピンを削除</span>
+  <span class="kw">void</span> removePin(<span class="kw">int</span> index) {
+    pins.removeWhere((p) =&gt; p.index == index);
+    notifyListeners();
+  }
+
+  <span class="cm">/// 接続状態を更新（F10 と共用）</span>
+  <span class="kw">void</span> setSensorConnected(<span class="kw">bool</span> v) {
+    isSensorConnected = v;
+    <span class="kw">if</span> (!v) isBgDone = <span class="kw">false</span>;  <span class="cm">// 切断したら BG もリセット</span>
+    notifyListeners();
+  }
+
+  <span class="kw">void</span> setBgDone(<span class="kw">bool</span> v) {
+    isBgDone = v;
+    notifyListeners();
+  }
+}</pre>
+
+        <h4>MeasurementSessionScreen を Provider から読み書きするように変更</h4>
+        <p>
+          既存の <code>MeasurementSessionScreen</code> 内で
+          <code>setState(() =&gt; _pins.add(...))</code> のようにローカル State を更新している箇所を、
+          <code>context.read&lt;MeasurementStateProvider&gt;().addPin(...)</code> に置き換えます。
+          ウィジェットで表示する際は <code>context.watch&lt;MeasurementStateProvider&gt;().pins</code> を使います。
+        </p>
+        <div class="callout warn">
+          <strong>既存のコード量が多い場合の進め方。</strong>
+          <code>MeasurementSessionScreen</code> のすべての State を一度に移行しようとせず、
+          「ピン一覧」と「接続状態」の 2 つだけを先に移行して動作確認してください。
+          BG のプログレスなど画面内だけで使う状態はローカル State のまま残して問題ありません。
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ====== F10 ====== -->
+<section id="F10">
+  <h2><span class="n">F10</span>測定画面を離脱してもセンサー接続を維持する <span class="en">flutter</span></h2>
+  <span class="tag fe">Flutter</span> <span class="tag feat">機能</span>
+
+  <div class="steps">
+    <div class="step">
+      <div class="snum">10</div>
+      <div class="sbody">
+        <h4>USB ポートのインスタンスを MeasurementStateProvider に移動</h4>
+        <span class="sloc">lib/features/measure/presentation/measurement_state_provider.dart（F9 で作成したファイルに追記）</span>
+<pre><span class="fn">MeasurementStateProvider に USB ポートを追加</span><span class="kw">import</span> <span class="st">'package:usb_serial/usb_serial.dart'</span>;
+
+<span class="cm">// MeasurementStateProvider クラス内に追加</span>
+
+  <span class="cm">// USB シリアルポートのインスタンス（ここで保持することで画面離脱後も維持）</span>
+  UsbPort? _usbPort;
+  UsbPort? get usbPort =&gt; _usbPort;
+
+  <span class="cm">/// センサーに接続する（MeasurementSessionScreen から呼び出す）</span>
+  <span class="kw">Future</span>&lt;<span class="kw">void</span>&gt; connectSensor(<span class="cl">List</span>&lt;<span class="cl">String</span>&gt; logCallback) <span class="kw">async</span> {
+    <span class="cm">// 既存の接続ロジックをここに移植する</span>
+    <span class="cm">// _usbPort を取得してセッション間で保持する</span>
+  }
+
+  <span class="cm">/// センサーを切断する</span>
+  <span class="kw">Future</span>&lt;<span class="kw">void</span>&gt; disconnectSensor() <span class="kw">async</span> {
+    <span class="kw">try</span> { <span class="kw">await</span> _usbPort?.close(); } <span class="kw">catch</span> (_) {}
+    _usbPort = <span class="kw">null</span>;
+    setSensorConnected(<span class="kw">false</span>);
+  }
+
+  <span class="cm">/// アプリ終了時にリソースを解放（dispose で呼ぶ）</span>
+  <span class="kw">@override</span>
+  <span class="kw">void</span> dispose() {
+    _usbPort?.close();
+    <span class="kw">super</span>.dispose();
+  }</pre>
+
+        <div class="callout note">
+          <strong><code>MeasurementSessionScreen</code> の <code>dispose()</code> から USB ポートを閉じる処理を削除してください。</strong>
+          現状、<code>dispose()</code> 内で <code>_usbPort?.close()</code> を呼んでいると思われます。
+          この処理を削除し、切断は F2 の「接続解除ボタン」か
+          アプリ終了時（<code>MeasurementStateProvider.dispose</code>）だけで行うようにします。
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ====== F11 ====== -->
+<section id="F11">
+  <h2><span class="n">F11</span>同期画面の個別リロードアイコンを削除 <span class="en">flutter</span></h2>
+  <span class="tag fe">Flutter</span> <span class="tag ux">UX</span>
+
+  <div class="steps">
+    <div class="step">
+      <div class="snum">11</div>
+      <div class="sbody">
+        <h4>SyncScreen の各リストアイテムから trailing のリロードアイコンを削除</h4>
+        <span class="sloc">lib/screens/sync/sync_screen.dart（編集）</span>
+<pre><span class="fn">_buildItem メソッドの trailing を削除</span><span class="cm">// 変更前: リトライアイコンを表示（Phase 8 で追加）</span>
+<span class="wg">ListTile</span>(
+  <span class="cm">// ...</span>
+  trailing: item.hasError
+      ? <span class="wg">IconButton</span>(
+          icon: <span class="kw">const</span> <span class="wg">Icon</span>(<span class="wg">Icons</span>.refresh, color: <span class="wg">Colors</span>.red),
+          onPressed: () <span class="kw">async</span> { ... },
+        )
+      : <span class="kw">null</span>,
+),
+
+<span class="cm">// 変更後: trailing を完全に削除（リトライは一括同期ボタンから行う）</span>
+<span class="wg">ListTile</span>(
+  <span class="cm">// trailing を省略または null を固定</span>
+  trailing: <span class="kw">null</span>,
+),</pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ====== B1 ====== -->
+<section id="B1">
+  <h2><span class="n">B1</span>【バグ】測定リストで削除しても圃場詳細に残る <span class="en">bug</span></h2>
+  <span class="tag bug">バグ</span> <span class="tag fe">Flutter</span>
+
+  <p>
+    <code>MeasurementListScreen</code>（測定画面のリスト）でピンを削除しても、
+    <code>FarmDetailScreen</code>（圃場詳細のマップタブ）のデータが更新されない問題です。
+  </p>
+
+  <div class="steps">
+    <div class="step">
+      <div class="snum red">B</div>
+      <div class="sbody">
+        <h4>削除後に FarmMapTab のデータを再取得させる</h4>
+        <span class="sloc">lib/features/farms/presentation/tabs/farm_map_tab.dart 周辺（編集）</span>
+        <p>
+          原因は <code>MeasurementListScreen</code> でピンを削除した後、
+          <code>FarmDetailProvider</code>（マップタブのデータ）が再取得されていないためです。
+        </p>
+        <div class="shell">
+<span class="c"># 削除処理の実装箇所を確認</span>
+<span class="p">$ </span><span class="cmd">grep -n "deletePin\|remove.*Pin\|Navigator.*pop" \
+  lib/features/measure/presentation/measurement_list_screen.dart</span>
+        </div>
+<pre><span class="fn">MeasurementListScreen の削除後に FarmDetailProvider を再取得</span><span class="cm">// 測定リスト画面から圃場詳細に戻った後、マップデータを再取得する。
+// MeasurementListScreen は FarmDetailScreen から開かれる想定のため、
+// pop 時に再取得トリガーを渡す方法が最もシンプル。</span>
+
+<span class="cm">// 方法A: Navigator.pop の戻り値でトリガー</span>
+<span class="cm">// 測定リスト画面側（削除後）</span>
+<span class="kw">await</span> context.read&lt;<span class="cl">MeasurementStateProvider</span>&gt;().removePin(idx);
+<span class="wg">Navigator</span>.pop(context, <span class="kw">true</span>);  <span class="cm">// ← true = 変更あり</span>
+
+<span class="cm">// 測定リスト画面を開いた側（FarmMapTab または MeasurementScreen）で受け取る</span>
+<span class="kw">final</span> changed = <span class="kw">await</span> <span class="wg">Navigator</span>.push&lt;<span class="kw">bool</span>&gt;(context, ...);
+<span class="kw">if</span> (changed == <span class="kw">true</span> && context.mounted) {
+  <span class="cm">// マップタブのデータを再取得</span>
+  context.read&lt;<span class="cl">FarmDetailProvider</span>&gt;().loadMapPoints();
+}</pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ====== B2 ====== -->
+<section id="B2">
+  <h2><span class="n">B2</span>【バグ】圃場画面下部が Android ナビゲーションバーに隠れる <span class="en">bug</span></h2>
+  <span class="tag bug">バグ</span> <span class="tag fe">Flutter</span>
+
+  <div class="callout info">
+    <strong>端末依存の問題です。</strong>
+    Android の 3ボタンナビゲーションを表示している端末では、
+    画面下部に ~48dp の固定領域が現れます。
+    <code>SafeArea</code> を正しく適用することで解決します。
+    開発者端末がジェスチャーナビゲーションの場合は再現しないため、
+    テスト時は「設定 → システム → ジェスチャー → 3ボタンナビゲーション」に切り替えて確認してください。
+  </div>
+
+  <div class="steps">
+    <div class="step">
+      <div class="snum red">B</div>
+      <div class="sbody">
+        <h4>圃場一覧画面（および他の画面）の下部に SafeArea を適用する</h4>
+        <span class="sloc">lib/features/farms/presentation/farm_screen.dart ほか（編集）</span>
+<pre><span class="fn">bottomNavigationBar / 下部ボタン周辺に SafeArea を追加</span><span class="cm">// ① bottomNavigationBar に SafeArea を追加</span>
+bottomNavigationBar: <span class="wg">SafeArea</span>(    <span class="cm">// ← 追加</span>
+  child: <span class="wg">Padding</span>(
+    padding: <span class="kw">const</span> <span class="wg">EdgeInsets</span>.all(<span class="nm">12</span>),
+    child: <span class="wg">ElevatedButton</span>.icon(
+      label: <span class="kw">const</span> <span class="wg">Text</span>(<span class="st">'新規圃場を登録'</span>),
+      <span class="cm">// ...</span>
+    ),
+  ),
+),
+
+<span class="cm">// ② ListView の padding に bottom を追加する方法（代替）</span>
+<span class="wg">ListView</span>.separated(
+  padding: <span class="wg">EdgeInsets</span>.only(
+    bottom: <span class="cl">MediaQuery</span>.of(context).padding.bottom + <span class="nm">80</span>,
+    <span class="cm">// ↑ ナビゲーションバーの高さ + ボタンの高さ</span>
+  ),
+  <span class="cm">// ...</span>
+),</pre>
+
+        <h4>全画面共通の対応（一括確認）</h4>
+        <div class="shell">
+<span class="c"># Scaffold に bottomNavigationBar がある全画面を確認</span>
+<span class="p">$ </span><span class="cmd">grep -rn "bottomNavigationBar" lib/ --include="*.dart" | grep -v "test"</span>
+<span class="c"># 各ファイルで SafeArea が適用されているか確認</span>
+<span class="p">$ </span><span class="cmd">grep -rn "SafeArea" lib/ --include="*.dart" | grep -v "test"</span>
+        </div>
+        <p>
+          <code>bottomNavigationBar</code> を使っているすべての画面で
+          <code>SafeArea</code> でラップされていることを確認し、
+          漏れがある場合は追加してください。
+        </p>
+        <div class="callout">
+          <strong>実機での確認方法。</strong>
+          「設定 → システム → ジェスチャーナビゲーション → 3ボタンナビゲーション」に切り替えて
+          圃場画面・同期画面・設定画面を確認してください。
+          開発者オプションで「ナビゲーションバー高さ」を変更しても再現できます。
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ====== CHECK ====== -->
+<section id="check">
+  <h2><span class="n">12</span>動作確認チェックリスト <span class="en">check list</span></h2>
+
+  <div class="steps">
+    <div class="step">
+      <div class="snum">12</div>
+      <div class="sbody">
+        <h4>flutter analyze + エミュレーター / 実機確認</h4>
+        <div class="shell">
+<span class="p">$ </span><span class="cmd">flutter analyze 2>&1 | tail -5</span>
+<span class="c"># error / warning なし。info は 117件以下</span>
+<span class="p">$ </span><span class="cmd">dart format lib/features/measure lib/screens/home lib/screens/sync</span>
+<span class="p">$ </span><span class="cmd">flutter run</span>
+        </div>
+        <table>
+          <thead><tr><th>ID</th><th>確認項目</th><th>期待動作</th></tr></thead>
+          <tbody>
+            <tr><td>F1</td><td>存在しないメールでパスワードリセット</td><td>「このメールアドレスは登録されていません」エラーが表示される</td></tr>
+            <tr><td>F2</td><td>センサー接続後に接続チップをタップ</td><td>「タップで切断」と表示され、タップすると未接続状態に戻る</td></tr>
+            <tr><td>F3</td><td>ホーム上部アカウント行をタップ</td><td>設定画面ではなくログアウトモーダルが表示される</td></tr>
+            <tr><td>F4</td><td>BG 測定中のプログレスバー</td><td>以前より高さが大きく（16dp）見やすくなっている</td></tr>
+            <tr><td>F5</td><td>BG 完了後にチップを再タップ</td><td>BG 測定が再実行される</td></tr>
+            <tr><td>F6</td><td>補正モード時に地図が最大ズームになる</td><td>補正モードに入ると自動でズームイン</td></tr>
+            <tr><td>F6</td><td>方向キーボタンで 1m ずつ移動</td><td>矢印タップごとに約 1m ピンが移動する</td></tr>
+            <tr><td>F7</td><td>測定完了アイコン</td><td>番号（1, 2, 3...）付きの小型円アイコンになっている</td></tr>
+            <tr><td>F8</td><td>測定完了アイコンをタップ</td><td>ルート検索ボタンが表示されない</td></tr>
+            <tr><td>F9</td><td>測定画面から一時離脱して戻る</td><td>当日の測定ピンが表示されたままになっている</td></tr>
+            <tr><td>F10</td><td>測定画面から離脱してホームを経由して戻る</td><td>接続チップが「✓ 接続中」のまま維持されている</td></tr>
+            <tr><td>F11</td><td>同期画面の各リストアイテム</td><td>右側のリロードアイコンが表示されていない</td></tr>
+            <tr><td>B1</td><td>測定リストでピンを削除後に圃場詳細を開く</td><td>削除したピンが圃場詳細のマップに表示されていない</td></tr>
+            <tr><td>B2</td><td>3ボタンナビゲーション端末で圃場一覧を表示</td><td>下部の「新規圃場を登録」ボタンが隠れていない</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ====== DEPLOY ====== -->
+<section id="deploy">
+  <h2><span class="n">13</span>commit → PR → CI/CD <span class="en">deploy</span></h2>
+
+  <div class="steps">
+    <div class="step">
+      <div class="snum">13</div>
+      <div class="sbody">
+        <h4>コミット・push・PR 作成</h4>
+        <div class="shell">
+<span class="p">$ </span><span class="cmd">git add -A && git diff --cached --stat</span>
+<span class="p">$ </span><span class="cmd">git commit -m "fix/feat: apply FB improvements — sensor toggle, BG re-run, pin icons, state persistence"</span>
+<span class="p">$ </span><span class="cmd">git push origin feature/fb-improvements</span>
+        </div>
+        <ol>
+          <li>PR タイトル: <code>fix/feat: apply FB improvements — F1〜F11, B1, B2</code></li>
+          <li>PR 本文: 各 ID ごとの変更内容と動作確認結果を記載</li>
+          <li>Squash and merge → feature ブランチを削除</li>
+          <li>EC2 デプロイ後（Laravel 変更 F1 のみ）スモークテストを実行</li>
+        </ol>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ====== DoD ====== -->
+<section id="dod">
+  <h2><span class="n">✓</span>完了条件チェックリスト <span class="en">definition of done</span></h2>
+
+  <p style="font-size:13px;color:var(--ink3);margin-bottom:14px;">
+    <span class="tag l">L</span> ローカル確認 &nbsp;
+    <span class="tag ci">CI</span> PR &amp; CI/CD 確認 &nbsp;
+    <span class="tag e">E</span> 実機デプロイ後確認
+  </p>
+
+  <ul class="dod-list">
+    <li><span class="tag l">L</span> <code>flutter analyze</code> の info 件数が 117 件以下で error・warning なし</li>
+    <li><span class="tag ci">CI</span> feature ブランチが main にマージされ、CI が success になっている</li>
+    <li><span class="tag l">L</span> F1: 未登録アドレスでパスワードリセットを試みるとエラーメッセージが表示される</li>
+    <li><span class="tag e">E</span> F2: センサー接続中に接続チップをタップすると切断される</li>
+    <li><span class="tag l">L</span> F3: ホーム上部タップでログアウトモーダルが表示される（設定画面に飛ばない）</li>
+    <li><span class="tag l">L</span> F4: BG シークバーが以前より大きく（16dp）表示される</li>
+    <li><span class="tag e">E</span> F5: BG 完了後に再度チップをタップすると BG が再実行される</li>
+    <li><span class="tag e">E</span> F6: 補正モード時に地図が最大ズームになり、方向キーで 1m 単位の補正ができる</li>
+    <li><span class="tag e">E</span> F7: 測定完了アイコンが番号付き小型円になっている</li>
+    <li><span class="tag e">E</span> F8: アイコンタップでルート検索ボタンが表示されない</li>
+    <li><span class="tag e">E</span> F9: 測定画面を一時離脱して戻っても当日の測定ピンが表示されている</li>
+    <li><span class="tag e">E</span> F10: 測定画面を離脱してもセンサー接続状態が維持されている</li>
+    <li><span class="tag l">L</span> F11: 同期画面の各アイテムにリロードアイコンが表示されていない</li>
+    <li><span class="tag e">E</span> B1: 測定リストで削除後、圃場詳細マップに削除済みピンが表示されない</li>
+    <li><span class="tag e">E</span> B2: 3ボタンナビゲーション端末で圃場一覧下部のボタンが隠れていない</li>
+  </ul>
+</section>
+
+</main>
+</div>
+</body>
+</html>

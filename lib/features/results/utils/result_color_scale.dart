@@ -13,8 +13,15 @@ class ResultColorScale {
       return _neutralNormal();
     }
     final t = ((value - min) / (max - min)).clamp(0.0, 1.0);
-    // blue (low) -> red (high)
-    return Color.lerp(const Color(0xFFE3F2FD), const Color(0xFFC62828), t)!;
+    // blue (low) -> white (middle) -> red (high)
+    if (t <= 0.5) {
+      return Color.lerp(const Color(0xFF1565C0), _neutralNormal(), t * 2)!;
+    }
+    return Color.lerp(
+      _neutralNormal(),
+      const Color(0xFFC62828),
+      (t - 0.5) * 2,
+    )!;
   }
 
   // 比較: ±Δmax 正規化（欠損は呼び出し側でmissing）
@@ -29,14 +36,21 @@ class ResultColorScale {
     if (n == 0) return _neutralDiff();
     if (n < 0) {
       final t = (-n).clamp(0.0, 1.0);
-      return Color.lerp(_neutralDiff(), const Color(0xFF1565C0), t)!; // white -> blue
+      return Color.lerp(
+        _neutralDiff(),
+        const Color(0xFF1565C0),
+        t,
+      )!; // white -> blue
     } else {
       final t = n.clamp(0.0, 1.0);
-      return Color.lerp(_neutralDiff(), const Color(0xFFC62828), t)!; // white -> red
+      return Color.lerp(
+        _neutralDiff(),
+        const Color(0xFFC62828),
+        t,
+      )!; // white -> red
     }
   }
 
-  static Color _neutralNormal() => const Color(0xFF66BB6A); // 均一（中立）
+  static Color _neutralNormal() => Colors.white; // 均一・中央値（中立）
   static Color _neutralDiff() => Colors.white;
 }
-

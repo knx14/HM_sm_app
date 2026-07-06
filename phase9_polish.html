@@ -1,0 +1,1301 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>HenryMonitor Phase 9 — 完成度向上（バグ修正・UX改善）</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&family=Noto+Serif+JP:wght@700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#f8f7f1;--paper:#fff;--ink:#1a2318;--ink2:#3d4f3a;--ink3:#6b7e68;
+  --line:#dbd6c4;--lines:#eae6d6;
+  --leaf:#2e5c39;--leafl:#4a8459;--leafp:#e2ede4;
+  --soil:#7a4525;--soilp:#f2e8e0;
+  --amber:#b85c00;--amberp:#fef0d8;
+  --red:#b02020;--redp:#fce4e4;
+  --blue:#1a4f7a;--bluep:#ddeaf5;
+  --teal:#1a6a6a;--tealp:#d8efef;
+  --purple:#5a2d82;--purplep:#ede5f5;
+  --code-bg:#181f16;--code-fg:#d4e8cc;
+  --ccm:#5a8f58;--ckw:#7dd3a8;--cst:#f7c07a;--cnm:#7ec8e3;--ccl:#e8d07a;--cwg:#f0b060;
+  --sl:#b0c8b0;
+}
+*{box-sizing:border-box;}html{scroll-behavior:smooth;}
+body{margin:0;padding:0;background:var(--bg);color:var(--ink);font-family:"Noto Sans JP",sans-serif;font-size:14.5px;line-height:1.8;-webkit-font-smoothing:antialiased;}
+.layout{display:flex;min-height:100vh;}
+
+.toc{width:260px;flex-shrink:0;background:#0f1a0e;color:#c8d8c4;padding:28px 0 60px;position:sticky;top:0;height:100vh;overflow-y:auto;}
+.toc-logo{padding:0 20px 18px;border-bottom:1px solid rgba(255,255,255,.08);margin-bottom:14px;}
+.toc-logo .proj{font-size:11px;letter-spacing:.18em;color:#5a9a56;text-transform:uppercase;}
+.toc-logo .phase{font-family:"Noto Serif JP",serif;font-size:18px;color:#e8f0e4;font-weight:700;margin-top:4px;}
+.toc-logo .sub{font-size:11px;color:#5a9a56;margin-top:2px;line-height:1.5;}
+.toc ul{list-style:none;margin:0;padding:0;}
+.toc li a{display:block;padding:6px 20px;font-size:12px;color:#8ab88a;text-decoration:none;border-left:3px solid transparent;transition:all .15s;}
+.toc li a:hover{background:rgba(255,255,255,.06);color:#e8f0e4;border-left-color:var(--leafl);}
+.toc li a.sec{font-weight:700;color:#c4dcc0;font-size:12px;margin-top:8px;}
+.toc li a.sub{padding-left:32px;font-size:11.5px;color:#6a9a66;}
+.toc hr{border:none;border-top:1px solid rgba(255,255,255,.06);margin:8px 20px;}
+
+.main{flex:1;padding:48px 56px 100px;max-width:940px;}
+
+.cover{background:var(--paper);border:1px solid var(--line);padding:40px 44px;position:relative;overflow:hidden;margin-bottom:52px;}
+.cover::after{content:"";position:absolute;top:0;left:0;right:0;height:5px;background:linear-gradient(90deg,var(--red) 0%,var(--amber) 30%,var(--leaf) 60%,var(--blue) 100%);}
+.badge{font-family:"JetBrains Mono",monospace;font-size:11px;letter-spacing:.2em;background:var(--amberp);color:var(--amber);padding:3px 10px;border-radius:2px;display:inline-block;margin-bottom:14px;text-transform:uppercase;}
+.cover h1{font-family:"Noto Serif JP",serif;font-size:28px;font-weight:700;margin:0 0 8px;line-height:1.35;}
+.cover .desc{color:var(--ink2);font-size:14px;margin:0 0 24px;}
+.cmeta{display:flex;gap:24px;flex-wrap:wrap;border-top:1px solid var(--lines);padding-top:18px;}
+.cmeta dl{margin:0;}.cmeta dt{font-family:"JetBrains Mono",monospace;font-size:10px;letter-spacing:.15em;text-transform:uppercase;color:var(--ink3);margin:0 0 3px;}.cmeta dd{margin:0;font-size:13px;font-weight:500;}
+
+section{margin-bottom:60px;}
+h2{font-family:"Noto Serif JP",serif;font-size:21px;font-weight:700;margin:0 0 20px;padding:13px 18px;background:var(--ink);color:#e8f0e4;display:flex;align-items:center;gap:14px;}
+h2 .n{font-family:"JetBrains Mono",monospace;font-size:12px;color:var(--leafl);letter-spacing:.1em;}
+h2 .en{font-family:"JetBrains Mono",monospace;font-size:10px;color:#6a9a66;letter-spacing:.2em;text-transform:uppercase;margin-left:auto;}
+h3{font-size:16px;font-weight:700;margin:32px 0 10px;padding-bottom:7px;border-bottom:2px solid var(--leafp);color:var(--leaf);}
+h4{font-size:14px;font-weight:700;margin:20px 0 8px;color:var(--ink2);}
+p{margin:0 0 12px;}ul,ol{margin:0 0 12px;padding-left:20px;}li{margin-bottom:5px;}strong{color:var(--ink);}
+
+.steps{position:relative;}
+.step{display:grid;grid-template-columns:52px 1fr;gap:0 18px;margin-bottom:8px;position:relative;}
+.step::before{content:"";position:absolute;left:25px;top:52px;bottom:-8px;width:2px;background:var(--sl);}
+.step:last-child::before{display:none;}
+.snum{width:52px;height:52px;border-radius:50%;background:var(--leaf);color:#fff;display:flex;align-items:center;justify-content:center;font-family:"JetBrains Mono",monospace;font-size:14px;font-weight:700;flex-shrink:0;position:relative;z-index:1;align-self:start;margin-top:12px;}
+.snum.chk{background:var(--blue);}.snum.wrn{background:var(--amber);}.snum.bug{background:var(--red);}
+.sbody{background:var(--paper);border:1px solid var(--line);padding:18px 22px 16px;}
+.sbody h4{margin-top:0;font-size:15px;color:var(--ink);}
+.sbody p:last-child,.sbody ul:last-child{margin-bottom:0;}
+.sloc{font-family:"JetBrains Mono",monospace;font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink3);background:var(--bg);border:1px solid var(--lines);padding:2px 8px;border-radius:2px;display:inline-block;margin-bottom:8px;}
+
+pre{background:var(--code-bg);color:var(--code-fg);padding:16px 18px;border-radius:3px;overflow-x:auto;font-family:"JetBrains Mono",monospace;font-size:12.5px;line-height:1.7;margin:10px 0 12px;}
+pre .fn{display:block;font-size:10px;letter-spacing:.1em;color:#486a46;margin-bottom:10px;border-bottom:1px solid rgba(255,255,255,.06);padding-bottom:8px;}
+pre .cm{color:var(--ccm);}pre .kw{color:var(--ckw);}pre .st{color:var(--cst);}
+pre .nm{color:var(--cnm);}pre .cl{color:var(--ccl);}pre .wg{color:var(--cwg);}
+code{font-family:"JetBrains Mono",monospace;font-size:12.5px;background:#edeadc;color:var(--soil);padding:1px 5px;border-radius:2px;}
+.shell{background:#090f08;color:#a8d8a0;padding:14px 18px;border-radius:3px;font-family:"JetBrains Mono",monospace;font-size:12.5px;line-height:1.7;margin:10px 0 12px;border-left:3px solid var(--leafl);overflow-x:auto;}
+.shell .p{color:#4a8a48;user-select:none;}.shell .c{color:#326030;}.shell .cmd{color:#c0e0b8;}
+
+.callout{padding:12px 16px;margin:12px 0;font-size:13.5px;border-left:4px solid var(--leaf);background:var(--leafp);}
+.callout.warn{border-color:var(--amber);background:var(--amberp);}
+.callout.danger{border-color:var(--red);background:var(--redp);}
+.callout.info{border-color:var(--blue);background:var(--bluep);}
+.callout.note{border-color:var(--soil);background:var(--soilp);}
+.callout.teal{border-color:var(--teal);background:var(--tealp);}
+.callout strong{display:block;margin-bottom:3px;}
+
+table{border-collapse:collapse;width:100%;margin:10px 0 14px;font-size:13px;}
+th,td{padding:8px 12px;border-bottom:1px solid var(--lines);text-align:left;vertical-align:top;}
+th{background:var(--leafp);font-weight:700;font-size:11.5px;letter-spacing:.04em;border-bottom:2px solid var(--leaf);color:var(--leaf);}
+tr:hover td{background:#f5f2e8;}
+
+.tag{display:inline-block;font-family:"JetBrains Mono",monospace;font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:2px 7px;border-radius:2px;vertical-align:middle;margin:0 2px;}
+.tag.bug{background:var(--redp);color:var(--red);}
+.tag.ux{background:var(--amberp);color:var(--amber);}
+.tag.feat{background:var(--leafp);color:var(--leaf);}
+.tag.req{background:var(--bluep);color:var(--blue);}
+.tag.add{background:var(--purplep);color:var(--purple);}
+.tag.l{background:var(--leafp);color:var(--leaf);}
+.tag.ci{background:var(--bluep);color:var(--blue);}
+.tag.e{background:var(--soilp);color:var(--soil);}
+
+.task-card{border:1px solid var(--line);background:var(--paper);margin:14px 0;}
+.task-header{padding:10px 16px;display:flex;align-items:center;gap:12px;border-bottom:1px solid var(--lines);}
+.task-header .task-num{font-family:"JetBrains Mono",monospace;font-size:12px;color:var(--ink3);}
+.task-header .task-title{font-weight:700;font-size:15px;flex:1;}
+.task-body{padding:14px 16px;font-size:13.5px;}
+
+.filetree{background:var(--paper);border:1px solid var(--line);padding:14px 18px;font-family:"JetBrains Mono",monospace;font-size:12.5px;line-height:1.9;margin:10px 0;}
+.filetree .d{color:var(--leaf);font-weight:700;}
+.filetree .mf{color:var(--blue);}
+.filetree .mf::after{content:" ← EDIT";font-size:10px;opacity:.7;}
+.filetree .nf{color:var(--amber);}
+.filetree .nf::after{content:" ← NEW";font-size:10px;opacity:.7;}
+.filetree .rf{color:var(--ink3);}
+
+.dod-list{list-style:none;padding-left:0;}
+.dod-list li{padding:10px 14px 10px 40px;position:relative;border-bottom:1px solid var(--lines);font-size:13.5px;}
+.dod-list li::before{content:"☐";position:absolute;left:12px;color:var(--leaf);font-size:16px;line-height:1;top:12px;}
+.dod-list li:last-child{border-bottom:none;}
+.dod-list li .dc{display:block;margin-top:3px;font-size:12px;color:var(--ink3);}
+
+@media(max-width:900px){.layout{display:block;}.toc{width:100%;height:auto;position:static;}.main{padding:28px 20px 64px;}}
+</style>
+</head>
+<body>
+<div class="layout">
+
+<!-- ======== TOC ======== -->
+<nav class="toc">
+  <div class="toc-logo">
+    <div class="proj">HenryMonitor</div>
+    <div class="phase">Phase 9</div>
+    <div class="sub">完成度向上<br>バグ修正・UX 改善</div>
+  </div>
+  <ul>
+    <li><a class="sec" href="#overview">0. タスク一覧と優先度</a></li>
+    <li><a class="sub" href="#prereq">前提確認</a></li>
+    <li><a class="sub" href="#files">変更ファイル一覧</a></li>
+    <hr>
+    <li><a class="sec" href="#t1">T1【バグ】時系列グラフの作業縦線</a></li>
+    <li><a class="sub" href="#t1-cause">原因と修正方針</a></li>
+    <li><a class="sub" href="#t1-impl">graphic ライブラリでの実装</a></li>
+    <hr>
+    <li><a class="sec" href="#t2">T2【機能】作業記録の編集・削除</a></li>
+    <li><a class="sub" href="#t2-api">Laravel API 側</a></li>
+    <li><a class="sub" href="#t2-flutter">Flutter 側</a></li>
+    <hr>
+    <li><a class="sec" href="#t3">T3【機能】グラフ点タップで詳細表示</a></li>
+    <li><a class="sub" href="#t3-spec">設計判断</a></li>
+    <li><a class="sub" href="#t3-impl">実装</a></li>
+    <hr>
+    <li><a class="sec" href="#t4">T4【バグ】ホーム画面のユーザー名</a></li>
+    <hr>
+    <li><a class="sec" href="#t5">T5【UX】測定画面の最近傍圃場自動選択</a></li>
+    <hr>
+    <li><a class="sec" href="#t6">T6【提案】作業記録一覧画面</a></li>
+    <li><a class="sec" href="#t7">T7【提案】タイムライン二重リフレッシュ防止</a></li>
+    <li><a class="sec" href="#t8">T8【提案】圃場一覧プルリフレッシュ</a></li>
+    <hr>
+    <li><a class="sec" href="#step-check">動作確認チェックリスト</a></li>
+    <li><a class="sec" href="#deploy">commit → PR → CI/CD</a></li>
+    <li><a class="sec" href="#dod">✓ 完了条件</a></li>
+  </ul>
+</nav>
+
+<!-- ======== Main ======== -->
+<main class="main">
+
+<div class="cover">
+  <span class="badge">Phase 9 / polish &amp; bugfix</span>
+  <h1>完成度向上 — バグ修正・UX 改善 手順書</h1>
+  <p class="desc">
+    Phase 1〜8 で実装した機能を実際に使用した結果として挙がったバグ・改善点を修正します。
+    ユーザー提示の 5 件に加え、実装を通じて見えていた改善点 3 件を追加しています。
+    バックエンド（Laravel）への変更は T2（作業記録 PATCH/DELETE）のみで、
+    他は Flutter のみの変更です。
+  </p>
+  <div class="cmeta">
+    <dl><dt>バックエンド変更</dt><dd>T2 のみ（PATCH/DELETE は既存 API として実装済み）</dd></dl>
+    <dl><dt>Flutter 変更</dt><dd>T1〜T8 全件</dd></dl>
+    <dl><dt>ブランチ</dt><dd><code>feature/phase9-polish</code></dd></dl>
+    <dl><dt>analyze baseline</dt><dd>117件以下（増やさない）</dd></dl>
+  </div>
+</div>
+
+<!-- ====== 0. OVERVIEW ====== -->
+<section id="overview">
+  <h2><span class="n">00</span>タスク一覧と優先度 <span class="en">task list</span></h2>
+
+  <table>
+    <thead>
+      <tr><th>ID</th><th>種別</th><th>内容</th><th>変更対象</th><th>優先度</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>T1</strong></td>
+        <td><span class="tag bug">バグ</span></td>
+        <td>時系列グラフに作業ログ縦線が表示されない（凡例はあるがラインが出ない）</td>
+        <td>Flutter（<code>graphic</code> ライブラリ対応）</td>
+        <td>🔴 高</td>
+      </tr>
+      <tr>
+        <td><strong>T2</strong></td>
+        <td><span class="tag feat">機能追加</span> <span class="tag req">要求</span></td>
+        <td>作業記録の編集（PATCH）と削除（DELETE）を可能にする</td>
+        <td>Flutter（WorkLog CRUD 拡張）</td>
+        <td>🔴 高</td>
+      </tr>
+      <tr>
+        <td><strong>T3</strong></td>
+        <td><span class="tag feat">機能追加</span> <span class="tag req">要求</span></td>
+        <td>時系列グラフの点タップで CEC・CaO・K2O・MgO の詳細をポップアップ表示</td>
+        <td>Flutter（<code>graphic</code> 対応）</td>
+        <td>🟡 中</td>
+      </tr>
+      <tr>
+        <td><strong>T4</strong></td>
+        <td><span class="tag bug">バグ</span></td>
+        <td>ホーム画面の上部がユーザー ID 表示になっている → <code>user_name</code> を表示</td>
+        <td>Flutter（<code>UserProvider</code> / Cognito 属性）</td>
+        <td>🔴 高</td>
+      </tr>
+      <tr>
+        <td><strong>T5</strong></td>
+        <td><span class="tag ux">UX 改善</span> <span class="tag req">要求</span></td>
+        <td>測定画面遷移時に GPS から最近傍圃場を自動選択した状態で開く</td>
+        <td>Flutter（<code>MeasurementSessionScreen</code>）</td>
+        <td>🟡 中</td>
+      </tr>
+      <tr>
+        <td><strong>T6</strong></td>
+        <td><span class="tag feat">機能追加</span> <span class="tag add">提案</span></td>
+        <td>作業記録一覧画面（圃場詳細タイムラインとは独立した管理ビュー）</td>
+        <td>Flutter（新画面）</td>
+        <td>🟢 低</td>
+      </tr>
+      <tr>
+        <td><strong>T7</strong></td>
+        <td><span class="tag bug">バグ</span> <span class="tag add">提案</span></td>
+        <td>作業記録保存後のタイムライン二重リフレッシュ防止</td>
+        <td>Flutter（<code>FarmTimelineTab</code>）</td>
+        <td>🟡 中</td>
+      </tr>
+      <tr>
+        <td><strong>T8</strong></td>
+        <td><span class="tag ux">UX 改善</span> <span class="tag add">提案</span></td>
+        <td>圃場一覧のプルリフレッシュ（下に引いて再読み込み）</td>
+        <td>Flutter（<code>FarmListScreen</code> / <code>FarmScreen</code>）</td>
+        <td>🟢 低</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="callout info">
+    <strong>Laravel バックエンドの変更は T2 のみです。</strong>
+    PATCH / DELETE エンドポイントは Phase 1 で既に実装されています。
+    T2 の Laravel 側の作業は「FormRequest のバリデーションと既存テストへの追記のみ」です。
+    その他はすべて Flutter のみの変更です。
+  </div>
+
+  <h3 id="prereq">前提確認（Cursor セッション開始前に実行）</h3>
+  <div class="steps">
+    <div class="step">
+      <div class="snum chk">✓</div>
+      <div class="sbody">
+        <h4>Phase 8 完了・main マージ済みを確認してブランチ作成</h4>
+        <span class="sloc">ターミナル / ローカル</span>
+        <div class="shell">
+<span class="p">$ </span><span class="cmd">git checkout main && git pull origin main</span>
+<span class="p">$ </span><span class="cmd">git log --oneline -3</span>
+<span class="c"># Phase 8 のコミットが含まれること</span>
+<span class="p">$ </span><span class="cmd">git checkout -b feature/phase9-polish</span>
+        </div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="snum chk">✓</div>
+      <div class="sbody">
+        <h4>graphic ライブラリの使用状況を確認（T1・T3 の前提）</h4>
+        <span class="sloc">ターミナル / ローカル</span>
+        <div class="shell">
+<span class="c"># graphic パッケージのバージョン確認</span>
+<span class="p">$ </span><span class="cmd">grep "graphic" pubspec.yaml</span>
+
+<span class="c"># 時系列グラフ実装ファイルを確認</span>
+<span class="p">$ </span><span class="cmd">find lib/features/farms/presentation/tabs \
+  -name "farm_timeseries_tab.dart" | xargs grep -n "graphic\|Chart\|annotation\|mark" | head -20</span>
+
+<span class="c"># graphic の Annotation / Mark 系のAPIを確認</span>
+<span class="p">$ </span><span class="cmd">find lib -name "farm_timeseries_tab.dart" | xargs head -50</span>
+        </div>
+        <div class="callout warn">
+          <strong>graphic ライブラリのバージョンによって API が異なります。</strong>
+          <code>graphic: ^2.x</code> の場合と <code>^1.x</code> の場合で縦線の実装方法が変わります。
+          バージョンを確認してから T1 の実装を行ってください。
+        </div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="snum chk">✓</div>
+      <div class="sbody">
+        <h4>Cognito のユーザー属性確認（T4 の前提）</h4>
+        <span class="sloc">ターミナル / ローカル</span>
+        <div class="shell">
+<span class="c"># UserProvider / AppUser の displayName 実装を確認</span>
+<span class="p">$ </span><span class="cmd">grep -rn "displayName\|userName\|user_name\|name\|preferred_username" \
+  lib/features/ --include="*.dart" | grep -i "provider\|user\|auth" | head -15</span>
+
+<span class="c"># Cognito の属性取得方法を確認（Amplify SDK / 独自実装）</span>
+<span class="p">$ </span><span class="cmd">grep -rn "Amplify\|CognitoUser\|getUserAttributes\|getUser" \
+  lib/ --include="*.dart" | head -10</span>
+        </div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="snum chk">✓</div>
+      <div class="sbody">
+        <h4>作業記録の編集 UI 起点を確認（T2 の前提）</h4>
+        <span class="sloc">ターミナル / ローカル</span>
+        <div class="shell">
+<span class="c"># タイムラインの作業ログカードに onTap があるか確認</span>
+<span class="p">$ </span><span class="cmd">grep -n "WorkLogItem\|_WorkLogCard\|onTap\|onLongPress" \
+  lib/features/farms/presentation/tabs/farm_timeline_tab.dart | head -15</span>
+
+<span class="c"># WorkLogRepository の update / delete メソッド確認</span>
+<span class="p">$ </span><span class="cmd">grep -n "Future.*update\|Future.*delete\|patch\|PATCH\|DELETE" \
+  lib/features/work_logs/data/work_log_repository.dart</span>
+        </div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="snum chk">✓</div>
+      <div class="sbody">
+        <h4>最近傍圃場の距離計算方法を確認（T5 の前提）</h4>
+        <span class="sloc">ターミナル / ローカル</span>
+        <div class="shell">
+<span class="c"># 圃場の GPS 座標がどのフィールドに入っているか確認</span>
+<span class="p">$ </span><span class="cmd">grep -rn "boundary_polygon\|latitude\|longitude\|center_lat\|centroid" \
+  lib/features/farms/ --include="*.dart" | head -10</span>
+
+<span class="c"># geolocator / maps_toolkit の使い方を確認</span>
+<span class="p">$ </span><span class="cmd">grep -rn "Geolocator\|distanceBetween\|PolygonUtil" \
+  lib/ --include="*.dart" | head -10</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <h3 id="files">変更・作成ファイル一覧</h3>
+  <div class="filetree">
+lib/
+├── <span class="d">features/farms/presentation/tabs/</span>
+│   ├── <span class="mf">farm_timeseries_tab.dart           （T1: 縦線バグ修正 / T3: 点タップ詳細）</span>
+│   └── <span class="mf">farm_timeline_tab.dart             （T2: 編集・削除UIへのエントリー / T7: 二重リフレッシュ防止）</span>
+├── <span class="d">features/work_logs/</span>
+│   ├── <span class="d">data/</span>
+│   │   └── <span class="mf">work_log_repository.dart          （T2: update / delete メソッド追加）</span>
+│   └── <span class="d">presentation/</span>
+│       ├── <span class="mf">work_log_edit_screen.dart         （T2: 編集モード対応）</span>
+│       └── <span class="nf">work_log_list_screen.dart         （T6: 作業記録一覧画面）</span>
+├── <span class="d">screens/home/</span>
+│   └── <span class="mf">home_screen.dart                   （T4: ユーザー名表示修正）</span>
+├── <span class="d">features/farms/presentation/</span>
+│   └── <span class="mf">farm_screen.dart                   （T8: プルリフレッシュ追加）</span>
+└── <span class="d">features/measure/presentation/</span>
+    └── <span class="mf">measurement_session_screen.dart    （T5: GPS 最近傍圃場自動選択）</span>
+  </div>
+</section>
+
+<!-- ====== T1 ====== -->
+<section id="t1">
+  <h2><span class="n">T1</span>【バグ修正】時系列グラフの作業ログ縦線が表示されない <span class="en">timeseries vertical line</span></h2>
+
+  <h3 id="t1-cause">原因の特定と修正方針</h3>
+
+  <p>
+    Phase 5 の実装では <code>fl_chart</code> の <code>ExtraLinesData</code> / <code>VerticalLine</code> を想定したコードを書きましたが、
+    実際は <code>graphic</code> ライブラリを使って実装されました。
+    <code>graphic</code> では縦線の描画方法が異なるため、凡例は表示されても実際のラインが描画されない状態になっています。
+  </p>
+
+  <div class="callout danger">
+    <strong>修正前に必ず graphic のバージョンと現在の実装コードを確認してください。</strong>
+    <code>graphic</code> ライブラリのバージョン（v1 / v2）によって <code>Annotation</code> / <code>Mark</code> の API が大きく異なります。
+    Cursor に渡す前に <code>grep "graphic" pubspec.yaml</code> でバージョンを確認し、その結果をセッション冒頭に伝えてください。
+  </div>
+
+  <div class="steps">
+    <div class="step" id="t1-impl">
+      <div class="snum bug">1</div>
+      <div class="sbody">
+        <h4>graphic ライブラリで作業ログ縦線を実装</h4>
+        <span class="sloc">lib/features/farms/presentation/tabs/farm_timeseries_tab.dart（編集）</span>
+        <p>
+          <code>graphic</code> での縦線描画は <strong>Annotation（マーク付き）</strong> を使います。
+          以下は graphic v2 系での実装パターンです。
+          バージョンが異なる場合は API 名を適宜読み替えてください。
+        </p>
+<pre><span class="fn">farm_timeseries_tab.dart — graphic v2 での縦線実装パターン</span><span class="kw">import</span> <span class="st">'package:graphic/graphic.dart'</span>;
+
+<span class="cm">// ─────────────────────────────────────────────────────────────
+// 現行の Chart ウィジェットに annotations を追加する
+// work_logs のデータを X 軸の日付インデックスに変換して渡す
+// ─────────────────────────────────────────────────────────────</span>
+
+<span class="cl">Chart</span>(
+  data: chartData,          <span class="cm">// 既存の List&lt;Map&gt; を維持</span>
+  variables: {
+    <span class="st">'date'</span>: <span class="cl">Variable</span>(accessor: (Map row) =&gt; row[<span class="st">'date'</span>] <span class="kw">as</span> <span class="cl">String</span>),
+    <span class="st">'avg'</span>:  <span class="cl">Variable</span>(accessor: (Map row) =&gt; row[<span class="st">'avg'</span>]  <span class="kw">as</span> <span class="kw">num</span>),
+  },
+  marks: [
+    <span class="cm">// 既存の折れ線 Mark（変更なし）</span>
+    <span class="cl">LineMark</span>(
+      shape: <span class="cl">ShapeEncode</span>(value: <span class="cl">BasicLineShape</span>()),
+      color: <span class="cl">ColorEncode</span>(value: <span class="wg">Colors</span>.green.shade700),
+    ),
+  ],
+  annotations: [
+    <span class="cm">// ── 作業ログの縦線 ────────────────────────────────────────────
+    // work_logs の各日付に対応する X 座標に TagAnnotation を描画する。
+    // TagAnnotation は X 軸の値（日付文字列）を指定して描画できる。</span>
+    ...workLogs.map((wl) =&gt; <span class="cl">TagAnnotation</span>(
+      <span class="cm">// X 軸の値として日付文字列を指定（Chart の variables と一致させる）</span>
+      values: {<span class="st">'date'</span>: wl.date, <span class="st">'avg'</span>: <span class="nm">0.0</span>},
+      anchor: (size) =&gt; <span class="cl">Offset</span>(<span class="nm">0</span>, size.height),  <span class="cm">// 下端から描画</span>
+      tag: _buildWorkLogAnnotation(wl),
+    )),
+  ],
+)
+
+<span class="cm">// 作業ログ縦線の TagAnnotation コンテンツ</span>
+<span class="cl">Widget</span> _buildWorkLogAnnotation(<span class="cl">WorkLogMark</span> wl) {
+  <span class="kw">final</span> color = wl.workType == <span class="st">'fertilization'</span>
+      ? <span class="wg">Colors</span>.orange
+      : wl.workType == <span class="st">'tillage'</span>
+          ? <span class="kw">const</span> <span class="wg">Color</span>(<span class="nm">0xFF7A4525</span>)
+          : <span class="wg">Colors</span>.purple;
+
+  <span class="kw">return</span> <span class="wg">Column</span>(mainAxisSize: <span class="wg">MainAxisSize</span>.min, children: [
+    <span class="cm">// ラベル（縦書き or 短縮）</span>
+    <span class="wg">Container</span>(
+      padding: <span class="kw">const</span> <span class="wg">EdgeInsets</span>.symmetric(horizontal: <span class="nm">3</span>, vertical: <span class="nm">1</span>),
+      color: color.withValues(alpha: <span class="nm">0.15</span>),
+      child: <span class="wg">Text</span>(
+        wl.workType == <span class="st">'fertilization'</span> ? <span class="st">'施肥'</span>
+            : wl.workType == <span class="st">'tillage'</span> ? <span class="st">'耕うん'</span> : <span class="st">'作業'</span>,
+        style: <span class="wg">TextStyle</span>(fontSize: <span class="nm">9</span>, color: color, fontWeight: <span class="wg">FontWeight</span>.bold),
+      ),
+    ),
+    <span class="cm">// 縦線本体（Container で代用）</span>
+    <span class="wg">Container</span>(
+      width: <span class="nm">1.5</span>,
+      height: <span class="nm">120</span>,  <span class="cm">// グラフ高さに応じて調整</span>
+      color: color.withValues(alpha: <span class="nm">0.7</span>),
+    ),
+  ]);
+}</pre>
+
+        <div class="callout note">
+          <strong>graphic v1 と v2 の API 差分について。</strong>
+          <ul>
+            <li><strong>v1</strong>: <code>Annotation</code> ではなく <code>MarkAnnotation</code> / <code>RegionAnnotation</code> を使う場合があります</li>
+            <li><strong>v2</strong>: <code>TagAnnotation</code> が推奨。<code>values</code> に変数マップを渡します</li>
+            <li>いずれのバージョンでも、<strong>X 軸の変数名と値の型を <code>Chart</code> の <code>variables</code> 定義と一致させること</strong>が最も重要です</li>
+          </ul>
+          確認コマンド: <code>flutter pub deps | grep graphic</code> で依存ツリーのバージョンを確認。
+        </div>
+
+        <h4>修正後の凡例との一致確認</h4>
+        <p>
+          凡例には「オレンジ色の点線 = 作業タイミング」という注釈がすでに表示されています。
+          縦線が表示されるようになった際に凡例のカラーと縦線の色が一致していることを確認してください。
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ====== T2 ====== -->
+<section id="t2">
+  <h2><span class="n">T2</span>【機能追加】作業記録の編集・削除 <span class="en">work log edit &amp; delete</span></h2>
+
+  <div class="callout">
+    <strong>Phase 1 で PATCH / DELETE API は実装済みです。</strong>
+    <code>PATCH /api/v1/work-logs/{workLogId}</code> と
+    <code>DELETE /api/v1/work-logs/{workLogId}</code> は Laravel 側で動作しています。
+    Flutter 側の <code>WorkLogRepository</code> に <code>update</code> / <code>delete</code> メソッドを追加し、
+    タイムラインの作業ログカードに編集・削除ボタンを付けるだけで完成します。
+  </div>
+
+  <div class="steps">
+    <div class="step" id="t2-api">
+      <div class="snum">2</div>
+      <div class="sbody">
+        <h4>WorkLogRepository に update / delete メソッドを追加</h4>
+        <span class="sloc">lib/features/work_logs/data/work_log_repository.dart（編集）</span>
+<pre><span class="fn">work_log_repository.dart に追記</span>  <span class="cm">/// PATCH /api/v1/work-logs/{workLogId}
+  /// 作業ログの部分更新（title / work_date / amount_value 等を更新）</span>
+  <span class="kw">Future</span>&lt;<span class="kw">void</span>&gt; update(<span class="kw">int</span> workLogId, <span class="cl">WorkLogEntry</span> entry) <span class="kw">async</span> {
+    <span class="kw">await</span> _dio.patch(
+      <span class="st">'/api/v1/work-logs/$workLogId'</span>,
+      data: entry.toJson(),
+    );
+  }
+
+  <span class="cm">/// DELETE /api/v1/work-logs/{workLogId}
+  /// 作業ログを削除する</span>
+  <span class="kw">Future</span>&lt;<span class="kw">void</span>&gt; delete(<span class="kw">int</span> workLogId) <span class="kw">async</span> {
+    <span class="kw">await</span> _dio.delete(<span class="st">'/api/v1/work-logs/$workLogId'</span>);
+  }</pre>
+      </div>
+    </div>
+
+    <div class="step" id="t2-flutter">
+      <div class="snum">3</div>
+      <div class="sbody">
+        <h4>タイムラインの作業ログカードに編集・削除を追加</h4>
+        <span class="sloc">lib/features/farms/presentation/tabs/farm_timeline_tab.dart（編集）</span>
+        <p>
+          作業ログカード（<code>_WorkLogCard</code>）に長押しメニューまたはスワイプアクションを追加します。
+          タップで編集ボトムシートを開き、スワイプ左で削除確認ダイアログを出します。
+        </p>
+<pre><span class="fn">_WorkLogCard の変更方針</span><span class="cm">// 変更前: InkWell なしの Container</span>
+<span class="cl">_WorkLogCard</span>(item: item)
+
+<span class="cm">// 変更後: Dismissible でスワイプ削除 + タップで編集</span>
+<span class="wg">Dismissible</span>(
+  key: <span class="cl">ValueKey</span>(<span class="st">'wl_${item.id}'</span>),  <span class="cm">// item.id が必要（後述）</span>
+  direction: <span class="cl">DismissDirection</span>.endToStart,
+  background: <span class="wg">Container</span>(
+    color: <span class="wg">Colors</span>.red,
+    alignment: <span class="cl">Alignment</span>.centerRight,
+    padding: <span class="kw">const</span> <span class="wg">EdgeInsets</span>.only(right: <span class="nm">16</span>),
+    child: <span class="kw">const</span> <span class="wg">Icon</span>(<span class="wg">Icons</span>.delete, color: <span class="wg">Colors</span>.white),
+  ),
+  confirmDismiss: (_) <span class="kw">async</span> {
+    <span class="kw">return await</span> showDialog&lt;<span class="kw">bool</span>&gt;(
+      context: context,
+      builder: (_) =&gt; <span class="wg">AlertDialog</span>(
+        title: <span class="kw">const</span> <span class="wg">Text</span>(<span class="st">'作業記録を削除'</span>),
+        content: <span class="wg">Text</span>(<span class="st">'「${item.title ?? item.workType}」を削除しますか？'</span>),
+        actions: [
+          <span class="wg">TextButton</span>(
+              onPressed: () =&gt; <span class="wg">Navigator</span>.pop(context, <span class="kw">false</span>),
+              child: <span class="kw">const</span> <span class="wg">Text</span>(<span class="st">'キャンセル'</span>)),
+          <span class="wg">TextButton</span>(
+              onPressed: () =&gt; <span class="wg">Navigator</span>.pop(context, <span class="kw">true</span>),
+              child: <span class="kw">const</span> <span class="wg">Text</span>(<span class="st">'削除'</span>,
+                  style: <span class="wg">TextStyle</span>(color: <span class="wg">Colors</span>.red))),
+        ],
+      ),
+    ) ?? <span class="kw">false</span>;
+  },
+  onDismissed: (_) <span class="kw">async</span> {
+    <span class="kw">await</span> context.read&lt;<span class="cl">WorkLogRepository</span>&gt;().delete(item.id);
+    <span class="kw">await</span> context.read&lt;<span class="cl">TimelineNotifier</span>&gt;().refresh();
+  },
+  child: <span class="cl">_WorkLogCard</span>(
+    item: item,
+    onEdit: () <span class="kw">async</span> {
+      <span class="cm">// 編集ボトムシートを開く（WorkLogEditScreen に id と初期値を渡す）</span>
+      <span class="kw">final</span> saved = <span class="kw">await</span> <span class="cl">WorkLogEditScreen</span>.showEdit(
+        context,
+        farmId:    n.farmId,
+        workLogId: item.id,          <span class="cm">// 既存レコードの ID</span>
+        initial:   _toEntry(item),   <span class="cm">// 既存値で初期化</span>
+      );
+      <span class="kw">if</span> (saved) <span class="kw">await</span> n.refresh();
+    },
+  ),
+),</pre>
+
+        <h4>WorkLogEditScreen に編集モードを追加</h4>
+        <span class="sloc">lib/features/work_logs/presentation/work_log_edit_screen.dart（編集）</span>
+<pre><span class="fn">WorkLogEditScreen.show の編集モード版（showEdit）を追加</span>  <span class="cm">/// 既存の作業ログを編集するためのモード。
+  /// [workLogId] を渡すと Step3 確認 → PATCH を呼ぶ。</span>
+  <span class="kw">static</span> <span class="kw">Future</span>&lt;<span class="kw">bool</span>&gt; showEdit(
+    <span class="cl">BuildContext</span> context, {
+    required <span class="kw">int</span>          farmId,
+    required <span class="kw">int</span>          workLogId,
+    required <span class="cl">WorkLogEntry</span> initial,
+  }) <span class="kw">async</span> {
+    <span class="kw">final</span> result = <span class="kw">await</span> showModalBottomSheet&lt;<span class="kw">bool</span>&gt;(
+      context: context,
+      isScrollControlled: <span class="kw">true</span>,
+      backgroundColor: <span class="wg">Colors</span>.transparent,
+      builder: (_) =&gt; <span class="wg">ChangeNotifierProvider</span>(
+        create: (ctx) =&gt; <span class="cl">WorkLogNotifier</span>.forEdit(
+          farmId:    farmId,
+          workLogId: workLogId,
+          initial:   initial,
+          repo:      ctx.read&lt;<span class="cl">WorkLogRepository</span>&gt;(),
+        ),
+        child: <span class="cl">WorkLogEditScreen</span>(farmId: farmId),
+      ),
+    );
+    <span class="kw">return</span> result ?? <span class="kw">false</span>;
+  }</pre>
+
+        <h4>WorkLogNotifier に編集モード対応を追加</h4>
+        <span class="sloc">lib/features/work_logs/presentation/work_log_notifier.dart（編集）</span>
+<pre><span class="fn">WorkLogNotifier に forEdit コンストラクタと save のPATCH分岐を追加</span>  <span class="kw">final</span> <span class="kw">int</span>? _editWorkLogId;  <span class="cm">// null = 新規, non-null = 編集</span>
+
+  <span class="cm">// 編集用コンストラクタ（既存値で各フィールドを初期化）</span>
+  <span class="kw">factory</span> <span class="cl">WorkLogNotifier</span>.forEdit({
+    required <span class="kw">int</span>          farmId,
+    required <span class="kw">int</span>          workLogId,
+    required <span class="cl">WorkLogEntry</span> initial,
+    required <span class="cl">WorkLogRepository</span> repo,
+  }) {
+    <span class="kw">final</span> n = <span class="cl">WorkLogNotifier</span>(farmId: farmId, repo: repo, editWorkLogId: workLogId);
+    <span class="cm">// 既存値をフォームに反映</span>
+    n.workType    = <span class="cl">WorkType</span>.fromValue(initial.workType);
+    n.workDate    = initial.workDate;
+    n.title       = initial.title    ?? <span class="st">''</span>;
+    n.detail      = initial.detail   ?? <span class="st">''</span>;
+    n.amountText  = initial.amountValue?.toString() ?? <span class="st">''</span>;
+    n.amountUnit  = initial.amountUnit ?? <span class="st">'kg'</span>;
+    n.step        = <span class="nm">1</span>;  <span class="cm">// 編集時は Step1（種別選択）をスキップして Step2 から開始</span>
+    <span class="kw">return</span> n;
+  }
+
+  <span class="cm">// save() に PATCH 分岐を追加</span>
+  <span class="kw">Future</span>&lt;<span class="kw">void</span>&gt; save() <span class="kw">async</span> {
+    <span class="kw">if</span> (workType == <span class="kw">null</span>) <span class="kw">return</span>;
+    isSaving = <span class="kw">true</span>; saveError = <span class="kw">null</span>; notifyListeners();
+
+    <span class="kw">final</span> entry = <span class="cl">WorkLogEntry</span>(
+      workType:    workType!.value, workDate: workDate,
+      title:       title.isNotEmpty    ? title    : <span class="kw">null</span>,
+      detail:      detail.isNotEmpty   ? detail   : <span class="kw">null</span>,
+      amountValue: <span class="kw">double</span>.tryParse(amountText),
+      amountUnit:  amountUnit.isNotEmpty ? amountUnit : <span class="kw">null</span>,
+    );
+
+    <span class="kw">try</span> {
+      <span class="kw">if</span> (_editWorkLogId != <span class="kw">null</span>) {
+        <span class="cm">// 編集モード: PATCH</span>
+        <span class="kw">await</span> _repo.update(_editWorkLogId!, entry);
+        saveQueued = <span class="kw">false</span>;
+      } <span class="kw">else</span> {
+        <span class="cm">// 新規モード: POST（既存ロジック）</span>
+        <span class="kw">final</span> result = <span class="kw">await</span> _repo.create(_farmId, entry);
+        saveQueued = result.queued;
+      }
+    } <span class="kw">catch</span> (e) {
+      saveError = e.toString();
+    } <span class="kw">finally</span> {
+      isSaving = <span class="kw">false</span>;
+      notifyListeners();
+    }
+  }</pre>
+
+        <div class="callout warn">
+          <strong><code>WorkLogItem</code> に <code>id</code> フィールドが必要です。</strong>
+          Phase 5 の <code>WorkLogItem</code>（<code>timeline_item.dart</code>）に
+          サーバー側の <code>id</code> フィールドを追加してください。
+          タイムライン API のレスポンスには <code>"id"</code> が含まれているはずです。
+        </div>
+<pre><span class="fn">timeline_item.dart の WorkLogItem に id を追加</span><span class="kw">final class</span> <span class="cl">WorkLogItem</span> <span class="kw">extends</span> <span class="cl">TimelineItem</span> {
+  <span class="kw">final</span> <span class="kw">int</span>     id;       <span class="cm">// ← 追加</span>
+  <span class="kw">final</span> <span class="cl">String</span>  workType;
+  <span class="cm">// ...既存フィールド...</span>
+
+  <span class="kw">factory</span> <span class="cl">WorkLogItem</span>.fromJson(<span class="cl">Map</span>&lt;<span class="cl">String</span>, <span class="kw">dynamic</span>&gt; json) =&gt; <span class="cl">WorkLogItem</span>(
+    id:          json[<span class="st">'id'</span>]          <span class="kw">as</span> <span class="kw">int</span>,  <span class="cm">// ← 追加</span>
+    date:        json[<span class="st">'date'</span>]        <span class="kw">as</span> <span class="cl">String</span>,
+    <span class="cm">// ...既存フィールド...</span>
+  );
+}</pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ====== T3 ====== -->
+<section id="t3">
+  <h2><span class="n">T3</span>【機能追加】グラフ点タップで測定値詳細を表示 <span class="en">chart tap detail</span></h2>
+
+  <h3 id="t3-spec">設計判断</h3>
+
+  <p>
+    「時系列タブとタイムラインタブのどちらで詳細を見せるか」について判断します。
+  </p>
+
+  <div class="callout teal">
+    <strong>推奨: 時系列タブで対応します。</strong>
+    理由：時系列タブはグラフの「点」がある場所であり、タップした点が「その日の測定」であることが直感的に伝わります。
+    タイムラインは既にカードとして日付ごとの情報を表示しており、
+    そこに「タップで詳細」を追加すると情報の重複が生じます。
+    時系列タブの点タップで BottomSheet を開き、その日の全パラメータ（CEC・CaO・K₂O・MgO と、
+    将来的には全17種）を表示する設計が最もシンプルで使いやすいです。
+  </div>
+
+  <div class="steps">
+    <div class="step" id="t3-impl">
+      <div class="snum">4</div>
+      <div class="sbody">
+        <h4>時系列グラフの点タップで測定値詳細 BottomSheet を表示</h4>
+        <span class="sloc">lib/features/farms/presentation/tabs/farm_timeseries_tab.dart（編集）</span>
+        <p>
+          <code>graphic</code> では <code>GestureChannel</code> / <code>SelectionUpdater</code> または
+          <code>ChangeDataEvent</code> でタップイベントを取得できます。
+          以下は graphic v2 のパターンです。
+        </p>
+<pre><span class="fn">時系列グラフへのタップ検出と詳細 BottomSheet 表示</span><span class="cm">// ① Chart に selection チャネルを追加</span>
+<span class="cl">Chart</span>(
+  data: chartData,
+  <span class="cm">// 既存の variables / marks / annotations ...</span>
+  selections: {
+    <span class="st">'tap'</span>: <span class="cl">PointSelection</span>(on: {<span class="cl">GestureType</span>.tap}, dim: <span class="cl">Dim</span>.x),
+  },
+  tooltip: <span class="cl">TooltipGuide</span>(
+    <span class="cm">// graphic のビルトイン Tooltip は使わず、</span>
+    <span class="cm">// onSelected で BottomSheet を開く方式にする</span>
+    followPointer: [<span class="kw">false</span>, <span class="kw">false</span>],
+  ),
+)
+
+<span class="cm">// ② FarmTimeseriesTab の State に onPointTapped コールバックを追加</span>
+<span class="kw">void</span> _onPointTapped(<span class="kw">int</span> index, <span class="cl">BuildContext</span> context) {
+  <span class="kw">final</span> n    = context.read&lt;<span class="cl">TimeseriesNotifier</span>&gt;();
+  <span class="kw">final</span> pt   = n.data!.points[index];
+
+  <span class="cm">// タイムライン API から当該日付のフル値（全17種）を取得するか、
+  // timeseries API の points に含まれる avg のみ表示するか選べる。
+  // Phase 9 では timeseries の avg/min/max のみ表示（API 追加なし）。</span>
+
+  showModalBottomSheet(
+    context: context,
+    builder: (_) =&gt; <span class="cl">_MeasurementDetailSheet</span>(
+      date:      pt.date,
+      parameter: n.selectedParam,
+      unit:      n.data?.unit,
+      avg:       pt.avg,
+      minVal:    pt.min,
+      maxVal:    pt.max,
+      count:     pt.count,
+    ),
+  );
+}
+
+<span class="cm">// ③ 詳細 BottomSheet ウィジェット</span>
+<span class="kw">class</span> <span class="cl">_MeasurementDetailSheet</span> <span class="kw">extends</span> <span class="cl">StatelessWidget</span> {
+  <span class="kw">const</span> <span class="cl">_MeasurementDetailSheet</span>({
+    required <span class="kw">this</span>.date, required <span class="kw">this</span>.parameter, <span class="kw">this</span>.unit,
+    required <span class="kw">this</span>.avg, required <span class="kw">this</span>.minVal, required <span class="kw">this</span>.maxVal,
+    required <span class="kw">this</span>.count,
+  });
+  <span class="kw">final</span> <span class="cl">String</span>  date, parameter;
+  <span class="kw">final</span> <span class="cl">String</span>? unit;
+  <span class="kw">final</span> <span class="kw">double</span>  avg, minVal, maxVal;
+  <span class="kw">final</span> <span class="kw">int</span>     count;
+
+  <span class="kw">@override</span>
+  <span class="cl">Widget</span> build(<span class="cl">BuildContext</span> context) =&gt; <span class="wg">Container</span>(
+    padding: <span class="kw">const</span> <span class="wg">EdgeInsets</span>.all(<span class="nm">24</span>),
+    child: <span class="wg">Column</span>(mainAxisSize: <span class="wg">MainAxisSize</span>.min, children: [
+      <span class="cm">// ヘッダ</span>
+      <span class="wg">Text</span>(date, style: <span class="wg">TextStyle</span>(color: <span class="wg">Colors</span>.grey[<span class="nm">600</span>], fontSize: <span class="nm">13</span>)),
+      <span class="wg">Text</span>(<span class="st">'$parameter 測定値'</span>,
+          style: <span class="kw">const</span> <span class="wg">TextStyle</span>(fontWeight: <span class="wg">FontWeight</span>.bold, fontSize: <span class="nm">17</span>)),
+      <span class="kw">const</span> <span class="wg">SizedBox</span>(height: <span class="nm">16</span>),
+      <span class="cm">// 統計3値（平均・最小・最大）</span>
+      <span class="wg">Row</span>(children: [
+        _StatBox(<span class="st">'圃場平均'</span>, avg,    unit, large: <span class="kw">true</span>),
+        _StatBox(<span class="st">'最小'</span>,    minVal, unit),
+        _StatBox(<span class="st">'最大'</span>,    maxVal, unit),
+      ].map((w) =&gt; <span class="wg">Expanded</span>(child: w)).toList()),
+      <span class="kw">const</span> <span class="wg">SizedBox</span>(height: <span class="nm">8</span>),
+      <span class="wg">Text</span>(<span class="st">'$count 測定点の平均値'</span>,
+          style: <span class="wg">TextStyle</span>(fontSize: <span class="nm">12</span>, color: <span class="wg">Colors</span>.grey[<span class="nm">600</span>])),
+    ]),
+  );
+}
+
+<span class="kw">class</span> <span class="cl">_StatBox</span> <span class="kw">extends</span> <span class="cl">StatelessWidget</span> {
+  <span class="kw">const</span> <span class="cl">_StatBox</span>(<span class="kw">this</span>.label, <span class="kw">this</span>.value, <span class="kw">this</span>.unit, {<span class="kw">this</span>.large = <span class="kw">false</span>});
+  <span class="kw">final</span> <span class="cl">String</span>  label; <span class="kw">final</span> <span class="kw">double</span> value;
+  <span class="kw">final</span> <span class="cl">String</span>? unit;  <span class="kw">final</span> <span class="kw">bool</span>   large;
+  <span class="kw">@override</span>
+  <span class="cl">Widget</span> build(<span class="cl">BuildContext</span> _) =&gt; <span class="wg">Column</span>(children: [
+    <span class="wg">Text</span>(label, style: <span class="wg">TextStyle</span>(fontSize: <span class="nm">11</span>, color: <span class="wg">Colors</span>.grey[<span class="nm">600</span>])),
+    <span class="wg">RichText</span>(text: <span class="wg">TextSpan</span>(
+      children: [
+        <span class="wg">TextSpan</span>(text: value.toStringAsFixed(<span class="nm">1</span>),
+            style: <span class="wg">TextStyle</span>(fontSize: large ? <span class="nm">28</span> : <span class="nm">18</span>,
+                fontWeight: <span class="wg">FontWeight</span>.bold, color: <span class="kw">const</span> <span class="wg">Color</span>(<span class="nm">0xFF1A2318</span>))),
+        <span class="wg">TextSpan</span>(text: <span class="st">' ${unit ?? ""}'</span>,
+            style: <span class="wg">TextStyle</span>(fontSize: <span class="nm">11</span>, color: <span class="wg">Colors</span>.grey[<span class="nm">600</span>])),
+      ])),
+  ]);
+}</pre>
+
+        <div class="callout note">
+          <strong>全17種の表示について。</strong>
+          timeseries API は1パラメータずつしか返しません。
+          全17種を一覧表示するには、タップ時に
+          <code>GET /api/farms/{id}/results/timeseries?parameter=CEC</code> を4種分並列呼びするか、
+          タイムライン API の <code>values</code>（CEC/CaO/K2O/MgO の4種が含まれる）を使う方法があります。
+          Phase 9 では実装コストを抑えるため、
+          <strong>表示中のパラメータ（CEC/CaO/K2O/MgO）の avg/min/max のみ表示</strong>とし、
+          全17種の表示は将来対応とします。
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ====== T4 ====== -->
+<section id="t4">
+  <h2><span class="n">T4</span>【バグ修正】ホーム画面のユーザー名表示 <span class="en">display name fix</span></h2>
+
+  <div class="steps">
+    <div class="step">
+      <div class="snum bug">5</div>
+      <div class="sbody">
+        <h4>UserProvider の displayName を Cognito の user_name 属性に変更</h4>
+        <span class="sloc">lib/screens/home/home_screen.dart および UserProvider（編集）</span>
+        <p>
+          現状、<code>user.displayName</code> が Cognito の <code>sub</code>（UUID 形式のユーザー ID）を
+          返しているため、ホーム画面に <code>XXXX-XXXX-...</code> が表示されています。
+          Cognito の <code>name</code> または <code>preferred_username</code> 属性を使うよう修正します。
+        </p>
+        <div class="shell">
+<span class="c"># UserProvider の現在の displayName 実装を確認</span>
+<span class="p">$ </span><span class="cmd">grep -n "displayName\|sub\|email\|name\|preferred" \
+  $(find lib -name "*user_provider*" -o -name "*auth*provider*") | head -20</span>
+
+<span class="c"># Amplify SDK を使っている場合の属性取得方法</span>
+<span class="p">$ </span><span class="cmd">grep -rn "Amplify.Auth\|fetchUserAttributes\|CognitoUserAttribute" \
+  lib/ --include="*.dart" | head -10</span>
+        </div>
+<pre><span class="fn">UserProvider の displayName ゲッターを修正</span><span class="cm">// 変更前（sub を返している場合）</span>
+<span class="kw">String</span> get displayName =&gt; _user?.userId ?? <span class="st">''</span>;   <span class="cm">// ← UUID が返る</span>
+
+<span class="cm">// 変更後（Amplify SDK の場合）</span>
+<span class="kw">String</span> _userName = <span class="st">''</span>;  <span class="cm">// 追加フィールド</span>
+
+<span class="cm">// 認証済み後の属性取得（initState や login 完了後に呼ぶ）</span>
+<span class="kw">Future</span>&lt;<span class="kw">void</span>&gt; fetchUserName() <span class="kw">async</span> {
+  <span class="kw">try</span> {
+    <span class="kw">final</span> attrs = <span class="kw">await</span> Amplify.Auth.fetchUserAttributes();
+    <span class="cm">// 'name' 属性を優先、なければ 'preferred_username'、なければ email の @ 前</span>
+    <span class="kw">final</span> name = attrs
+        .firstWhere((a) =&gt; a.userAttributeKey.key == <span class="st">'name'</span>,
+            orElse: () =&gt; attrs.firstWhere(
+                (a) =&gt; a.userAttributeKey.key == <span class="st">'preferred_username'</span>,
+                orElse: () =&gt; attrs.firstWhere(
+                    (a) =&gt; a.userAttributeKey.key == <span class="st">'email'</span>,
+                    orElse: () =&gt; <span class="kw">throw</span> <span class="st">'no name attr'</span>)));
+    <span class="kw">final</span> val = name.value;
+    <span class="cm">// email の場合は @ より前を名前として使う</span>
+    _userName = val.contains(<span class="st">'@'</span>) ? val.split(<span class="st">'@'</span>).first : val;
+    notifyListeners();
+  } <span class="kw">catch</span> (_) {
+    _userName = _user?.userId.substring(<span class="nm">0</span>, <span class="nm">8</span>) ?? <span class="st">'ユーザー'</span>;
+    notifyListeners();
+  }
+}
+
+<span class="kw">String</span> get displayName =&gt; _userName.isNotEmpty ? _userName : <span class="st">'ユーザー'</span>;</pre>
+
+        <div class="callout info">
+          <strong>Amplify SDK を使っていない場合（独自 JWT 実装）。</strong>
+          Cognito の ID トークン（JWT）の <code>payload</code> に <code>"name"</code> または
+          <code>"cognito:username"</code> クレームが含まれています。
+          JWT をデコードして取得してください。
+          <code>grep -rn "jwt\|token\|decode" lib/ --include="*.dart" | head -10</code>
+          で現在のトークン処理を確認してください。
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ====== T5 ====== -->
+<section id="t5">
+  <h2><span class="n">T5</span>【UX 改善】測定画面の最近傍圃場を自動選択 <span class="en">nearest farm auto-select</span></h2>
+
+  <div class="steps">
+    <div class="step">
+      <div class="snum">6</div>
+      <div class="sbody">
+        <h4>MeasurementSessionScreen の圃場初期化に最近傍選択を追加</h4>
+        <span class="sloc">lib/features/measure/presentation/measurement_session_screen.dart（編集）</span>
+        <p>
+          測定画面が開いたとき（<code>initState</code> または既存の圃場候補ロード処理内）に、
+          GPS 現在地と各圃場の重心（または boundary_polygon の中心）との距離を計算し、
+          最も近い圃場を自動的に選択済みにします。
+        </p>
+<pre><span class="fn">最近傍圃場の自動選択ロジック（既存のfarmCandidates読み込み後に追加）</span><span class="kw">import</span> <span class="st">'package:geolocator/geolocator.dart'</span>;
+
+<span class="cm">/// 圃場候補リストから現在地に最も近い圃場を返す。
+/// 圃場の位置は boundary_polygon の重心（centroid）または
+/// 既存の farms API レスポンスに含まれる緯度経度を使う。</span>
+<span class="kw">Future</span>&lt;<span class="kw">void</span>&gt; _autoSelectNearestFarm() <span class="kw">async</span> {
+  <span class="kw">if</span> (farmCandidates.isEmpty) <span class="kw">return</span>;
+
+  <span class="kw">final</span> pos = <span class="kw">await</span> <span class="cl">Geolocator</span>.getCurrentPosition(
+    locationSettings: <span class="kw">const</span> <span class="cl">LocationSettings</span>(
+      accuracy: <span class="cl">LocationAccuracy</span>.high,
+      timeLimit: <span class="cl">Duration</span>(seconds: <span class="nm">5</span>),  <span class="cm">// タイムアウト5秒</span>
+    ),
+  ).catchError((_) =&gt; <span class="kw">null</span>);   <span class="cm">// GPS エラーは無視して続行</span>
+  <span class="kw">if</span> (pos == <span class="kw">null</span>) <span class="kw">return</span>;
+
+  <span class="cm">// 各圃場と現在地の距離を計算</span>
+  <span class="cl">dynamic</span> nearest;
+  <span class="kw">double</span> minDist = <span class="kw">double</span>.infinity;
+
+  <span class="kw">for</span> (<span class="kw">final</span> farm <span class="kw">in</span> farmCandidates) {
+    <span class="cm">// 圃場の代表座標を取得する方法（実装に合わせて変更）
+    // パターン A: farm.latitude / farm.longitude がある場合</span>
+    <span class="kw">final</span> farmLat = (farm.latitude  <span class="kw">as</span> <span class="kw">double</span>?);
+    <span class="kw">final</span> farmLng = (farm.longitude <span class="kw">as</span> <span class="kw">double</span>?);
+    <span class="kw">if</span> (farmLat == <span class="kw">null</span> || farmLng == <span class="kw">null</span>) <span class="kw">continue</span>;
+
+    <span class="cm">// パターン B: boundary_polygon から重心を計算する場合は
+    // _computeCentroid(farm.boundaryPolygon) を使う（既存ロジック流用）</span>
+
+    <span class="kw">final</span> dist = <span class="cl">Geolocator</span>.distanceBetween(
+      pos.latitude, pos.longitude, farmLat, farmLng);
+
+    <span class="kw">if</span> (dist &lt; minDist) {
+      minDist = dist;
+      nearest = farm;
+    }
+  }
+
+  <span class="kw">if</span> (nearest != <span class="kw">null</span>) {
+    setState(() {
+      <span class="cm">// 既存の「圃場選択」チップの選択状態を更新（実際の変数名に合わせること）</span>
+      _selectedFarmId   = nearest.id <span class="kw">as</span> <span class="kw">int</span>;
+      _selectedFarmName = nearest.farmName <span class="kw">as</span> <span class="cl">String</span>;
+    });
+  }
+}</pre>
+
+        <h4>呼び出しタイミング</h4>
+<pre><span class="fn">既存の圃場候補ロード処理の末尾に追記</span><span class="cm">// 既存の _loadFarmCandidates() または initState 内の候補ロード処理末尾に追加</span>
+<span class="kw">await</span> _loadFarmCandidates();      <span class="cm">// 既存の処理</span>
+<span class="kw">await</span> _autoSelectNearestFarm();   <span class="cm">// ← 追加（候補ロード完了後に実行）</span></pre>
+
+        <div class="callout">
+          <strong>圃場の代表座標の取得方法について。</strong>
+          <code>boundary_polygon</code> が多角形の緯度経度リストとして格納されている場合は、
+          既存の圃場描画ロジックで重心を求めているコードが <code>MeasurementSessionScreen</code> 内に
+          存在するはずです（ポリゴン外判定に使われています）。
+          そのコードを流用して各圃場の代表点を計算してください。
+          <code>grep -n "centroid\|center\|polygon\|boundary" $(find lib/features/measure -name "*.dart")</code>
+          で確認できます。
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ====== T6 ====== -->
+<section id="t6">
+  <h2><span class="n">T6</span>【提案】作業記録一覧画面 <span class="en">work log list screen</span></h2>
+
+  <div class="callout note">
+    <strong>提案理由。</strong>
+    タイムラインタブは測定結果と作業ログが混在しているため、
+    「過去に登録した作業ログだけを一覧で確認・管理したい」というニーズに対応できていません。
+    SettingsScreen または圃場詳細の「+作業記録」ボタン近傍に「作業記録一覧」へのリンクを置くことで、
+    登録内容の確認・修正がしやすくなります。
+  </div>
+
+  <div class="steps">
+    <div class="step">
+      <div class="snum">7</div>
+      <div class="sbody">
+        <h4>WorkLogListScreen を新設（圃場ごとの作業記録管理ビュー）</h4>
+        <span class="sloc">lib/features/work_logs/presentation/work_log_list_screen.dart（新規作成）</span>
+<pre><span class="fn">work_log_list_screen.dart — 骨格</span><span class="kw">import</span> <span class="st">'package:flutter/material.dart'</span>;
+<span class="kw">import</span> <span class="st">'package:provider/provider.dart'</span>;
+<span class="kw">import</span> <span class="st">'../data/work_log_repository.dart'</span>;
+<span class="kw">import</span> <span class="st">'work_log_edit_screen.dart'</span>;
+<span class="kw">import</span> <span class="st">'work_log_notifier.dart'</span>;
+
+<span class="cm">/// 圃場に紐づく作業記録の一覧を表示・編集・削除できる管理画面。
+/// FarmDetailScreen のヘッダーまたは FarmTimelineTab の FAB 近辺から遷移。</span>
+<span class="kw">class</span> <span class="cl">WorkLogListScreen</span> <span class="kw">extends</span> <span class="cl">StatefulWidget</span> {
+  <span class="kw">const</span> <span class="cl">WorkLogListScreen</span>({<span class="kw">super</span>.key, required <span class="kw">this</span>.farmId, required <span class="kw">this</span>.farmName});
+  <span class="kw">final</span> <span class="kw">int</span> farmId; <span class="kw">final</span> <span class="cl">String</span> farmName;
+  <span class="kw">@override</span>
+  <span class="cl">State</span>&lt;<span class="cl">WorkLogListScreen</span>&gt; createState() =&gt; _WorkLogListScreenState();
+}
+
+<span class="kw">class</span> <span class="cl">_WorkLogListScreenState</span> <span class="kw">extends</span> <span class="cl">State</span>&lt;<span class="cl">WorkLogListScreen</span>&gt; {
+  <span class="kw">late</span> <span class="cl">Future</span>&lt;<span class="cl">List</span>&gt; _future;
+
+  <span class="kw">@override</span>
+  <span class="kw">void</span> initState() { <span class="kw">super</span>.initState(); _load(); }
+
+  <span class="kw">void</span> _load() =&gt; setState(() {
+    _future = context.read&lt;<span class="cl">WorkLogRepository</span>&gt;()
+        .listByFarm(widget.farmId);   <span class="cm">// GET /api/v1/farms/{id}/work-logs</span>
+  });
+
+  <span class="kw">@override</span>
+  <span class="cl">Widget</span> build(<span class="cl">BuildContext</span> context) =&gt; <span class="wg">Scaffold</span>(
+    appBar: <span class="wg">AppBar</span>(
+      title: <span class="wg">Text</span>(<span class="st">'${widget.farmName} の作業記録'</span>),
+      backgroundColor: <span class="kw">const</span> <span class="wg">Color</span>(<span class="nm">0xFF2E5C39</span>),
+      foregroundColor: <span class="wg">Colors</span>.white,
+    ),
+    body: <span class="wg">FutureBuilder</span>(
+      future: _future,
+      builder: (ctx, snap) {
+        <span class="kw">if</span> (snap.connectionState != <span class="cl">ConnectionState</span>.done)
+          <span class="kw">return const</span> <span class="wg">Center</span>(child: <span class="wg">CircularProgressIndicator</span>());
+        <span class="kw">final</span> items = snap.data ?? [];
+        <span class="kw">if</span> (items.isEmpty)
+          <span class="kw">return const</span> <span class="wg">Center</span>(child: <span class="wg">Text</span>(<span class="st">'作業記録はありません'</span>));
+
+        <span class="kw">return</span> <span class="wg">RefreshIndicator</span>(
+          onRefresh: () <span class="kw">async</span> =&gt; _load(),
+          child: <span class="wg">ListView</span>.separated(
+            itemCount: items.length,
+            separatorBuilder: (_, __) =&gt; <span class="kw">const</span> <span class="wg">Divider</span>(height: <span class="nm">1</span>),
+            itemBuilder: (_, i) {
+              <span class="kw">final</span> wl = items[i];
+              <span class="kw">return</span> <span class="wg">ListTile</span>(
+                leading: <span class="wg">CircleAvatar</span>(
+                  backgroundColor: _workTypeColor(wl[<span class="st">'work_type'</span>] ?? <span class="st">'other'</span>),
+                  child: <span class="wg">Icon</span>(_workTypeIcon(wl[<span class="st">'work_type'</span>]), color: <span class="wg">Colors</span>.white, size: <span class="nm">16</span>),
+                ),
+                title: <span class="wg">Text</span>(wl[<span class="st">'title'</span>] ?? wl[<span class="st">'work_type'</span>] ?? <span class="st">''</span>),
+                subtitle: <span class="wg">Text</span>(wl[<span class="st">'work_date'</span>] ?? <span class="st">''</span>),
+                trailing: <span class="wg">Row</span>(mainAxisSize: <span class="wg">MainAxisSize</span>.min, children: [
+                  <span class="wg">IconButton</span>(icon: <span class="kw">const</span> <span class="wg">Icon</span>(<span class="wg">Icons</span>.edit_outlined), onPressed: () <span class="kw">async</span> {
+                    <span class="kw">await</span> <span class="cl">WorkLogEditScreen</span>.showEdit(ctx,
+                      farmId:    widget.farmId,
+                      workLogId: wl[<span class="st">'id'</span>] <span class="kw">as</span> <span class="kw">int</span>,
+                      initial:   <span class="cl">WorkLogEntry</span>.fromJson(wl <span class="kw">as</span> <span class="cl">Map</span>&lt;<span class="cl">String</span>, <span class="kw">dynamic</span>&gt;),
+                    );
+                    _load();
+                  }),
+                  <span class="wg">IconButton</span>(
+                    icon: <span class="kw">const</span> <span class="wg">Icon</span>(<span class="wg">Icons</span>.delete_outline, color: <span class="wg">Colors</span>.red),
+                    onPressed: () <span class="kw">async</span> {
+                      <span class="kw">final</span> ok = <span class="kw">await</span> _confirmDelete(ctx);
+                      <span class="kw">if</span> (ok) {
+                        <span class="kw">await</span> ctx.read&lt;<span class="cl">WorkLogRepository</span>&gt;().delete(wl[<span class="st">'id'</span>] <span class="kw">as</span> <span class="kw">int</span>);
+                        _load();
+                      }
+                    },
+                  ),
+                ]),
+              );
+            },
+          ),
+        );
+      },
+    ),
+  );
+
+  <span class="kw">Future</span>&lt;<span class="kw">bool</span>&gt; _confirmDelete(<span class="cl">BuildContext</span> ctx) <span class="kw">async</span> =&gt;
+      <span class="kw">await</span> showDialog&lt;<span class="kw">bool</span>&gt;(context: ctx, builder: (_) =&gt; <span class="wg">AlertDialog</span>(
+        title: <span class="kw">const</span> <span class="wg">Text</span>(<span class="st">'削除しますか？'</span>),
+        actions: [
+          <span class="wg">TextButton</span>(onPressed: () =&gt; <span class="wg">Navigator</span>.pop(_, <span class="kw">false</span>), child: <span class="kw">const</span> <span class="wg">Text</span>(<span class="st">'キャンセル'</span>)),
+          <span class="wg">TextButton</span>(onPressed: () =&gt; <span class="wg">Navigator</span>.pop(_, <span class="kw">true</span>),
+              child: <span class="kw">const</span> <span class="wg">Text</span>(<span class="st">'削除'</span>, style: <span class="wg">TextStyle</span>(color: <span class="wg">Colors</span>.red))),
+        ],
+      )) ?? <span class="kw">false</span>;
+
+  <span class="kw">static</span> <span class="cl">Color</span> _workTypeColor(<span class="cl">String</span> t) =&gt;
+      t == <span class="st">'fertilization'</span> ? <span class="kw">const</span> <span class="wg">Color</span>(<span class="nm">0xFFB85C00</span>)
+      : t == <span class="st">'tillage'</span>       ? <span class="kw">const</span> <span class="wg">Color</span>(<span class="nm">0xFF7A4525</span>)
+      : t == <span class="st">'pesticide'</span>     ? <span class="kw">const</span> <span class="wg">Color</span>(<span class="nm">0xFF5A2D82</span>)
+      : <span class="kw">const</span> <span class="wg">Color</span>(<span class="nm">0xFF6B7E68</span>);
+
+  <span class="kw">static</span> <span class="cl">IconData</span> _workTypeIcon(<span class="cl">String</span> t) =&gt;
+      t == <span class="st">'fertilization'</span> ? <span class="wg">Icons</span>.grass
+      : t == <span class="st">'tillage'</span>       ? <span class="wg">Icons</span>.agriculture
+      : t == <span class="st">'pesticide'</span>     ? <span class="wg">Icons</span>.science
+      : <span class="wg">Icons</span>.more_horiz;
+}</pre>
+
+        <p>
+          また、<code>WorkLogRepository</code> に <code>listByFarm</code> メソッドを追加します
+          （既存の Phase 1 API を呼ぶだけ）。
+        </p>
+<pre><span class="fn">work_log_repository.dart に追記</span>  <span class="cm">/// GET /api/v1/farms/{farmId}/work-logs
+  /// 作業ログ一覧を取得（タイムライン API とは別に単体で使う）</span>
+  <span class="kw">Future</span>&lt;<span class="cl">List</span>&lt;<span class="cl">Map</span>&lt;<span class="cl">String</span>, <span class="kw">dynamic</span>&gt;&gt;&gt; listByFarm(<span class="kw">int</span> farmId) <span class="kw">async</span> {
+    <span class="kw">final</span> res  = <span class="kw">await</span> _dio.get(<span class="st">'/api/v1/farms/$farmId/work-logs'</span>);
+    <span class="kw">final</span> list = res.data[<span class="st">'data'</span>] <span class="kw">as</span> <span class="cl">List</span>;
+    <span class="kw">return</span> list.cast&lt;<span class="cl">Map</span>&lt;<span class="cl">String</span>, <span class="kw">dynamic</span>&gt;&gt;();
+  }</pre>
+
+        <p>
+          最後に、<code>FarmDetailScreen</code> のヘッダーか
+          <code>FarmTimelineTab</code> の FAB 近傍に「作業記録一覧」ボタンを追加します。
+        </p>
+<pre><span class="fn">FarmDetailScreen のアクションボタンとして追加（任意）</span><span class="wg">IconButton</span>(
+  icon: <span class="kw">const</span> <span class="wg">Icon</span>(<span class="wg">Icons</span>.list_alt),
+  tooltip: <span class="st">'作業記録一覧'</span>,
+  onPressed: () =&gt; <span class="wg">Navigator</span>.push(context, <span class="wg">MaterialPageRoute</span>(
+    builder: (_) =&gt; <span class="cl">WorkLogListScreen</span>(
+        farmId: widget.farmId, farmName: widget.farmName),
+  )),
+),</pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ====== T7 ====== -->
+<section id="t7">
+  <h2><span class="n">T7</span>【バグ修正】タイムライン二重リフレッシュの防止 <span class="en">double refresh fix</span></h2>
+
+  <div class="callout note">
+    <strong>問題の詳細。</strong>
+    <code>WorkLogEditScreen.show</code> が <code>true</code> を返した後、
+    <code>FarmTimelineTab._addWorkLog</code> の中で <code>TimelineNotifier.refresh()</code> を呼びます。
+    Phase 6 の実装では一部のパスで <code>refresh()</code> が 2 回呼ばれている可能性があります
+    （保存成功のコールバック + 画面遷移のポップイベント）。
+    これを防ぐためのガードを追加します。
+  </div>
+
+  <div class="steps">
+    <div class="step">
+      <div class="snum">8</div>
+      <div class="sbody">
+        <h4>TimelineNotifier にリフレッシュ中フラグを追加</h4>
+        <span class="sloc">lib/features/results/presentation/providers/timeline_notifier.dart（編集）</span>
+<pre><span class="fn">TimelineNotifier.refresh() にガードを追加</span>  <span class="kw">bool</span> _isRefreshing = <span class="kw">false</span>;
+
+  <span class="kw">Future</span>&lt;<span class="kw">void</span>&gt; refresh() <span class="kw">async</span> {
+    <span class="kw">if</span> (_isRefreshing) <span class="kw">return</span>;  <span class="cm">// ← 二重呼び出しを防ぐ</span>
+    _isRefreshing = <span class="kw">true</span>;
+    <span class="kw">try</span> {
+      <span class="kw">await</span> _load();
+    } <span class="kw">finally</span> {
+      _isRefreshing = <span class="kw">false</span>;
+    }
+  }</pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ====== T8 ====== -->
+<section id="t8">
+  <h2><span class="n">T8</span>【UX 改善】圃場一覧のプルリフレッシュ <span class="en">farm list pull refresh</span></h2>
+
+  <div class="steps">
+    <div class="step">
+      <div class="snum">9</div>
+      <div class="sbody">
+        <h4>FarmListScreen の ListView を RefreshIndicator で包む</h4>
+        <span class="sloc">lib/features/farms/presentation/farm_screen.dart（編集）</span>
+<pre><span class="fn">FarmListScreen の ListView 部分を RefreshIndicator で包む</span><span class="cm">// 変更前</span>
+<span class="wg">ListView</span>.separated( ... )
+
+<span class="cm">// 変更後</span>
+<span class="wg">RefreshIndicator</span>(
+  color: <span class="kw">const</span> <span class="wg">Color</span>(<span class="nm">0xFF2E5C39</span>),
+  onRefresh: () <span class="kw">async</span> {
+    <span class="cm">// 既存の fetchFarms() を呼ぶ</span>
+    <span class="kw">await</span> context.read&lt;<span class="cl">FarmListProvider</span>&gt;().fetchFarms();
+  },
+  child: <span class="wg">ListView</span>.separated( ... ),
+)</pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ====== 動作確認 ====== -->
+<section id="step-check">
+  <h2><span class="n">10</span>動作確認チェックリスト <span class="en">check list</span></h2>
+
+  <div class="steps">
+    <div class="step">
+      <div class="snum">10</div>
+      <div class="sbody">
+        <h4>flutter analyze でエラー件数を確認</h4>
+        <span class="sloc">ターミナル / ローカル</span>
+        <div class="shell">
+<span class="p">$ </span><span class="cmd">flutter analyze 2>&1 | tail -5</span>
+<span class="c"># 今回追加ファイルに error / warning がないこと。info は 117件以下</span>
+<span class="p">$ </span><span class="cmd">dart format lib/features/farms/presentation/tabs/farm_timeseries_tab.dart \
+  lib/features/farms/presentation/tabs/farm_timeline_tab.dart \
+  lib/features/work_logs/ \
+  lib/screens/home/home_screen.dart</span>
+        </div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="snum">11</div>
+      <div class="sbody">
+        <h4>エミュレーター + 実機で各タスクを確認</h4>
+        <span class="sloc">Android エミュレーター / 実機</span>
+        <div class="shell">
+<span class="p">$ </span><span class="cmd">flutter run</span>
+        </div>
+        <table>
+          <thead><tr><th>タスク</th><th>確認項目</th><th>期待動作</th></tr></thead>
+          <tbody>
+            <tr><td rowspan="2"><strong>T1</strong></td><td>作業ログを登録した圃場の時系列タブ</td><td>作業日に縦の点線が表示される</td></tr>
+            <tr><td>縦線の色</td><td>施肥=オレンジ、耕うん=茶色で凡例と一致する</td></tr>
+            <tr><td rowspan="3"><strong>T2</strong></td><td>タイムライン作業ログカードを左スワイプ</td><td>赤い削除バックグラウンドが表示される</td></tr>
+            <tr><td>削除確認ダイアログで「削除」タップ</td><td>カードが消え、タイムラインが再取得される</td></tr>
+            <tr><td>編集アイコンタップ（または長押し）</td><td>既存値が入った状態でボトムシートが開く</td></tr>
+            <tr><td rowspan="2"><strong>T3</strong></td><td>時系列グラフの折れ線上の点をタップ</td><td>その日の測定値詳細ボトムシートが開く</td></tr>
+            <tr><td>ボトムシートの内容</td><td>日付・パラメータ名・平均・最小・最大・測定点数が表示される</td></tr>
+            <tr><td><strong>T4</strong></td><td>ホーム画面上部のユーザー表示</td><td>UUID ではなく <code>name</code> 属性（または email @ 前）が表示される</td></tr>
+            <tr><td rowspan="2"><strong>T5</strong></td><td>測定画面を開いたとき</td><td>圃場選択チップに最近傍圃場が自動で設定されている</td></tr>
+            <tr><td>GPS が取得できないとき（機内モード等）</td><td>クラッシュせず、圃場選択チップが「未選択」のままになる</td></tr>
+            <tr><td><strong>T6</strong></td><td>作業記録一覧画面を開く</td><td>圃場の作業ログが一覧表示され、編集・削除が動作する</td></tr>
+            <tr><td><strong>T7</strong></td><td>作業記録保存後のタイムライン</td><td>リフレッシュが1回だけ実行される（ローディングが2回出ない）</td></tr>
+            <tr><td><strong>T8</strong></td><td>圃場一覧を下に引く</td><td>RefreshIndicator が表示され、一覧が再取得される</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ====== deploy ====== -->
+<section id="deploy">
+  <h2><span class="n">11</span>commit → PR → CI/CD <span class="en">deploy</span></h2>
+
+  <div class="steps">
+    <div class="step">
+      <div class="snum">12</div>
+      <div class="sbody">
+        <h4>コミットして push</h4>
+        <span class="sloc">ターミナル / ローカル</span>
+        <div class="shell">
+<span class="p">$ </span><span class="cmd">git add -A</span>
+<span class="p">$ </span><span class="cmd">git diff --cached --stat</span>
+<span class="c"># 変更: farm_timeseries_tab.dart / farm_timeline_tab.dart</span>
+<span class="c">#       work_log_repository.dart / work_log_edit_screen.dart / work_log_notifier.dart</span>
+<span class="c">#       timeline_item.dart（id フィールド追加）</span>
+<span class="c">#       home_screen.dart / measurement_session_screen.dart</span>
+<span class="c">#       farm_screen.dart</span>
+<span class="c"># 新規: work_log_list_screen.dart</span>
+
+<span class="p">$ </span><span class="cmd">git commit -m "fix/feat: polish phase 9 — bugfix and UX improvements"</span>
+<span class="p">$ </span><span class="cmd">git push origin feature/phase9-polish</span>
+        </div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="snum">13</div>
+      <div class="sbody">
+        <h4>PR を作成してマージ</h4>
+        <span class="sloc">GitHub Web UI</span>
+        <ol>
+          <li>PR タイトル: <code>fix/feat: polish phase 9 — bugfix and UX improvements</code></li>
+          <li>PR 本文: T1〜T8 の対応内容一覧 + analyze 件数 + 動作確認チェックリスト</li>
+          <li>Squash and merge → feature ブランチを削除</li>
+        </ol>
+        <div class="callout">
+          <strong>バックエンド変更（T2）がある場合。</strong>
+          <code>WorkLogRepository</code> への <code>update</code> / <code>delete</code> の追加は
+          Flutter のコード変更のみであり、Laravel 側は変更ありません。
+          CI/CD は Flutter ビルドチェックのみとなります。
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ====== DoD ====== -->
+<section id="dod">
+  <h2><span class="n">✓</span>完了条件チェックリスト <span class="en">definition of done</span></h2>
+
+  <p style="font-size:13px;color:var(--ink3);margin-bottom:16px;">
+    <span class="tag l">L</span> ローカル確認 &nbsp;
+    <span class="tag ci">CI</span> PR &amp; CI/CD 確認 &nbsp;
+    <span class="tag e">E</span> 実機デプロイ後確認
+  </p>
+
+  <ul class="dod-list">
+    <li><span class="tag l">L</span> <code>flutter analyze</code> の info 件数が 117 件以下で error・warning なし</li>
+    <li><span class="tag l">L</span> <strong>T1</strong>: 作業ログを登録した圃場の時系列タブに縦の点線が表示される</li>
+    <li><span class="tag l">L</span> <strong>T2</strong>: タイムラインの作業ログカードを左スワイプして削除ができる</li>
+    <li><span class="tag l">L</span> <strong>T2</strong>: 編集ボタンタップで既存値が入ったボトムシートが開き、PATCH が実行される</li>
+    <li><span class="tag l">L</span> <strong>T3</strong>: 時系列グラフの点タップで詳細ボトムシートが開く</li>
+    <li><span class="tag l">L</span> <strong>T4</strong>: ホーム画面上部に UUID ではなくユーザー名が表示される</li>
+    <li><span class="tag l">L</span> <strong>T5</strong>: 測定画面起動時に最近傍圃場が自動選択されている。GPS 失敗時にクラッシュしない</li>
+    <li><span class="tag l">L</span> <strong>T6</strong>: 作業記録一覧画面が開き、編集・削除が動作する（優先度低）</li>
+    <li><span class="tag l">L</span> <strong>T7</strong>: 作業記録保存後のタイムライン再取得が1回のみ実行される</li>
+    <li><span class="tag l">L</span> <strong>T8</strong>: 圃場一覧のプルリフレッシュが動作する</li>
+    <li><span class="tag ci">CI</span> feature ブランチが main にマージされ、CI が success になっている</li>
+    <li><span class="tag e">E</span> 実機で T1〜T5 の全動作が確認できる</li>
+  </ul>
+</section>
+
+</main>
+</div>
+</body>
+</html>

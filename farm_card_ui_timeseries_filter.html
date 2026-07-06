@@ -1,0 +1,1064 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>HenryMonitor 設計書 — 圃場カード UI 修正 / 時系列グラフ表示範囲切替</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&family=Noto+Serif+JP:wght@700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#f8f7f1;--paper:#fff;--ink:#1a2318;--ink2:#3d4f3a;--ink3:#6b7e68;
+  --line:#dbd6c4;--lines:#eae6d6;
+  --leaf:#2e5c39;--leafl:#4a8459;--leafp:#e2ede4;
+  --soil:#7a4525;--soilp:#f2e8e0;
+  --amber:#b85c00;--amberp:#fef0d8;
+  --red:#b02020;--redp:#fce4e4;
+  --blue:#1a4f7a;--bluep:#ddeaf5;
+  --teal:#1a6a6a;--tealp:#d8efef;
+  --code-bg:#181f16;--code-fg:#d4e8cc;
+  --ccm:#5a8f58;--ckw:#7dd3a8;--cst:#f7c07a;--cnm:#7ec8e3;--ccl:#e8d07a;--cwg:#f0b060;
+  --sl:#b0c8b0;
+}
+*{box-sizing:border-box;}html{scroll-behavior:smooth;}
+body{margin:0;padding:0;background:var(--bg);color:var(--ink);font-family:"Noto Sans JP",sans-serif;font-size:14.5px;line-height:1.8;-webkit-font-smoothing:antialiased;}
+.layout{display:flex;min-height:100vh;}
+
+.toc{width:256px;flex-shrink:0;background:#0f1a0e;color:#c8d8c4;padding:28px 0 60px;position:sticky;top:0;height:100vh;overflow-y:auto;}
+.toc-logo{padding:0 20px 18px;border-bottom:1px solid rgba(255,255,255,.08);margin-bottom:14px;}
+.toc-logo .proj{font-size:11px;letter-spacing:.18em;color:#5a9a56;text-transform:uppercase;}
+.toc-logo .phase{font-family:"Noto Serif JP",serif;font-size:17px;color:#e8f0e4;font-weight:700;margin-top:4px;line-height:1.4;}
+.toc-logo .sub{font-size:11px;color:#5a9a56;margin-top:2px;line-height:1.5;}
+.toc ul{list-style:none;margin:0;padding:0;}
+.toc li a{display:block;padding:6px 20px;font-size:12px;color:#8ab88a;text-decoration:none;border-left:3px solid transparent;transition:all .15s;}
+.toc li a:hover{background:rgba(255,255,255,.06);color:#e8f0e4;border-left-color:var(--leafl);}
+.toc li a.sec{font-weight:700;color:#c4dcc0;font-size:12px;margin-top:8px;}
+.toc li a.sub{padding-left:32px;font-size:11.5px;color:#6a9a66;}
+.toc hr{border:none;border-top:1px solid rgba(255,255,255,.06);margin:8px 20px;}
+
+.main{flex:1;padding:48px 56px 100px;max-width:940px;}
+
+.cover{background:var(--paper);border:1px solid var(--line);padding:40px 44px;position:relative;overflow:hidden;margin-bottom:52px;}
+.cover::after{content:"";position:absolute;top:0;left:0;right:0;height:5px;background:linear-gradient(90deg,var(--leaf) 0%,var(--blue) 100%);}
+.badge{font-family:"JetBrains Mono",monospace;font-size:11px;letter-spacing:.2em;background:var(--leafp);color:var(--leaf);padding:3px 10px;border-radius:2px;display:inline-block;margin-bottom:14px;text-transform:uppercase;}
+.cover h1{font-family:"Noto Serif JP",serif;font-size:26px;font-weight:700;margin:0 0 8px;line-height:1.4;}
+.cover .desc{color:var(--ink2);font-size:14px;margin:0 0 24px;}
+.cmeta{display:flex;gap:24px;flex-wrap:wrap;border-top:1px solid var(--lines);padding-top:18px;}
+.cmeta dl{margin:0;}.cmeta dt{font-family:"JetBrains Mono",monospace;font-size:10px;letter-spacing:.15em;text-transform:uppercase;color:var(--ink3);margin:0 0 3px;}.cmeta dd{margin:0;font-size:13px;font-weight:500;}
+
+section{margin-bottom:64px;}
+h2{font-family:"Noto Serif JP",serif;font-size:21px;font-weight:700;margin:0 0 20px;padding:13px 18px;background:var(--ink);color:#e8f0e4;display:flex;align-items:center;gap:14px;}
+h2 .n{font-family:"JetBrains Mono",monospace;font-size:12px;color:var(--leafl);letter-spacing:.1em;}
+h2 .en{font-family:"JetBrains Mono",monospace;font-size:10px;color:#6a9a66;letter-spacing:.2em;text-transform:uppercase;margin-left:auto;}
+h3{font-size:16px;font-weight:700;margin:32px 0 10px;padding-bottom:7px;border-bottom:2px solid var(--leafp);color:var(--leaf);}
+h4{font-size:14px;font-weight:700;margin:20px 0 8px;color:var(--ink2);}
+p{margin:0 0 12px;}ul,ol{margin:0 0 12px;padding-left:20px;}li{margin-bottom:5px;}strong{color:var(--ink);}
+
+.steps{position:relative;}
+.step{display:grid;grid-template-columns:52px 1fr;gap:0 18px;margin-bottom:8px;position:relative;}
+.step::before{content:"";position:absolute;left:25px;top:52px;bottom:-8px;width:2px;background:var(--sl);}
+.step:last-child::before{display:none;}
+.snum{width:52px;height:52px;border-radius:50%;background:var(--leaf);color:#fff;display:flex;align-items:center;justify-content:center;font-family:"JetBrains Mono",monospace;font-size:14px;font-weight:700;flex-shrink:0;position:relative;z-index:1;align-self:start;margin-top:12px;}
+.snum.red{background:var(--red);}.snum.blue{background:var(--blue);}
+.sbody{background:var(--paper);border:1px solid var(--line);padding:18px 22px 16px;}
+.sbody h4{margin-top:0;font-size:15px;color:var(--ink);}
+.sbody p:last-child,.sbody ul:last-child{margin-bottom:0;}
+.sloc{font-family:"JetBrains Mono",monospace;font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink3);background:var(--bg);border:1px solid var(--lines);padding:2px 8px;border-radius:2px;display:inline-block;margin-bottom:8px;}
+
+pre{background:var(--code-bg);color:var(--code-fg);padding:16px 18px;border-radius:3px;overflow-x:auto;font-family:"JetBrains Mono",monospace;font-size:12.5px;line-height:1.7;margin:10px 0 12px;}
+pre .fn{display:block;font-size:10px;letter-spacing:.1em;color:#486a46;margin-bottom:10px;border-bottom:1px solid rgba(255,255,255,.06);padding-bottom:8px;}
+pre .cm{color:var(--ccm);}pre .kw{color:var(--ckw);}pre .st{color:var(--cst);}
+pre .nm{color:var(--cnm);}pre .cl{color:var(--ccl);}pre .wg{color:var(--cwg);}
+code{font-family:"JetBrains Mono",monospace;font-size:12.5px;background:#edeadc;color:var(--soil);padding:1px 5px;border-radius:2px;}
+.shell{background:#090f08;color:#a8d8a0;padding:14px 18px;border-radius:3px;font-family:"JetBrains Mono",monospace;font-size:12.5px;line-height:1.7;margin:10px 0 12px;border-left:3px solid var(--leafl);overflow-x:auto;}
+.shell .p{color:#4a8a48;user-select:none;}.shell .c{color:#326030;}.shell .cmd{color:#c0e0b8;}
+
+.callout{padding:12px 16px;margin:12px 0;font-size:13.5px;border-left:4px solid var(--leaf);background:var(--leafp);}
+.callout.warn{border-color:var(--amber);background:var(--amberp);}
+.callout.danger{border-color:var(--red);background:var(--redp);}
+.callout.info{border-color:var(--blue);background:var(--bluep);}
+.callout.note{border-color:var(--soil);background:var(--soilp);}
+.callout.teal{border-color:var(--teal);background:var(--tealp);}
+.callout strong{display:block;margin-bottom:3px;}
+
+table{border-collapse:collapse;width:100%;margin:10px 0 14px;font-size:13px;}
+th,td{padding:8px 12px;border-bottom:1px solid var(--lines);text-align:left;vertical-align:top;}
+th{background:var(--leafp);font-weight:700;font-size:11.5px;letter-spacing:.04em;border-bottom:2px solid var(--leaf);color:var(--leaf);}
+tr:hover td{background:#f5f2e8;}
+
+.tag{display:inline-block;font-family:"JetBrains Mono",monospace;font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:2px 7px;border-radius:2px;vertical-align:middle;margin:0 2px;}
+.tag.be{background:var(--soilp);color:var(--soil);}
+.tag.fe{background:var(--leafp);color:var(--leaf);}
+.tag.l{background:var(--leafp);color:var(--leaf);}
+.tag.ci{background:var(--bluep);color:var(--blue);}
+.tag.e{background:var(--soilp);color:var(--soil);}
+
+/* before/after card mockup */
+.diff-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:16px 0;}
+.diff-box{border:1px solid var(--line);}
+.diff-label{font-family:"JetBrains Mono",monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;padding:6px 14px;font-weight:700;}
+.diff-label.before{background:var(--redp);color:var(--red);}
+.diff-label.after{background:var(--leafp);color:var(--leaf);}
+.diff-content{padding:14px;background:var(--paper);}
+
+/* card mockup */
+.card-mock{background:#f0ede4;border-radius:12px;padding:14px 14px 12px;font-family:"Noto Sans JP",sans-serif;}
+.card-mock .thumb{width:80px;height:64px;background:#c8c0a8;border-radius:8px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:9px;color:#888;text-align:center;}
+.card-mock .row1{display:flex;align-items:flex-start;gap:10px;margin-bottom:6px;}
+.card-mock .info{flex:1;}
+.card-mock .farm-name{font-size:15px;font-weight:700;margin-bottom:1px;}
+.card-mock .sub-info{font-size:11px;color:#666;}
+.card-mock .mdate{font-size:11px;color:var(--leaf);font-weight:700;margin:4px 0;}
+.card-mock .chips-old{display:flex;gap:6px;flex-wrap:wrap;}
+.card-mock .chip-old{background:#e0dcd0;border-radius:8px;padding:4px 8px;font-size:11px;text-align:center;min-width:48px;}
+.card-mock .chip-old .lbl{color:#777;font-size:9px;display:block;}
+.card-mock .chip-old .val{font-weight:700;font-size:13px;}
+.card-mock .chips-new{display:flex;gap:6px;margin-top:6px;}
+.card-mock .chip-new{background:#e0dcd0;border-radius:6px;padding:5px 8px;flex:1;text-align:center;}
+.card-mock .chip-new .lbl{color:#777;font-size:9px;display:block;margin-bottom:1px;}
+.card-mock .chip-new .val{font-weight:700;font-size:14px;color:var(--ink);}
+.card-mock .chip-new .val.dash{color:#aaa;}
+.card-mock .edit-btn{width:32px;height:32px;border-radius:50%;background:rgba(0,0,0,.06);display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;}
+.card-mock .arrow-btn{width:28px;height:28px;border-radius:50%;background:#ccc;display:flex;align-items:center;justify-content:center;font-size:12px;flex-shrink:0;}
+
+/* graph mockup */
+.graph-mock{background:#1e2a1e;border-radius:8px;padding:14px 16px;font-family:"JetBrains Mono",monospace;font-size:12px;color:#c8e0c8;margin:12px 0;}
+.seg-btn-row{display:flex;gap:6px;margin-bottom:10px;}
+.seg-btn{padding:4px 12px;border-radius:4px;font-size:11px;cursor:pointer;border:1px solid #3a5a3a;}
+.seg-btn.active{background:var(--leaf);color:#fff;border-color:var(--leaf);}
+.seg-btn.inactive{background:transparent;color:#7dd3a8;}
+
+.filetree{background:var(--paper);border:1px solid var(--line);padding:14px 18px;font-family:"JetBrains Mono",monospace;font-size:12.5px;line-height:1.9;margin:10px 0;}
+.filetree .d{color:var(--leaf);font-weight:700;}
+.filetree .mf{color:var(--blue);}
+.filetree .mf::after{content:" ← EDIT";font-size:10px;opacity:.7;}
+.filetree .nf{color:var(--amber);}
+.filetree .nf::after{content:" ← NEW";font-size:10px;opacity:.7;}
+
+.dod-list{list-style:none;padding-left:0;}
+.dod-list li{padding:10px 14px 10px 40px;position:relative;border-bottom:1px solid var(--lines);font-size:13.5px;}
+.dod-list li::before{content:"☐";position:absolute;left:12px;color:var(--leaf);font-size:16px;line-height:1;top:12px;}
+.dod-list li:last-child{border-bottom:none;}
+.dod-list li .dc{display:block;margin-top:3px;font-size:12px;color:var(--ink3);}
+
+@media(max-width:900px){.layout{display:block;}.toc{width:100%;height:auto;position:static;}.main{padding:28px 20px 64px;}.diff-grid{grid-template-columns:1fr;}}
+</style>
+</head>
+<body>
+<div class="layout">
+
+<!-- ======== TOC ======== -->
+<nav class="toc">
+  <div class="toc-logo">
+    <div class="proj">HenryMonitor</div>
+    <div class="phase">設計書<br>UI 改善 2件</div>
+    <div class="sub">圃場カード刷新<br>時系列範囲切替</div>
+  </div>
+  <ul>
+    <li><a class="sec" href="#overview">0. 概要・変更ファイル一覧</a></li>
+    <li><a class="sub" href="#scope1">修正①: 圃場カード</a></li>
+    <li><a class="sub" href="#scope2">修正②: 時系列グラフ</a></li>
+    <hr>
+    <li><a class="sec" href="#s1-backend">修正① — Laravel（圃場削除 API）</a></li>
+    <li><a class="sub" href="#s1-route">DELETE ルート追加</a></li>
+    <li><a class="sub" href="#s1-controller">FarmController#destroy</a></li>
+    <li><a class="sub" href="#s1-test">テスト追加</a></li>
+    <li><a class="sub" href="#s1-smoketest">スモークテスト</a></li>
+    <hr>
+    <li><a class="sec" href="#s1-flutter">修正① — Flutter（圃場カード UI）</a></li>
+    <li><a class="sub" href="#s1-card">FarmCard の刷新</a></li>
+    <li><a class="sub" href="#s1-edit">編集画面に削除ボタン追加</a></li>
+    <li><a class="sub" href="#s1-repo">FarmRepository.delete()</a></li>
+    <hr>
+    <li><a class="sec" href="#s2">修正② — 時系列グラフ範囲切替</a></li>
+    <li><a class="sub" href="#s2-notifier">TimeseriesNotifier 拡張</a></li>
+    <li><a class="sub" href="#s2-ui">SegmentedButton UI</a></li>
+    <li><a class="sub" href="#s2-filter">クライアント側フィルター</a></li>
+    <hr>
+    <li><a class="sec" href="#check">動作確認チェックリスト</a></li>
+    <li><a class="sec" href="#deploy">commit → PR → CI/CD</a></li>
+    <li><a class="sec" href="#dod">✓ 完了条件</a></li>
+  </ul>
+</nav>
+
+<!-- ======== Main ======== -->
+<main class="main">
+
+<div class="cover">
+  <span class="badge">UI改善 設計書</span>
+  <h1>圃場カード UI 修正 ／ 時系列グラフ表示範囲切替</h1>
+  <p class="desc">
+    実機確認で挙がった UI 課題 2 件の設計・実装手順書です。
+    修正①は Laravel（DELETE API 追加）と Flutter（カードレイアウト刷新・削除機能追加）の両方に変更が入ります。
+    修正②は Flutter のみの変更です。
+  </p>
+  <div class="cmeta">
+    <dl><dt>Laravel</dt><dd>修正① のみ（DELETE API 追加）</dd></dl>
+    <dl><dt>Flutter</dt><dd>修正①②ともに変更あり</dd></dl>
+    <dl><dt>ブランチ</dt><dd><code>feature/farm-card-ui-timeseries-filter</code></dd></dl>
+    <dl><dt>analyze baseline</dt><dd>117 件以下を維持</dd></dl>
+  </div>
+</div>
+
+<!-- ====== 0. OVERVIEW ====== -->
+<section id="overview">
+  <h2><span class="n">00</span>概要・変更ファイル一覧 <span class="en">overview</span></h2>
+
+  <h3 id="scope1">修正① 圃場カードの UI 刷新と圃場削除機能</h3>
+
+  <p><strong>現状の問題点（スクリーンショット確認）</strong></p>
+  <ul>
+    <li>CEC / CaO / K2O / MgO のチップが <strong>縦書き 2 文字折り返し</strong>で可読性が低い</li>
+    <li>編集ボタン（ペン）と <code>&gt;</code> ボタンが隣接して誤タップリスクがある</li>
+    <li><code>&gt;</code> ボタンはカードタップで詳細遷移できるため冗長</li>
+    <li>圃場を誤作成した場合に削除できない</li>
+  </ul>
+
+  <div class="diff-grid">
+    <div class="diff-box">
+      <div class="diff-label before">現行（修正前）</div>
+      <div class="diff-content">
+        <div class="card-mock">
+          <div class="row1">
+            <div class="thumb">Google Map<br>サムネイル</div>
+            <div class="info">
+              <div class="farm-name">家の前の田んぼ ✏️ ›</div>
+              <div class="sub-info">米 / 384.5 m²</div>
+              <div class="mdate">最終測定 2026/05/31 / 4点</div>
+            </div>
+          </div>
+          <div class="chips-old">
+            <div class="chip-old"><span class="lbl">CE<br>C</span><span class="val">33<br>.0</span></div>
+            <div class="chip-old"><span class="lbl">Ca<br>O</span><span class="val">67<br>9.</span></div>
+            <div class="chip-old"><span class="lbl">K2<br>O</span><span class="val">15<br>7.</span></div>
+            <div class="chip-old"><span class="lbl">Mg<br>O</span><span class="val">83<br>.4</span></div>
+          </div>
+        </div>
+        <p style="font-size:12px;color:#a00;margin:6px 0 0;">← ラベルが縦に折り返し。数値も3行になる。<code>&gt;</code> が隣接。</p>
+      </div>
+    </div>
+    <div class="diff-box">
+      <div class="diff-label after">新構成（修正後）</div>
+      <div class="diff-content">
+        <div class="card-mock">
+          <div class="row1">
+            <div class="thumb">Google Map<br>サムネイル</div>
+            <div class="info">
+              <div class="farm-name">家の前の田んぼ</div>
+              <div class="sub-info">米 / 384.5 m²</div>
+              <div class="mdate">最終測定 2026/05/31 / 4点</div>
+            </div>
+            <div class="edit-btn">✏️</div>
+          </div>
+          <div class="chips-new">
+            <div class="chip-new"><span class="lbl">CEC</span><span class="val">33.0</span></div>
+            <div class="chip-new"><span class="lbl">CaO</span><span class="val">679.4</span></div>
+            <div class="chip-new"><span class="lbl">K₂O</span><span class="val">157.3</span></div>
+            <div class="chip-new"><span class="lbl">MgO</span><span class="val">83.4</span></div>
+          </div>
+        </div>
+        <p style="font-size:12px;color:#2a6;margin:6px 0 0;">← 4チップを横1行に均等配置。<code>&gt;</code> 削除。編集ボタンは右上に独立。</p>
+      </div>
+    </div>
+  </div>
+
+  <h4>修正① の変更方針まとめ</h4>
+  <table>
+    <thead><tr><th>変更点</th><th>方針</th></tr></thead>
+    <tbody>
+      <tr><td>チップのレイアウト</td><td>横 1 行に 4 チップ均等配置（<code>Expanded</code> × 4）。ラベルは 1 行で表示できる短縮形（CEC / CaO / K₂O / MgO）</td></tr>
+      <tr><td><code>&gt;</code> ボタン</td><td>削除。カードの <code>InkWell</code> タップで詳細画面に遷移（既存動作）</td></tr>
+      <tr><td>編集ボタン（ペン）</td><td>カード右上に移動。他のタップ領域と重ならないよう <code>GestureDetector</code> で <code>onTap</code> のみ処理</td></tr>
+      <tr><td>圃場削除</td><td>既存の圃場編集画面のフッターに「この圃場を削除」ボタンを追加。確認ダイアログ → <code>DELETE /api/v1/farms/{farm}</code> → 一覧に戻る</td></tr>
+      <tr><td>Laravel API</td><td><code>DELETE /api/v1/farms/{farm}</code> を新規追加（ソフトデリートなし、物理削除）</td></tr>
+    </tbody>
+  </table>
+
+  <h3 id="scope2">修正② 時系列グラフの表示範囲切替</h3>
+
+  <div class="graph-mock">
+    <div class="seg-btn-row">
+      <div class="seg-btn inactive">すべて</div>
+      <div class="seg-btn active">1年間</div>
+      <div class="seg-btn inactive">1ヶ月</div>
+    </div>
+    <div style="font-size:11px;color:#5a8a5a;">← SegmentedButton をグラフ上部に配置</div>
+    <div style="margin-top:8px;border-top:1px solid #3a5a3a;padding-top:8px;font-size:11px;">
+      [折れ線グラフエリア: フィルター後のデータのみ表示]
+    </div>
+  </div>
+
+  <table>
+    <thead><tr><th>ボタン</th><th>表示対象</th><th>フィルター条件</th></tr></thead>
+    <tbody>
+      <tr><td>すべて</td><td>API から取得した全測定点</td><td>フィルターなし</td></tr>
+      <tr><td>1年間</td><td>現在から1年前以降の測定点</td><td><code>date &gt;= today − 365 days</code></td></tr>
+      <tr><td>1ヶ月</td><td>現在から1ヶ月前以降の測定点</td><td><code>date &gt;= today − 30 days</code></td></tr>
+    </tbody>
+  </table>
+
+  <div class="callout info">
+    <strong>フィルターはクライアント側で行います。</strong>
+    API への追加クエリは不要です。
+    <code>TimeseriesNotifier</code> が保持する全 <code>points</code> リストに対して
+    日付でフィルターし、グラフ描画に渡すだけです。
+    これにより API 呼び出しの追加なしで実装できます。
+  </div>
+
+  <h3>変更・作成ファイル一覧</h3>
+  <div class="filetree">
+<span class="cm"># Laravel（修正① のみ）</span>
+app/Http/Controllers/Api/
+  └── <span class="mf">FarmController.php                    （destroy メソッドを追加）</span>
+routes/
+  └── <span class="mf">api.php                               （DELETE /api/v1/farms/{farm} を追加）</span>
+tests/Feature/
+  └── <span class="nf">FarmDeleteApiTest.php                 （テスト新規追加）</span>
+
+<span class="cm"># Flutter（修正①②）</span>
+lib/features/farms/
+  ├── <span class="d">data/</span>
+  │   └── <span class="mf">farm_repository.dart              （delete(farmId) メソッドを追加）</span>
+  ├── <span class="d">presentation/</span>
+  │   ├── <span class="mf">farm_screen.dart                  （FarmCard UI を刷新・&gt;ボタン削除・編集位置変更）</span>
+  │   └── <span class="mf">farm_edit_screen.dart             （削除ボタンをフッターに追加）</span>
+  └── <span class="d">presentation/tabs/</span>
+      └── <span class="mf">farm_timeseries_tab.dart          （修正②: SegmentedButton + クライアントフィルター）</span>
+lib/features/results/
+  └── <span class="d">presentation/providers/</span>
+      └── <span class="mf">timeseries_notifier.dart          （修正②: selectedRange + filteredPoints を追加）</span>
+  </div>
+</section>
+
+<!-- ====== S1: BACKEND ====== -->
+<section id="s1-backend">
+  <h2><span class="n">01</span>修正① — Laravel（圃場削除 API の追加） <span class="en">backend</span></h2>
+
+  <div class="callout danger">
+    <strong>EC2 本番サーバーで <code>php artisan test</code> を実行しないこと。</strong>
+    テストは必ずローカル Docker 環境（SQLite または テスト用 DB）でのみ実行してください。
+  </div>
+
+  <div class="steps">
+    <div class="step" id="s1-route">
+      <div class="snum">1</div>
+      <div class="sbody">
+        <h4>routes/api.php に DELETE ルートを追加</h4>
+        <span class="sloc">routes/api.php（Laravel プロジェクト）</span>
+        <p>
+          現行の圃場系ルートに <code>DELETE</code> を追加します。
+          既存の <code>Route::apiResource</code> を使っている場合は <code>only</code> に
+          <code>'destroy'</code> を加えるだけです。
+          個別定義の場合は以下を追記してください。
+        </p>
+<pre><span class="fn">routes/api.php — 既存ルートの確認と追記</span><span class="cm">// まず現在の farms 関連ルートを確認</span>
+<span class="cm">// 既存が apiResource の場合:</span>
+<span class="cl">Route</span>::apiResource(<span class="st">'v1/farms'</span>, <span class="cl">FarmController</span>::<span class="kw">class</span>)
+    ->middleware(<span class="st">'auth:cognito'</span>);
+<span class="cm">// → apiResource は destroy を自動含む（何もしなくてよい）</span>
+
+<span class="cm">// 個別定義の場合は以下を追記:</span>
+<span class="cl">Route</span>::delete(<span class="st">'v1/farms/{farm}'</span>, [<span class="cl">FarmController</span>::<span class="kw">class</span>, <span class="st">'destroy'</span>])
+    ->middleware(<span class="st">'auth:cognito'</span>);</pre>
+        <div class="shell">
+<span class="c"># 現在の farms 系ルートを確認</span>
+<span class="p">$ </span><span class="cmd">php artisan route:list --path=farms</span>
+<span class="c"># DELETE /api/v1/farms/{farm} が表示されれば API Route 追加は完了</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="step" id="s1-controller">
+      <div class="snum">2</div>
+      <div class="sbody">
+        <h4>FarmController に destroy メソッドを追加</h4>
+        <span class="sloc">app/Http/Controllers/Api/FarmController.php（編集）</span>
+<pre><span class="fn">FarmController.php — destroy メソッドを追加</span>    <span class="cm">/**
+     * DELETE /api/v1/farms/{farm}
+     *
+     * 認証ユーザーが所有する圃場を削除する。
+     * 圃場に紐づく uploads / analysis_results / result_values は
+     * ON DELETE CASCADE か、または手動でカスケード削除する。
+     *
+     * @param  Farm  $farm  Route Model Binding（自動的に認証ユーザーの圃場か確認する）
+     * @return \Illuminate\Http\JsonResponse
+     */</span>
+    <span class="kw">public function</span> <span class="nm">destroy</span>(<span class="cl">Farm</span> $farm): \Illuminate\Http\JsonResponse
+    {
+        <span class="cm">// 認可: 自分の圃場のみ削除可能</span>
+        <span class="kw">if</span> ($farm->app_user_id !== $this->authUser()->id) {
+            <span class="kw">return</span> response()->json([<span class="st">'message'</span> =&gt; <span class="st">'Forbidden'</span>], <span class="nm">403</span>);
+        }
+
+        <span class="cm">// 関連データのカスケード削除
+        // ON DELETE CASCADE が設定されていない場合は手動で削除する</span>
+        <span class="cl">DB</span>::transaction(<span class="kw">function</span> () use ($farm) {
+            <span class="cm">// uploads → analysis_results → result_values の順に削除</span>
+            $farm->uploads->each(<span class="kw">function</span> ($upload) {
+                $upload->analysisResults->each(<span class="kw">function</span> ($ar) {
+                    $ar->resultValues()->delete();
+                });
+                $upload->analysisResults()->delete();
+            });
+            $farm->uploads()->delete();
+            <span class="cm">// 作業ログも削除（farm_work_logs または work_logs テーブル）</span>
+            <span class="kw">if</span> (method_exists($farm, <span class="st">'workLogs'</span>)) {
+                $farm->workLogs()->delete();
+            }
+            $farm->delete();
+        });
+
+        <span class="kw">return</span> response()->json([<span class="st">'message'</span> =&gt; <span class="st">'deleted'</span>], <span class="nm">200</span>);
+    }</pre>
+
+        <div class="callout warn">
+          <strong>リレーションメソッド名を確認してください。</strong>
+          <code>Farm</code> モデルの <code>uploads()</code>、<code>Upload</code> モデルの <code>analysisResults()</code>、
+          <code>AnalysisResult</code> モデルの <code>resultValues()</code> が定義済みであることを確認してください。
+          <code>grep -n "function uploads\|function analysis\|function result" app/Models/Farm.php app/Models/Upload.php</code>
+          で確認できます。
+        </div>
+        <div class="callout note">
+          <strong>DB にカスケード削除設定がある場合。</strong>
+          マイグレーションで <code>->onDelete('cascade')</code> が設定されていれば
+          <code>$farm->delete()</code> のみで OK です。
+          <code>grep -rn "onDelete\|cascade" database/migrations/ | grep farm</code> で確認してください。
+        </div>
+      </div>
+    </div>
+
+    <div class="step" id="s1-test">
+      <div class="snum">3</div>
+      <div class="sbody">
+        <h4>FarmDeleteApiTest を追加（ローカル実行）</h4>
+        <span class="sloc">tests/Feature/FarmDeleteApiTest.php（新規作成）</span>
+<pre><span class="fn">tests/Feature/FarmDeleteApiTest.php</span><span class="kw">class</span> <span class="cl">FarmDeleteApiTest</span> <span class="kw">extends</span> <span class="cl">TestCase</span>
+{
+    <span class="kw">use</span> <span class="cl">RefreshDatabase</span>;
+
+    <span class="cm">/** @test */</span>
+    <span class="kw">public function</span> <span class="nm">owner_can_delete_farm</span>(): <span class="kw">void</span>
+    {
+        $user = <span class="cl">AppUser</span>::factory()->create();
+        $farm = <span class="cl">Farm</span>::factory()->create([<span class="st">'app_user_id'</span> =&gt; $user->id]);
+
+        $this->authAs($user)
+             ->deleteJson(<span class="st">"/api/v1/farms/{$farm->id}"</span>)
+             ->assertStatus(<span class="nm">200</span>)
+             ->assertJson([<span class="st">'message'</span> =&gt; <span class="st">'deleted'</span>]);
+
+        $this->assertDatabaseMissing(<span class="st">'farms'</span>, [<span class="st">'id'</span> =&gt; $farm->id]);
+    }
+
+    <span class="cm">/** @test */</span>
+    <span class="kw">public function</span> <span class="nm">other_user_cannot_delete_farm</span>(): <span class="kw">void</span>
+    {
+        $owner = <span class="cl">AppUser</span>::factory()->create();
+        $other = <span class="cl">AppUser</span>::factory()->create();
+        $farm  = <span class="cl">Farm</span>::factory()->create([<span class="st">'app_user_id'</span> =&gt; $owner->id]);
+
+        $this->authAs($other)
+             ->deleteJson(<span class="st">"/api/v1/farms/{$farm->id}"</span>)
+             ->assertStatus(<span class="nm">403</span>);
+
+        $this->assertDatabaseHas(<span class="st">'farms'</span>, [<span class="st">'id'</span> =&gt; $farm->id]);
+    }
+
+    <span class="cm">/** @test */</span>
+    <span class="kw">public function</span> <span class="nm">unauthenticated_request_is_rejected</span>(): <span class="kw">void</span>
+    {
+        $farm = <span class="cl">Farm</span>::factory()->create();
+        $this->deleteJson(<span class="st">"/api/v1/farms/{$farm->id}"</span>)
+             ->assertStatus(<span class="nm">401</span>);
+    }
+
+    <span class="cm">/** @test */</span>
+    <span class="kw">public function</span> <span class="nm">related_uploads_are_also_deleted</span>(): <span class="kw">void</span>
+    {
+        $user   = <span class="cl">AppUser</span>::factory()->create();
+        $farm   = <span class="cl">Farm</span>::factory()->create([<span class="st">'app_user_id'</span> =&gt; $user->id]);
+        $upload = <span class="cl">Upload</span>::factory()->create([<span class="st">'farm_id'</span> =&gt; $farm->id]);
+
+        $this->authAs($user)
+             ->deleteJson(<span class="st">"/api/v1/farms/{$farm->id}"</span>)
+             ->assertStatus(<span class="nm">200</span>);
+
+        <span class="cm">// 関連 upload も消えていること</span>
+        $this->assertDatabaseMissing(<span class="st">'uploads'</span>, [<span class="st">'id'</span> =&gt; $upload->id]);
+    }
+}</pre>
+
+        <div class="shell">
+<span class="c"># ローカル Docker 環境でテストを実行</span>
+<span class="p">$ </span><span class="cmd">php artisan test --filter=FarmDeleteApiTest</span>
+<span class="c"># 4 passed を確認</span>
+<span class="p">$ </span><span class="cmd">php artisan test</span>
+<span class="c"># 全テストが通ること（既存テストが壊れていないこと）</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="step" id="s1-smoketest">
+      <div class="snum">4</div>
+      <div class="sbody">
+        <h4>EC2 デプロイ後のスモークテスト</h4>
+        <span class="sloc">ターミナル（ローカルから EC2 の API に対して実行）</span>
+        <div class="shell">
+<span class="c"># route:list で DELETE が出ることを確認（EC2 では直接 artisan は叩かない）</span>
+<span class="p">$ </span><span class="cmd">curl -s -X DELETE \
+  "https://YOUR_API_HOST/api/v1/farms/9999" \
+  -H "Authorization: Bearer $TOKEN" | jq .</span>
+<span class="c"># 存在しない ID なら 404、認証なしなら 401 が返ること</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ====== S1: FLUTTER ====== -->
+<section id="s1-flutter">
+  <h2><span class="n">02</span>修正① — Flutter（圃場カード UI 刷新） <span class="en">flutter farm card</span></h2>
+
+  <div class="steps">
+    <div class="step" id="s1-repo">
+      <div class="snum">5</div>
+      <div class="sbody">
+        <h4>FarmRepository（または既存 API クライアント）に delete() を追加</h4>
+        <span class="sloc">lib/features/farms/data/farm_repository.dart（既存ファイルを編集）</span>
+        <div class="shell">
+<span class="c"># 既存の farms 系 API クライアントのファイルを確認</span>
+<span class="p">$ </span><span class="cmd">find lib/features/farms/data -name "*.dart" | sort</span>
+<span class="p">$ </span><span class="cmd">grep -n "Future.*update\|PATCH\|PUT\|farms" \
+  lib/features/farms/data/*.dart | head -10</span>
+        </div>
+<pre><span class="fn">farm_repository.dart に追記</span>  <span class="cm">/// DELETE /api/v1/farms/{farmId}
+  /// 圃場を削除する。成功すると圃場一覧を再取得する。</span>
+  <span class="kw">Future</span>&lt;<span class="kw">void</span>&gt; delete(<span class="kw">int</span> farmId) <span class="kw">async</span> {
+    <span class="kw">await</span> _dio.delete(<span class="st">'/api/v1/farms/$farmId'</span>);
+  }</pre>
+      </div>
+    </div>
+
+    <div class="step" id="s1-card">
+      <div class="snum">6</div>
+      <div class="sbody">
+        <h4>FarmCard の UI を刷新（横1行チップ・>ボタン削除・編集ボタン移動）</h4>
+        <span class="sloc">lib/features/farms/presentation/farm_screen.dart（編集）</span>
+        <p>
+          既存の <code>_FarmCard</code> または <code>FarmCard</code> ウィジェットを以下の方針で修正します。
+        </p>
+<pre><span class="fn">_FarmCard ウィジェットの修正（差分のみ）</span><span class="cm">// ── 修正方針 ──────────────────────────────────────────────────
+// 1. InkWell の onTap はそのまま（カードタップで詳細遷移）
+// 2. &gt; ボタン（ChevronRight Icon）を削除
+// 3. 編集ボタンをカード右上に移動
+// 4. チップを横1行 Expanded × 4 に変更
+// ──────────────────────────────────────────────────────────────</span>
+
+<span class="wg">InkWell</span>(
+  onTap: () =&gt; <span class="wg">Navigator</span>.push(context, <span class="wg">MaterialPageRoute</span>(
+    builder: (_) =&gt; <span class="wg">FarmDetailScreen</span>(farmId: farm.id, farmName: farm.farmName),
+  )),
+  child: <span class="wg">Padding</span>(
+    padding: <span class="kw">const</span> <span class="wg">EdgeInsets</span>.symmetric(horizontal: <span class="nm">14</span>, vertical: <span class="nm">12</span>),
+    child: <span class="wg">Column</span>(crossAxisAlignment: <span class="wg">CrossAxisAlignment</span>.start, children: [
+
+      <span class="cm">// ── 行1: サムネイル + 圃場情報 + 編集ボタン（&gt;なし）──────────</span>
+      <span class="wg">Row</span>(crossAxisAlignment: <span class="wg">CrossAxisAlignment</span>.start, children: [
+        <span class="cm">// サムネイル</span>
+        <span class="wg">ClipRRect</span>(
+          borderRadius: <span class="wg">BorderRadius</span>.circular(<span class="nm">8</span>),
+          child: <span class="wg">SizedBox</span>(
+            width: <span class="nm">80</span>, height: <span class="nm">64</span>,
+            child: <span class="cm">/* 既存のサムネイル描画をそのまま使う */</span> <span class="wg">Container</span>(color: <span class="wg">Colors</span>.grey),
+          ),
+        ),
+        <span class="kw">const</span> <span class="wg">SizedBox</span>(width: <span class="nm">10</span>),
+
+        <span class="cm">// 圃場名・作物・面積・最終測定日</span>
+        <span class="wg">Expanded</span>(
+          child: <span class="wg">Column</span>(crossAxisAlignment: <span class="wg">CrossAxisAlignment</span>.start, children: [
+            <span class="wg">Text</span>(farm.farmName,
+                style: <span class="kw">const</span> <span class="wg">TextStyle</span>(fontWeight: <span class="wg">FontWeight</span>.bold, fontSize: <span class="nm">15</span>),
+                maxLines: <span class="nm">1</span>, overflow: <span class="wg">TextOverflow</span>.ellipsis),
+            <span class="kw">if</span> (farm.cropType != <span class="kw">null</span> || farm.areaSqm != <span class="kw">null</span>)
+              <span class="wg">Text</span>(
+                [<span class="kw">if</span> (farm.cropType != <span class="kw">null</span>) farm.cropType!,
+                 <span class="kw">if</span> (farm.areaSqm   != <span class="kw">null</span>) <span class="st">'${farm.areaSqm!.toStringAsFixed(1)} m²'</span>
+                ].join(<span class="st">' / '</span>),
+                style: <span class="wg">TextStyle</span>(fontSize: <span class="nm">12</span>, color: <span class="wg">Colors</span>.grey[<span class="nm">600</span>])),
+            <span class="kw">if</span> (farm.lastMeasuredDate != <span class="kw">null</span>)
+              <span class="wg">Text</span>(
+                <span class="st">'最終測定 ${farm.lastMeasuredDate}'</span> +
+                    (farm.lastPointCount != <span class="kw">null</span> ? <span class="st">' / ${farm.lastPointCount}点'</span> : <span class="st">''</span>),
+                style: <span class="kw">const</span> <span class="wg">TextStyle</span>(
+                    fontSize: <span class="nm">12</span>, color: <span class="wg">Color</span>(<span class="nm">0xFF2E5C39</span>), fontWeight: <span class="wg">FontWeight</span>.bold)),
+          ]),
+        ),
+
+        <span class="cm">// 編集ボタン（&gt;ボタンは削除）</span>
+        <span class="wg">GestureDetector</span>(
+          <span class="cm">// タップ伝播を止めて InkWell の onTap（詳細遷移）と区別する</span>
+          onTap: () {
+            <span class="cm">// 圃場編集画面へ遷移</span>
+            <span class="wg">Navigator</span>.push(context, <span class="wg">MaterialPageRoute</span>(
+              builder: (_) =&gt; <span class="cl">FarmEditScreen</span>(farm: farm),
+            ));
+          },
+          child: <span class="wg">Container</span>(
+            width: <span class="nm">36</span>, height: <span class="nm">36</span>,
+            decoration: <span class="wg">BoxDecoration</span>(
+              color: <span class="wg">Colors</span>.grey[<span class="nm">100</span>],
+              shape: <span class="wg">BoxShape</span>.circle,
+            ),
+            child: <span class="kw">const</span> <span class="wg">Icon</span>(<span class="wg">Icons</span>.edit_outlined, size: <span class="nm">18</span>, color: <span class="wg">Colors</span>.grey),
+          ),
+        ),
+      ]),
+
+      <span class="kw">const</span> <span class="wg">SizedBox</span>(height: <span class="nm">10</span>),
+
+      <span class="cm">// ── 行2: 4種チップ横1行 ───────────────────────────────────</span>
+      <span class="wg">Row</span>(children: [
+        _ParamChip(<span class="st">'CEC'</span>,  farm.avgCec,  <span class="st">'me/100g'</span>),
+        <span class="kw">const</span> <span class="wg">SizedBox</span>(width: <span class="nm">6</span>),
+        _ParamChip(<span class="st">'CaO'</span>,  farm.avgCao,  <span class="st">'mg/100g'</span>),
+        <span class="kw">const</span> <span class="wg">SizedBox</span>(width: <span class="nm">6</span>),
+        _ParamChip(<span class="st">'K₂O'</span>, farm.avgK2o,  <span class="st">'mg/100g'</span>),
+        <span class="kw">const</span> <span class="wg">SizedBox</span>(width: <span class="nm">6</span>),
+        _ParamChip(<span class="st">'MgO'</span>,  farm.avgMgo,  <span class="st">'mg/100g'</span>),
+      ]),
+    ]),
+  ),
+)
+
+<span class="cm">// ── チップウィジェット ──────────────────────────────────────</span>
+<span class="kw">class</span> <span class="cl">_ParamChip</span> <span class="kw">extends</span> <span class="cl">StatelessWidget</span> {
+  <span class="kw">const</span> <span class="cl">_ParamChip</span>(<span class="kw">this</span>.label, <span class="kw">this</span>.value, <span class="kw">this</span>.unit);
+  <span class="kw">final</span> <span class="cl">String</span>  label;
+  <span class="kw">final</span> <span class="kw">double</span>? value;
+  <span class="kw">final</span> <span class="cl">String</span>  unit;
+
+  <span class="kw">@override</span>
+  <span class="cl">Widget</span> build(<span class="cl">BuildContext</span> _) =&gt; <span class="wg">Expanded</span>(
+    child: <span class="wg">Container</span>(
+      padding: <span class="kw">const</span> <span class="wg">EdgeInsets</span>.symmetric(vertical: <span class="nm">6</span>),
+      decoration: <span class="wg">BoxDecoration</span>(
+        color: <span class="kw">const</span> <span class="wg">Color</span>(<span class="nm">0xFFE8E4D8</span>),
+        borderRadius: <span class="wg">BorderRadius</span>.circular(<span class="nm">8</span>),
+      ),
+      child: <span class="wg">Column</span>(children: [
+        <span class="wg">Text</span>(label,
+            style: <span class="wg">TextStyle</span>(fontSize: <span class="nm">10</span>, color: <span class="wg">Colors</span>.grey[<span class="nm">600</span>])),
+        <span class="kw">const</span> <span class="wg">SizedBox</span>(height: <span class="nm">2</span>),
+        <span class="wg">Text</span>(
+          value != <span class="kw">null</span> ? value!.toStringAsFixed(<span class="nm">1</span>) : <span class="st">'--'</span>,
+          style: <span class="wg">TextStyle</span>(
+            fontSize: <span class="nm">15</span>,
+            fontWeight: <span class="wg">FontWeight</span>.bold,
+            color: value != <span class="kw">null</span> ? <span class="kw">const</span> <span class="wg">Color</span>(<span class="nm">0xFF1A2318</span>) : <span class="wg">Colors</span>.grey[<span class="nm">400</span>],
+          ),
+        ),
+      ]),
+    ),
+  );
+}</pre>
+
+        <div class="callout warn">
+          <strong>GestureDetector のタップ伝播について。</strong>
+          編集ボタンが <code>InkWell</code>（詳細遷移）の内側にある場合、
+          編集ボタンのタップが詳細遷移にも伝わる場合があります。
+          <code>GestureDetector</code> の <code>behavior: HitTestBehavior.opaque</code> を設定するか、
+          <code>onTap</code> 内で <code>event.stopPropagation()</code> 相当の処理を入れてください。
+          Flutter では <code>GestureDetector</code> を <code>InkWell</code> の外側に重ねる
+          <code>Stack</code> + <code>Positioned</code> パターンも有効です。
+        </div>
+      </div>
+    </div>
+
+    <div class="step" id="s1-edit">
+      <div class="snum">7</div>
+      <div class="sbody">
+        <h4>圃場編集画面のフッターに「この圃場を削除」ボタンを追加</h4>
+        <span class="sloc">lib/features/farms/presentation/farm_edit_screen.dart（既存ファイルを編集）</span>
+        <div class="shell">
+<span class="c"># 既存の圃場編集画面ファイルを確認</span>
+<span class="p">$ </span><span class="cmd">find lib/features/farms -name "*edit*" -o -name "*register*" -o -name "*boundary*" | sort</span>
+<span class="c"># 圃場登録と編集が同一ファイルの場合も多い。実際のファイル名に合わせること</span>
+        </div>
+<pre><span class="fn">圃場編集画面のフッターに削除ボタンを追加</span><span class="cm">// Scaffold の bottomNavigationBar または body 末尾に追加</span>
+<span class="cm">// 編集モード（farmId != null）の場合のみ表示する</span>
+
+<span class="kw">if</span> (widget.farm != <span class="kw">null</span>)   <span class="cm">// 新規作成時は表示しない</span>
+  <span class="wg">Padding</span>(
+    padding: <span class="kw">const</span> <span class="wg">EdgeInsets</span>.fromLTRB(<span class="nm">16</span>, <span class="nm">8</span>, <span class="nm">16</span>, <span class="nm">16</span>),
+    child: <span class="wg">TextButton</span>(
+      onPressed: () =&gt; _confirmDelete(context),
+      style: <span class="wg">TextButton</span>.styleFrom(
+        foregroundColor: <span class="wg">Colors</span>.red,
+      ),
+      child: <span class="kw">const</span> <span class="wg">Row</span>(mainAxisAlignment: <span class="wg">MainAxisAlignment</span>.center, children: [
+        <span class="wg">Icon</span>(<span class="wg">Icons</span>.delete_outline, size: <span class="nm">18</span>),
+        <span class="wg">SizedBox</span>(width: <span class="nm">6</span>),
+        <span class="wg">Text</span>(<span class="st">'この圃場を削除'</span>),
+      ]),
+    ),
+  ),
+
+<span class="cm">// ── 削除確認 + 実行ロジック ────────────────────────────────</span>
+<span class="kw">Future</span>&lt;<span class="kw">void</span>&gt; _confirmDelete(<span class="cl">BuildContext</span> context) <span class="kw">async</span> {
+  <span class="kw">final</span> ok = <span class="kw">await</span> showDialog&lt;<span class="kw">bool</span>&gt;(
+    context: context,
+    builder: (_) =&gt; <span class="wg">AlertDialog</span>(
+      title: <span class="kw">const</span> <span class="wg">Text</span>(<span class="st">'圃場を削除しますか？'</span>),
+      content: <span class="wg">Text</span>(
+        <span class="st">'「${widget.farm!.farmName}」とすべての測定データが削除されます。\nこの操作は取り消せません。'</span>),
+      actions: [
+        <span class="wg">TextButton</span>(
+          onPressed: () =&gt; <span class="wg">Navigator</span>.pop(context, <span class="kw">false</span>),
+          child: <span class="kw">const</span> <span class="wg">Text</span>(<span class="st">'キャンセル'</span>),
+        ),
+        <span class="wg">TextButton</span>(
+          onPressed: () =&gt; <span class="wg">Navigator</span>.pop(context, <span class="kw">true</span>),
+          style: <span class="wg">TextButton</span>.styleFrom(foregroundColor: <span class="wg">Colors</span>.red),
+          child: <span class="kw">const</span> <span class="wg">Text</span>(<span class="st">'削除する'</span>),
+        ),
+      ],
+    ),
+  ) ?? <span class="kw">false</span>;
+
+  <span class="kw">if</span> (!ok || !context.mounted) <span class="kw">return</span>;
+
+  <span class="kw">try</span> {
+    <span class="cm">// FarmRepository.delete() を呼ぶ</span>
+    <span class="kw">await</span> context.read&lt;<span class="cl">FarmRepository</span>&gt;()
+        .delete(widget.farm!.id);
+
+    <span class="cm">// 圃場一覧に戻る（編集画面と詳細画面を両方ポップする）</span>
+    <span class="kw">if</span> (context.mounted) {
+      <span class="wg">Navigator</span>.of(context)
+          .popUntil((route) =&gt; route.settings.name == <span class="st">'/'</span>
+              || route.isFirst);
+      <span class="cm">// 圃場一覧を再取得</span>
+      context.read&lt;<span class="cl">FarmListProvider</span>&gt;().fetchFarms();
+    }
+  } <span class="kw">on</span> <span class="cl">DioException</span> <span class="kw">catch</span> (e) {
+    <span class="kw">if</span> (context.mounted) {
+      <span class="wg">ScaffoldMessenger</span>.of(context).showSnackBar(
+        <span class="wg">SnackBar</span>(content: <span class="wg">Text</span>(<span class="st">'削除に失敗しました: ${e.response?.statusCode}'</span>)),
+      );
+    }
+  }
+}</pre>
+
+        <div class="callout danger">
+          <strong>確認ダイアログのメッセージに「測定データも削除される」旨を必ず明記してください。</strong>
+          圃場を削除すると uploads / analysis_results / result_values の測定履歴がすべて消えます。
+          農家が誤って削除しないように警告メッセージを強調してください。
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ====== S2: TIMESERIES FILTER ====== -->
+<section id="s2">
+  <h2><span class="n">03</span>修正② — 時系列グラフの表示範囲切替 <span class="en">timeseries range filter</span></h2>
+
+  <div class="steps">
+    <div class="step" id="s2-notifier">
+      <div class="snum">8</div>
+      <div class="sbody">
+        <h4>TimeseriesNotifier に selectedRange と filteredPoints を追加</h4>
+        <span class="sloc">lib/features/results/presentation/providers/timeseries_notifier.dart（編集）</span>
+<pre><span class="fn">timeseries_notifier.dart — selectedRange の追加</span><span class="cm">/// 時系列グラフの表示範囲を表す enum</span>
+<span class="kw">enum</span> <span class="cl">TimeseriesRange</span> {
+  all,        <span class="cm">// すべて</span>
+  oneYear,    <span class="cm">// 1年間</span>
+  oneMonth,   <span class="cm">// 1ヶ月</span>
+}
+
+<span class="kw">extension</span> <span class="cl">TimeseriesRangeLabel</span> <span class="kw">on</span> <span class="cl">TimeseriesRange</span> {
+  <span class="cl">String</span> get label =&gt; <span class="kw">switch</span> (<span class="kw">this</span>) {
+    <span class="cl">TimeseriesRange</span>.all      =&gt; <span class="st">'すべて'</span>,
+    <span class="cl">TimeseriesRange</span>.oneYear  =&gt; <span class="st">'1年間'</span>,
+    <span class="cl">TimeseriesRange</span>.oneMonth =&gt; <span class="st">'1ヶ月'</span>,
+  };
+}
+
+<span class="cm">// TimeseriesNotifier クラスに追加するフィールドとメソッド</span>
+
+  <span class="cm">// 追加: 選択中の表示範囲（デフォルトは「すべて」）</span>
+  <span class="cl">TimeseriesRange</span> selectedRange = <span class="cl">TimeseriesRange</span>.all;
+
+  <span class="cm">/// 表示範囲でフィルターした points を返す（グラフ描画に使う）</span>
+  <span class="cl">List</span>&lt;<span class="cl">TimeseriesPoint</span>&gt; get filteredPoints {
+    <span class="kw">final</span> all = data?.points ?? [];
+    <span class="kw">if</span> (selectedRange == <span class="cl">TimeseriesRange</span>.all) <span class="kw">return</span> all;
+
+    <span class="kw">final</span> now      = <span class="cl">DateTime</span>.now();
+    <span class="kw">final</span> cutoff   = selectedRange == <span class="cl">TimeseriesRange</span>.oneYear
+        ? now.subtract(<span class="kw">const</span> <span class="cl">Duration</span>(days: <span class="nm">365</span>))
+        : now.subtract(<span class="kw">const</span> <span class="cl">Duration</span>(days: <span class="nm">30</span>));
+
+    <span class="kw">return</span> all.where((p) {
+      <span class="kw">final</span> d = <span class="cl">DateTime</span>.tryParse(p.date);
+      <span class="kw">return</span> d != <span class="kw">null</span> && !d.isBefore(cutoff);
+    }).toList();
+  }
+
+  <span class="cm">/// 表示範囲を変更する（API 再取得は不要）</span>
+  <span class="kw">void</span> setRange(<span class="cl">TimeseriesRange</span> range) {
+    <span class="kw">if</span> (selectedRange == range) <span class="kw">return</span>;
+    selectedRange = range;
+    notifyListeners();
+  }</pre>
+      </div>
+    </div>
+
+    <div class="step" id="s2-ui">
+      <div class="snum">9</div>
+      <div class="sbody">
+        <h4>FarmTimeseriesTab に SegmentedButton を追加</h4>
+        <span class="sloc">lib/features/farms/presentation/tabs/farm_timeseries_tab.dart（編集）</span>
+<pre><span class="fn">FarmTimeseriesTab — パラメータチップ行の下に SegmentedButton を追加</span><span class="cm">// パラメータ切替チップ（既存）の直下に追加</span>
+
+<span class="cm">// ── 表示範囲切替（SegmentedButton）────────────────────────────</span>
+<span class="wg">Padding</span>(
+  padding: <span class="kw">const</span> <span class="wg">EdgeInsets</span>.symmetric(horizontal: <span class="nm">12</span>),
+  child: <span class="wg">SegmentedButton</span>&lt;<span class="cl">TimeseriesRange</span>&gt;(
+    segments: <span class="cl">TimeseriesRange</span>.values.map((r) =&gt;
+      <span class="wg">ButtonSegment</span>(value: r, label: <span class="wg">Text</span>(r.label)),
+    ).toList(),
+    selected: {n.selectedRange},
+    onSelectionChanged: (s) =&gt; n.setRange(s.first),
+    style: <span class="wg">ButtonStyle</span>(
+      textStyle: <span class="cl">WidgetStateProperty</span>.all(
+          <span class="kw">const</span> <span class="wg">TextStyle</span>(fontSize: <span class="nm">12</span>)),
+    ),
+  ),
+),
+<span class="kw">const</span> <span class="wg">SizedBox</span>(height: <span class="nm">4</span>),</pre>
+
+        <div class="callout info">
+          <strong><code>SegmentedButton</code> は Flutter 3.3 以上で使えます。</strong>
+          それ以前のバージョンの場合は <code>ToggleButtons</code> または自作のチップ行で代替してください。
+          <code>flutter --version</code> で確認できます。
+        </div>
+      </div>
+    </div>
+
+    <div class="step" id="s2-filter">
+      <div class="snum">10</div>
+      <div class="sbody">
+        <h4>グラフ描画を filteredPoints に切り替え</h4>
+        <span class="sloc">同ファイル（farm_timeseries_tab.dart）の _TimeseriesChart 呼び出し箇所</span>
+<pre><span class="fn">_TimeseriesView の build メソッド内を修正</span><span class="cm">// 変更前: data.points をそのまま渡していた</span>
+<span class="cl">_TimeseriesChart</span>(data: d)
+
+<span class="cm">// 変更後: filteredPoints を渡す</span>
+<span class="kw">final</span> pts = n.filteredPoints;  <span class="cm">// ← フィルター後のリスト</span>
+
+<span class="cm">// データが0件の場合の表示切り替え</span>
+<span class="kw">if</span> (pts.isEmpty)
+  <span class="kw">return</span> <span class="wg">Center</span>(
+    child: <span class="wg">Column</span>(mainAxisSize: <span class="wg">MainAxisSize</span>.min, children: [
+      <span class="wg">Text</span>(<span class="st">'${n.selectedRange.label}のデータがありません'</span>,
+          style: <span class="wg">TextStyle</span>(color: <span class="wg">Colors</span>.grey[<span class="nm">600</span>])),
+      <span class="kw">const</span> <span class="wg">SizedBox</span>(height: <span class="nm">8</span>),
+      <span class="wg">TextButton</span>(
+        onPressed: () =&gt; n.setRange(<span class="cl">TimeseriesRange</span>.all),
+        child: <span class="kw">const</span> <span class="wg">Text</span>(<span class="st">'すべて表示に戻す'</span>),
+      ),
+    ]),
+  );
+
+<span class="cm">// 最新値表示も filteredPoints.last を使うよう変更</span>
+<span class="kw">final</span> latestAvg = pts.isNotEmpty ? pts.last.avg : <span class="nm">0.0</span>;
+
+<span class="cm">// グラフには pts を渡す（data.points ではなく）</span>
+<span class="cl">_TimeseriesChart</span>(points: pts, workLogs: d.workLogs)</pre>
+
+        <h4>作業ログ縦線のフィルター対応</h4>
+<pre><span class="fn">work_logs も表示範囲に合わせてフィルターする（_TimeseriesChart 内）</span><span class="cm">// _TimeseriesChart または _TimeseriesView 内で work_logs もフィルター</span>
+<span class="kw">final</span> filteredWorkLogs = d.workLogs.where((wl) {
+  <span class="kw">if</span> (n.selectedRange == <span class="cl">TimeseriesRange</span>.all) <span class="kw">return true</span>;
+  <span class="kw">final</span> d = <span class="cl">DateTime</span>.tryParse(wl.date);
+  <span class="kw">if</span> (d == <span class="kw">null</span>) <span class="kw">return false</span>;
+  <span class="kw">final</span> cutoff = n.selectedRange == <span class="cl">TimeseriesRange</span>.oneYear
+      ? <span class="cl">DateTime</span>.now().subtract(<span class="kw">const</span> <span class="cl">Duration</span>(days: <span class="nm">365</span>))
+      : <span class="cl">DateTime</span>.now().subtract(<span class="kw">const</span> <span class="cl">Duration</span>(days: <span class="nm">30</span>));
+  <span class="kw">return</span> !d.isBefore(cutoff);
+}).toList();</pre>
+
+        <div class="callout">
+          <strong>「1ヶ月」で測定点が1点のみになる場合について。</strong>
+          <code>graphic</code> ライブラリは1点のみのデータでも折れ線は引けませんが、
+          点自体は表示されます。1点のとき最新値だけを大きく表示し、
+          「グラフを引くには2点以上の測定が必要です」というメッセージを出すとよいでしょう。
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ====== STEP CHECK ====== -->
+<section id="check">
+  <h2><span class="n">04</span>動作確認チェックリスト <span class="en">check list</span></h2>
+
+  <div class="steps">
+    <div class="step">
+      <div class="snum">11</div>
+      <div class="sbody">
+        <h4>flutter analyze でエラー件数を確認</h4>
+        <span class="sloc">ターミナル / ローカル</span>
+        <div class="shell">
+<span class="p">$ </span><span class="cmd">flutter analyze 2>&1 | tail -5</span>
+<span class="c"># 今回追加分に error / warning がないこと（info は 117件以下）</span>
+<span class="p">$ </span><span class="cmd">dart format lib/features/farms/presentation/farm_screen.dart \
+  lib/features/farms/presentation/farm_edit_screen.dart \
+  lib/features/farms/presentation/tabs/farm_timeseries_tab.dart \
+  lib/features/results/presentation/providers/timeseries_notifier.dart</span>
+        </div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="snum">12</div>
+      <div class="sbody">
+        <h4>エミュレーター + 実機で動作確認</h4>
+        <table>
+          <thead><tr><th>確認項目</th><th>期待動作</th></tr></thead>
+          <tbody>
+            <tr><td colspan="2" style="background:var(--leafp);color:var(--leaf);font-weight:700;">修正① 圃場カード UI</td></tr>
+            <tr><td>圃場一覧の各カード</td><td>4種チップが横1行に均等表示される。縦折り返しがない</td></tr>
+            <tr><td>チップの数値</td><td>小数1桁（例: 33.0）で1行に収まる</td></tr>
+            <tr><td>未取得パラメータのチップ</td><td>「--」がグレーで表示される</td></tr>
+            <tr><td><code>&gt;</code> ボタン</td><td>表示されない</td></tr>
+            <tr><td>カードタップ</td><td>詳細画面に遷移する（従来通り）</td></tr>
+            <tr><td>編集ボタン（ペン）タップ</td><td>圃場編集画面に遷移する（詳細画面には遷移しない）</td></tr>
+            <tr><td>圃場編集画面フッター</td><td>「この圃場を削除」ボタンが表示される（新規作成時は表示なし）</td></tr>
+            <tr><td>削除ボタン → ダイアログ「削除する」</td><td>圃場が削除され、一覧に戻り、削除した圃場が表示されない</td></tr>
+            <tr><td>削除ボタン → ダイアログ「キャンセル」</td><td>画面が閉じず、圃場は削除されない</td></tr>
+            <tr><td colspan="2" style="background:var(--bluep);color:var(--blue);font-weight:700;">修正② 時系列グラフ表示範囲</td></tr>
+            <tr><td>時系列タブの上部</td><td>「すべて / 1年間 / 1ヶ月」の SegmentedButton が表示される</td></tr>
+            <tr><td>「すべて」選択</td><td>全測定点がグラフに表示される</td></tr>
+            <tr><td>「1年間」選択</td><td>1年前以降の点のみ表示。それ以前の点は消える</td></tr>
+            <tr><td>「1ヶ月」選択</td><td>30日前以降の点のみ表示</td></tr>
+            <tr><td>「1ヶ月」でデータ0件の場合</td><td>「1ヶ月のデータがありません」とメッセージが出る</td></tr>
+            <tr><td>「すべて表示に戻す」ボタン</td><td>「すべて」に切り替わる</td></tr>
+            <tr><td>作業ログ縦線</td><td>選択した範囲に含まれる作業ログの縦線のみ表示される</td></tr>
+            <tr><td>パラメータ切替（CEC/CaO等）</td><td>SegmentedButton の範囲選択と独立して動作する</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ====== DEPLOY ====== -->
+<section id="deploy">
+  <h2><span class="n">05</span>commit → PR → CI/CD <span class="en">deploy</span></h2>
+
+  <div class="steps">
+    <div class="step">
+      <div class="snum">13</div>
+      <div class="sbody">
+        <h4>コミット・push・PR 作成</h4>
+        <span class="sloc">ターミナル</span>
+        <div class="shell">
+<span class="c"># ブランチを作成して作業</span>
+<span class="p">$ </span><span class="cmd">git checkout -b feature/farm-card-ui-timeseries-filter</span>
+
+<span class="c"># 全変更をコミット（Laravel と Flutter を 1 つのブランチにまとめる）</span>
+<span class="p">$ </span><span class="cmd">git add -A</span>
+<span class="p">$ </span><span class="cmd">git diff --cached --stat</span>
+<span class="c"># Laravel: FarmController.php / api.php / FarmDeleteApiTest.php</span>
+<span class="c"># Flutter: farm_screen.dart / farm_edit_screen.dart</span>
+<span class="c">#          farm_repository.dart / farm_timeseries_tab.dart / timeseries_notifier.dart</span>
+
+<span class="p">$ </span><span class="cmd">git commit -m "feat: redesign farm card UI, add farm delete, timeseries range filter"</span>
+<span class="p">$ </span><span class="cmd">git push origin feature/farm-card-ui-timeseries-filter</span>
+        </div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="snum">14</div>
+      <div class="sbody">
+        <h4>PR 作成・マージ・EC2 デプロイ確認</h4>
+        <ol>
+          <li>PR タイトル: <code>feat: redesign farm card UI, add farm delete, timeseries range filter</code></li>
+          <li>PR 本文: 変更ファイル一覧 + analyze 件数 + テスト結果 (<code>php artisan test</code> の passed 件数）</li>
+          <li>Squash and merge → feature ブランチを削除</li>
+          <li>EC2 で自動デプロイ後、スモークテストを実行</li>
+        </ol>
+        <div class="shell">
+<span class="c"># EC2 デプロイ後: 新しい DELETE ルートが追加されていることを確認</span>
+<span class="p">$ </span><span class="cmd">curl -s -X DELETE \
+  "https://YOUR_API_HOST/api/v1/farms/99999" \
+  -H "Authorization: Bearer $TOKEN" | jq .message</span>
+<span class="c"># "No query results for model" などの 404 エラーが返ればルート追加 OK</span>
+<span class="c"># 401 の場合は認証ミドルウェアが機能している</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ====== DoD ====== -->
+<section id="dod">
+  <h2><span class="n">✓</span>完了条件チェックリスト <span class="en">definition of done</span></h2>
+
+  <p style="font-size:13px;color:var(--ink3);margin-bottom:16px;">
+    <span class="tag l">L</span> ローカル確認 &nbsp;
+    <span class="tag ci">CI</span> PR &amp; CI/CD 確認 &nbsp;
+    <span class="tag e">E</span> 実機デプロイ後確認
+  </p>
+
+  <ul class="dod-list">
+    <li>
+      <span class="tag be">BE</span> <code>DELETE /api/v1/farms/{farm}</code> が追加され、<code>php artisan test --filter=FarmDeleteApiTest</code> が 4 passed になる
+      <span class="dc">確認: php artisan test --filter=FarmDeleteApiTest（ローカル）</span>
+    </li>
+    <li>
+      <span class="tag l">L</span> 圃場一覧カードの CEC/CaO/K₂O/MgO チップが横1行に均等表示され、縦折り返しがない
+    </li>
+    <li>
+      <span class="tag l">L</span> カードから <code>&gt;</code> ボタンが削除されている
+    </li>
+    <li>
+      <span class="tag l">L</span> 編集ボタンをタップすると圃場編集画面に遷移し、カードをタップすると詳細画面に遷移する（混同しない）
+    </li>
+    <li>
+      <span class="tag l">L</span> 圃場編集画面のフッターに「この圃場を削除」ボタンがある（新規作成時は非表示）
+    </li>
+    <li>
+      <span class="tag l">L</span> 削除ダイアログで「削除する」を押すと圃場が削除され、一覧に戻る
+    </li>
+    <li>
+      <span class="tag l">L</span> 時系列タブに「すべて / 1年間 / 1ヶ月」の SegmentedButton が表示される
+    </li>
+    <li>
+      <span class="tag l">L</span> 各ボタン押下でグラフの点数が変化する（フィルターが機能している）
+    </li>
+    <li>
+      <span class="tag l">L</span> 選択範囲に測定点がない場合、空状態メッセージと「すべて表示に戻す」ボタンが出る
+    </li>
+    <li>
+      <span class="tag l">L</span> <code>flutter analyze</code> の info 件数が 117 件以下で error・warning なし
+    </li>
+    <li>
+      <span class="tag ci">CI</span> feature ブランチが main にマージされている
+    </li>
+    <li>
+      <span class="tag e">E</span> 実機で圃場カードが正しく表示され、削除が動作する
+    </li>
+    <li>
+      <span class="tag e">E</span> 実機で時系列グラフの表示範囲切替が動作する
+    </li>
+  </ul>
+</section>
+
+</main>
+</div>
+</body>
+</html>

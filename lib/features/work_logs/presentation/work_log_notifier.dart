@@ -57,6 +57,7 @@ class WorkLogNotifier extends ChangeNotifier {
   void selectWorkType(WorkType value) {
     workType = value;
     step = 1;
+    _clearSaveResult();
     notifyListeners();
   }
 
@@ -73,6 +74,7 @@ class WorkLogNotifier extends ChangeNotifier {
     amountText = nextAmountText;
     amountUnit = nextAmountUnit;
     step = 2;
+    _clearSaveResult();
     notifyListeners();
   }
 
@@ -84,12 +86,13 @@ class WorkLogNotifier extends ChangeNotifier {
 
   Future<void> pickDate(DateTime date) async {
     workDate = _formatDate(date);
+    _clearSaveResult();
     notifyListeners();
   }
 
   Future<void> save() async {
     final selectedType = workType;
-    if (selectedType == null || isSaving) return;
+    if (selectedType == null || isSaving || isSaveComplete) return;
 
     isSaving = true;
     saveError = null;
@@ -127,5 +130,10 @@ class WorkLogNotifier extends ChangeNotifier {
     return '${date.year.toString().padLeft(4, '0')}-'
         '${date.month.toString().padLeft(2, '0')}-'
         '${date.day.toString().padLeft(2, '0')}';
+  }
+
+  void _clearSaveResult() {
+    saveQueued = null;
+    saveError = null;
   }
 }

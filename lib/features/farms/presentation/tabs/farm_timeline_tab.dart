@@ -92,11 +92,10 @@ class _TimelineView extends StatelessWidget {
   Future<void> _addWorkLog(BuildContext context, TimelineNotifier state) async {
     final saved = await WorkLogEditScreen.show(context, farmId: state.farmId);
     if (!saved || !context.mounted) return;
-    await state.reload();
-    if (!context.mounted) return;
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(const SnackBar(content: Text('作業記録を保存しました')));
+    await state.reload();
   }
 
   Future<void> _editWorkLog(

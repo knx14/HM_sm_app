@@ -1,0 +1,1525 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>HenryMonitor Phase 6 実装手順書 — 作業記録入力</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&family=Noto+Serif+JP:wght@700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#f8f7f1;--paper:#fff;--ink:#1a2318;--ink2:#3d4f3a;--ink3:#6b7e68;
+  --line:#dbd6c4;--lines:#eae6d6;
+  --leaf:#2e5c39;--leafl:#4a8459;--leafp:#e2ede4;
+  --soil:#7a4525;--soilp:#f2e8e0;
+  --amber:#b85c00;--amberp:#fef0d8;
+  --red:#b02020;--redp:#fce4e4;
+  --blue:#1a4f7a;--bluep:#ddeaf5;
+  --teal:#1a6a6a;--tealp:#d8efef;
+  --purple:#5a2d82;--purplep:#ede5f5;
+  --code-bg:#181f16;--code-fg:#d4e8cc;
+  --ccm:#5a8f58;--ckw:#7dd3a8;--cst:#f7c07a;--cnm:#7ec8e3;--ccl:#e8d07a;--cwg:#f0b060;
+  --sl:#b0c8b0;
+}
+*{box-sizing:border-box;}html{scroll-behavior:smooth;}
+body{margin:0;padding:0;background:var(--bg);color:var(--ink);font-family:"Noto Sans JP",sans-serif;font-size:14.5px;line-height:1.8;-webkit-font-smoothing:antialiased;}
+.layout{display:flex;min-height:100vh;}
+
+.toc{width:256px;flex-shrink:0;background:#0f1a0e;color:#c8d8c4;padding:28px 0 60px;position:sticky;top:0;height:100vh;overflow-y:auto;}
+.toc-logo{padding:0 20px 18px;border-bottom:1px solid rgba(255,255,255,.08);margin-bottom:14px;}
+.toc-logo .proj{font-size:11px;letter-spacing:.18em;color:#5a9a56;text-transform:uppercase;}
+.toc-logo .phase{font-family:"Noto Serif JP",serif;font-size:18px;color:#e8f0e4;font-weight:700;margin-top:4px;}
+.toc-logo .sub{font-size:11px;color:#5a9a56;margin-top:2px;line-height:1.5;}
+.toc ul{list-style:none;margin:0;padding:0;}
+.toc li a{display:block;padding:6px 20px;font-size:12px;color:#8ab88a;text-decoration:none;border-left:3px solid transparent;transition:all .15s;}
+.toc li a:hover{background:rgba(255,255,255,.06);color:#e8f0e4;border-left-color:var(--leafl);}
+.toc li a.sec{font-weight:700;color:#c4dcc0;font-size:12px;margin-top:8px;}
+.toc li a.sub{padding-left:32px;font-size:11.5px;color:#6a9a66;}
+.toc hr{border:none;border-top:1px solid rgba(255,255,255,.06);margin:8px 20px;}
+
+.main{flex:1;padding:48px 56px 100px;max-width:920px;}
+
+.cover{background:var(--paper);border:1px solid var(--line);padding:40px 44px;position:relative;overflow:hidden;margin-bottom:52px;}
+.cover::after{content:"";position:absolute;top:0;left:0;right:0;height:5px;background:linear-gradient(90deg,var(--leaf) 0%,var(--amber) 60%,var(--soil) 100%);}
+.badge{font-family:"JetBrains Mono",monospace;font-size:11px;letter-spacing:.2em;background:var(--amberp);color:var(--amber);padding:3px 10px;border-radius:2px;display:inline-block;margin-bottom:14px;text-transform:uppercase;}
+.cover h1{font-family:"Noto Serif JP",serif;font-size:28px;font-weight:700;margin:0 0 8px;line-height:1.35;}
+.cover .desc{color:var(--ink2);font-size:14px;margin:0 0 24px;}
+.cmeta{display:flex;gap:24px;flex-wrap:wrap;border-top:1px solid var(--lines);padding-top:18px;}
+.cmeta dl{margin:0;}.cmeta dt{font-family:"JetBrains Mono",monospace;font-size:10px;letter-spacing:.15em;text-transform:uppercase;color:var(--ink3);margin:0 0 3px;}.cmeta dd{margin:0;font-size:13px;font-weight:500;}
+
+section{margin-bottom:60px;}
+h2{font-family:"Noto Serif JP",serif;font-size:21px;font-weight:700;margin:0 0 20px;padding:13px 18px;background:var(--ink);color:#e8f0e4;display:flex;align-items:center;gap:14px;}
+h2 .n{font-family:"JetBrains Mono",monospace;font-size:12px;color:var(--leafl);letter-spacing:.1em;}
+h2 .en{font-family:"JetBrains Mono",monospace;font-size:10px;color:#6a9a66;letter-spacing:.2em;text-transform:uppercase;margin-left:auto;}
+h3{font-size:16px;font-weight:700;margin:32px 0 10px;padding-bottom:7px;border-bottom:2px solid var(--leafp);color:var(--leaf);}
+h4{font-size:14px;font-weight:700;margin:20px 0 8px;color:var(--ink2);}
+p{margin:0 0 12px;}ul,ol{margin:0 0 12px;padding-left:20px;}li{margin-bottom:5px;}strong{color:var(--ink);}
+
+.steps{position:relative;}
+.step{display:grid;grid-template-columns:52px 1fr;gap:0 18px;margin-bottom:8px;position:relative;}
+.step::before{content:"";position:absolute;left:25px;top:52px;bottom:-8px;width:2px;background:var(--sl);}
+.step:last-child::before{display:none;}
+.snum{width:52px;height:52px;border-radius:50%;background:var(--leaf);color:#fff;display:flex;align-items:center;justify-content:center;font-family:"JetBrains Mono",monospace;font-size:14px;font-weight:700;flex-shrink:0;position:relative;z-index:1;align-self:start;margin-top:12px;}
+.snum.chk{background:var(--blue);}.snum.wrn{background:var(--amber);}
+.sbody{background:var(--paper);border:1px solid var(--line);padding:18px 22px 16px;}
+.sbody h4{margin-top:0;font-size:15px;color:var(--ink);}
+.sbody p:last-child,.sbody ul:last-child{margin-bottom:0;}
+.sloc{font-family:"JetBrains Mono",monospace;font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink3);background:var(--bg);border:1px solid var(--lines);padding:2px 8px;border-radius:2px;display:inline-block;margin-bottom:8px;}
+
+pre{background:var(--code-bg);color:var(--code-fg);padding:16px 18px;border-radius:3px;overflow-x:auto;font-family:"JetBrains Mono",monospace;font-size:12.5px;line-height:1.7;margin:10px 0 12px;}
+pre .fn{display:block;font-size:10px;letter-spacing:.1em;color:#486a46;margin-bottom:10px;border-bottom:1px solid rgba(255,255,255,.06);padding-bottom:8px;}
+pre .cm{color:var(--ccm);}pre .kw{color:var(--ckw);}pre .st{color:var(--cst);}
+pre .nm{color:var(--cnm);}pre .cl{color:var(--ccl);}pre .wg{color:var(--cwg);}
+code{font-family:"JetBrains Mono",monospace;font-size:12.5px;background:#edeadc;color:var(--soil);padding:1px 5px;border-radius:2px;}
+.shell{background:#090f08;color:#a8d8a0;padding:14px 18px;border-radius:3px;font-family:"JetBrains Mono",monospace;font-size:12.5px;line-height:1.7;margin:10px 0 12px;border-left:3px solid var(--leafl);overflow-x:auto;}
+.shell .p{color:#4a8a48;user-select:none;}.shell .c{color:#326030;}.shell .cmd{color:#c0e0b8;}
+
+.callout{padding:12px 16px;margin:12px 0;font-size:13.5px;border-left:4px solid var(--leaf);background:var(--leafp);}
+.callout.warn{border-color:var(--amber);background:var(--amberp);}
+.callout.danger{border-color:var(--red);background:var(--redp);}
+.callout.info{border-color:var(--blue);background:var(--bluep);}
+.callout.note{border-color:var(--soil);background:var(--soilp);}
+.callout.teal{border-color:var(--teal);background:var(--tealp);}
+.callout.purple{border-color:var(--purple);background:var(--purplep);}
+.callout strong{display:block;margin-bottom:3px;}
+
+table{border-collapse:collapse;width:100%;margin:10px 0 14px;font-size:13px;}
+th,td{padding:8px 12px;border-bottom:1px solid var(--lines);text-align:left;vertical-align:top;}
+th{background:var(--leafp);font-weight:700;font-size:11.5px;letter-spacing:.04em;border-bottom:2px solid var(--leaf);color:var(--leaf);}
+tr:hover td{background:#f5f2e8;}
+
+.tag{display:inline-block;font-family:"JetBrains Mono",monospace;font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:2px 7px;border-radius:2px;vertical-align:middle;margin:0 2px;}
+.tag.new{background:var(--leafp);color:var(--leaf);}
+.tag.mod{background:var(--bluep);color:var(--blue);}
+.tag.l{background:var(--leafp);color:var(--leaf);}
+.tag.ci{background:var(--bluep);color:var(--blue);}
+.tag.e{background:var(--soilp);color:var(--soil);}
+
+.filetree{background:var(--paper);border:1px solid var(--line);padding:16px 20px;font-family:"JetBrains Mono",monospace;font-size:12.5px;line-height:1.9;margin:10px 0 14px;}
+.filetree .d{color:var(--leaf);font-weight:700;}
+.filetree .nf{color:var(--amber);}
+.filetree .nf::after{content:" ← NEW";font-size:10px;opacity:.7;}
+.filetree .mf{color:var(--blue);}
+.filetree .mf::after{content:" ← EDIT";font-size:10px;opacity:.7;}
+.filetree .rf{color:var(--ink3);}
+
+/* flow diagram */
+.flow{display:flex;align-items:stretch;gap:0;margin:16px 0;flex-wrap:wrap;}
+.flow-step{background:var(--paper);border:1px solid var(--line);padding:12px 16px;min-width:140px;flex:1;position:relative;}
+.flow-step .fs-num{font-family:"JetBrains Mono",monospace;font-size:10px;color:var(--amber);letter-spacing:.1em;margin-bottom:4px;}
+.flow-step .fs-title{font-weight:700;font-size:13px;}
+.flow-step .fs-sub{font-size:11.5px;color:var(--ink3);margin-top:3px;}
+.flow-arrow{display:flex;align-items:center;padding:0 4px;color:var(--leaf);font-size:18px;}
+
+.dod-list{list-style:none;padding-left:0;}
+.dod-list li{padding:10px 14px 10px 40px;position:relative;border-bottom:1px solid var(--lines);font-size:13.5px;}
+.dod-list li::before{content:"☐";position:absolute;left:12px;color:var(--leaf);font-size:16px;line-height:1;top:12px;}
+.dod-list li:last-child{border-bottom:none;}
+.dod-list li .dc{display:block;margin-top:3px;font-size:12px;color:var(--ink3);}
+
+@media(max-width:900px){.layout{display:block;}.toc{width:100%;height:auto;position:static;}.main{padding:28px 20px 64px;}.flow{flex-direction:column;}.flow-arrow{transform:rotate(90deg);}}
+</style>
+</head>
+<body>
+<div class="layout">
+
+<!-- ======== TOC ======== -->
+<nav class="toc">
+  <div class="toc-logo">
+    <div class="proj">HenryMonitor</div>
+    <div class="phase">Phase 6</div>
+    <div class="sub">作業記録入力<br>WorkLogEditScreen + オフラインキュー</div>
+  </div>
+  <ul>
+    <li><a class="sec" href="#overview">0. Phase 6 の全体像</a></li>
+    <li><a class="sub" href="#arch">アーキテクチャ確認</a></li>
+    <li><a class="sub" href="#flow">UI フロー設計</a></li>
+    <li><a class="sub" href="#prereq">前提確認</a></li>
+    <li><a class="sub" href="#files">作成・編集ファイル一覧</a></li>
+    <hr>
+    <li><a class="sec" href="#step1">1. WorkLog ドメインモデル</a></li>
+    <li><a class="sec" href="#step2">2. WorkLogRepository 実装</a></li>
+    <li><a class="sub" href="#step2-online">オンライン CRUD</a></li>
+    <li><a class="sub" href="#step2-queue">オフライン JSON キュー</a></li>
+    <hr>
+    <li><a class="sec" href="#step3">3. WorkLogNotifier 実装</a></li>
+    <li><a class="sec" href="#step4">4. WorkLogEditScreen 実装</a></li>
+    <li><a class="sub" href="#step4-step1">Step1: 作業種別選択</a></li>
+    <li><a class="sub" href="#step4-step2">Step2: 詳細入力</a></li>
+    <li><a class="sub" href="#step4-step3">Step3: 確認 &amp; 保存</a></li>
+    <hr>
+    <li><a class="sec" href="#step5">5. タイムラインタブへの接続</a></li>
+    <li><a class="sub" href="#step5-button">「+作業記録」ボタン追加</a></li>
+    <li><a class="sub" href="#step5-refresh">保存後タイムライン再取得</a></li>
+    <hr>
+    <li><a class="sec" href="#step6">6. 同期画面へのオフラインキュー統合</a></li>
+    <li><a class="sec" href="#step7">7. 動作確認（ローカル）</a></li>
+    <li><a class="sec" href="#step8">8. commit → PR → CI/CD</a></li>
+    <li><a class="sec" href="#step9">9. 実機確認</a></li>
+    <li><a class="sec" href="#dod">✓ 完了条件</a></li>
+  </ul>
+</nav>
+
+<!-- ======== Main ======== -->
+<main class="main">
+
+<div class="cover">
+  <span class="badge">Phase 6 / work log input</span>
+  <h1>作業記録入力 — 実装手順書</h1>
+  <p class="desc">
+    タイムラインタブの「+作業記録」ボタンから開く
+    <strong><code>WorkLogEditScreen</code>（3ステップ入力フロー）</strong>を実装し、
+    Phase 1 で構築したバックエンド API（<code>POST /api/v1/farms/{id}/work-logs</code>）に接続します。
+    オフライン時は JSON キューに保存し、ネットワーク復帰時に自動同期する仕組みも実装します。
+    バックエンドの変更はありません。
+  </p>
+  <div class="cmeta">
+    <dl><dt>STEP 1〜7</dt><dd>ローカル Flutter 環境で実施</dd></dl>
+    <dl><dt>STEP 8</dt><dd>commit → PR → main マージ → CI/CD</dd></dl>
+    <dl><dt>STEP 9</dt><dd>実機（Android）での動作確認</dd></dl>
+    <dl><dt>ブランチ</dt><dd><code>feature/phase6-work-log-input</code></dd></dl>
+  </div>
+</div>
+
+<!-- ====== 0. OVERVIEW ====== -->
+<section id="overview">
+  <h2><span class="n">00</span>Phase 6 の全体像 <span class="en">overview</span></h2>
+
+  <h3 id="arch">累積した実態情報の整理（Cursor に渡す前に確認）</h3>
+
+  <div class="callout purple">
+    <strong>Phase 1〜5 の実装コメントで確定した実態。以降の手順はすべてこれを前提にしています。</strong>
+    <table style="margin-top:8px;">
+      <thead><tr><th>項目</th><th>実際のパス / クラス名</th></tr></thead>
+      <tbody>
+        <tr><td>ルーター</td><td><code>lib/app/routes.dart</code>（<code>AppRoutes</code> クラス）</td></tr>
+        <tr><td>結果系モデル</td><td><code>lib/features/results/domain/</code></td></tr>
+        <tr><td>結果系 Notifier</td><td><code>lib/features/results/presentation/providers/</code></td></tr>
+        <tr><td>結果系 Repository</td><td><code>lib/features/results/data/</code>（<code>ResultsRepository</code>）</td></tr>
+        <tr><td>圃場 feature</td><td><code>lib/features/farms/</code></td></tr>
+        <tr><td>タブ</td><td><code>lib/features/farms/presentation/tabs/</code></td></tr>
+        <tr><td>状態管理</td><td><code>ChangeNotifier</code> + <code>provider</code> パッケージ</td></tr>
+        <tr><td>HTTP クライアント</td><td><code>dio</code>（既存 <code>ResultsRepository</code> 内の <code>_dio</code>）</td></tr>
+        <tr><td>グラフライブラリ</td><td><code>graphic</code>（fl_chart は不使用）</td></tr>
+        <tr><td>オフライン保存</td><td>JSON ファイル方式（<code>pending_uploads.json</code> と同様）</td></tr>
+        <tr><td>未同期件数</td><td><code>PendingUploadStore</code>（Phase 3 確認済み）</td></tr>
+        <tr><td>lint baseline</td><td>info 117件（これ以上増やさない）</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="callout teal">
+    <strong>Cursor セッション開始前に以下を実行して実際のファイルパスを確認してください。</strong>
+    <div class="shell" style="margin-top:8px;">
+<span class="c"># work_log 関連で既存コードがないか確認</span>
+<span class="p">$ </span><span class="cmd">grep -rn "work_log\|WorkLog\|workLog" lib/ --include="*.dart" | head -20</span>
+
+<span class="c"># farms feature の全ファイル一覧</span>
+<span class="p">$ </span><span class="cmd">find lib/features/farms -name "*.dart" | sort</span>
+
+<span class="c"># pending_uploads.json のファイルパス取得処理を確認（オフラインキュー実装の参考）</span>
+<span class="p">$ </span><span class="cmd">grep -rn "pending_uploads\|PendingUploadStore\|getApplicationDocumentsDirectory" \
+  lib/ --include="*.dart" | head -10</span>
+
+<span class="c"># dio インスタンスの変数名を確認</span>
+<span class="p">$ </span><span class="cmd">grep -n "_dio\|dio\." lib/features/results/data/results_repository.dart | head -10</span>
+    </div>
+    確認結果を Cursor セッション冒頭に貼り付けてから実装させてください。
+  </div>
+
+  <h3 id="flow">UI フロー設計</h3>
+
+  <div class="flow">
+    <div class="flow-step">
+      <div class="fs-num">STEP 1</div>
+      <div class="fs-title">作業種別選択</div>
+      <div class="fs-sub">施肥 / 耕うん / 農薬 / 収穫 / その他<br>大ボタングリッド</div>
+    </div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step">
+      <div class="fs-num">STEP 2</div>
+      <div class="fs-title">詳細入力</div>
+      <div class="fs-sub">日付 / タイトル / 量・単位<br>プリセット候補付き</div>
+    </div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step">
+      <div class="fs-num">STEP 3</div>
+      <div class="fs-title">確認 &amp; 保存</div>
+      <div class="fs-sub">内容確認 → POST<br>オフライン時はキュー保存</div>
+    </div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step">
+      <div class="fs-num">完了</div>
+      <div class="fs-title">タイムライン更新</div>
+      <div class="fs-sub">保存成功後に<br>タイムライン再取得</div>
+    </div>
+  </div>
+
+  <p>
+    <code>WorkLogEditScreen</code> は <code>showModalBottomSheet</code> で開きます（全画面遷移ではなく底から引き出す形）。
+    農家が3タップ以内で登録を完了できることを目標とします。
+  </p>
+
+  <h3>利用するバックエンド API（Phase 1 実装済み）</h3>
+  <table>
+    <thead><tr><th>Method</th><th>Path</th><th>用途</th></tr></thead>
+    <tbody>
+      <tr><td><code>POST</code></td><td><code>/api/v1/farms/{farmId}/work-logs</code></td><td>作業ログ作成（オンライン時）</td></tr>
+      <tr><td><code>PATCH</code></td><td><code>/api/v1/work-logs/{workLogId}</code></td><td>作業ログ更新（将来用・Phase 6 では未実装）</td></tr>
+      <tr><td><code>DELETE</code></td><td><code>/api/v1/work-logs/{workLogId}</code></td><td>作業ログ削除（将来用・Phase 6 では未実装）</td></tr>
+    </tbody>
+  </table>
+
+  <div class="callout note">
+    <strong>Phase 6 のスコープを明確にします。</strong>
+    PATCH / DELETE は API として存在しますが、Phase 6 では実装しません。
+    Phase 6 が完了したら「作業ログを新規登録してタイムラインに反映できる」状態になります。
+    編集・削除は Phase 8（設定・ヘルプ充実）以降で対応します。
+  </div>
+
+  <h3 id="prereq">前提確認</h3>
+  <div class="steps">
+    <div class="step">
+      <div class="snum chk">✓</div>
+      <div class="sbody">
+        <h4>Phase 5 完了・main マージ済みを確認してブランチ作成</h4>
+        <span class="sloc">ターミナル / ローカル</span>
+        <div class="shell">
+<span class="p">$ </span><span class="cmd">git checkout main && git pull origin main</span>
+<span class="p">$ </span><span class="cmd">git log --oneline -3</span>
+<span class="c"># Phase 5 のコミット（timeseries / timeline tabs）が含まれること</span>
+<span class="p">$ </span><span class="cmd">git checkout -b feature/phase6-work-log-input</span>
+        </div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="snum chk">✓</div>
+      <div class="sbody">
+        <h4>「+作業記録」ボタンの起点画面を確認</h4>
+        <span class="sloc">ターミナル / ローカル</span>
+        <p>
+          Phase 5 で実装した <code>FarmTimelineTab</code> に
+          「+作業記録」ボタンが存在するか確認します。
+        </p>
+        <div class="shell">
+<span class="p">$ </span><span class="cmd">grep -n "作業記録\|workLog\|work_log\|WorkLog" \
+  lib/features/farms/presentation/tabs/farm_timeline_tab.dart</span>
+<span class="c"># ボタンが未実装なら Phase 6 STEP 5 で追加する（手順書に記載あり）</span>
+<span class="c"># 既に何らかの TODO があればその行番号をメモしておく</span>
+        </div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="snum chk">✓</div>
+      <div class="sbody">
+        <h4>オフラインキューの既存実装パターンを確認</h4>
+        <span class="sloc">ターミナル / ローカル</span>
+        <p>
+          作業ログのオフラインキューは <code>pending_uploads.json</code> と同じ JSON ファイル方式で実装します。
+          既存の <code>PendingUploadStore</code> の実装を参考にするため、コードを確認します。
+        </p>
+        <div class="shell">
+<span class="c"># PendingUploadStore の実装ファイルを探す</span>
+<span class="p">$ </span><span class="cmd">find lib -name "*pending*" -o -name "*upload_store*" | grep -v ".dart_tool"</span>
+<span class="p">$ </span><span class="cmd">grep -n "class PendingUploadStore\|json\|File\|getApplicationDocumentsDirectory" \
+  $(find lib -name "*pending*upload*store*") | head -20</span>
+        </div>
+        <div class="callout info">
+          <strong>確認した内容を Cursor に伝えてください。</strong>
+          特に「ファイルパスの生成方法」「JSON の読み書き方法」「リスナーへの通知方法」を
+          <code>WorkLogQueue</code> の実装で完全に踏襲します。
+        </div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="snum chk">✓</div>
+      <div class="sbody">
+        <h4>analyze baseline を確認</h4>
+        <span class="sloc">ターミナル / ローカル</span>
+        <div class="shell">
+<span class="p">$ </span><span class="cmd">flutter analyze 2>&1 | tail -3</span>
+<span class="c"># "117 issues found" を確認（Phase 6 の実装で増やさない）</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <h3 id="files">作成・編集ファイル一覧</h3>
+  <div class="filetree">
+lib/features/
+├── <span class="d">work_logs/</span>（新規 feature ディレクトリ）
+│   ├── <span class="d">domain/</span>
+│   │   └── <span class="nf">work_log_entry.dart         （作業ログドメインモデル + WorkType enum）</span>
+│   ├── <span class="d">data/</span>
+│   │   ├── <span class="nf">work_log_repository.dart    （CRUD + オフラインキュー統合）</span>
+│   │   └── <span class="nf">work_log_queue.dart         （JSON キューのファイル読み書き）</span>
+│   └── <span class="d">presentation/</span>
+│       ├── <span class="nf">work_log_notifier.dart      （作業ログの状態管理）</span>
+│       └── <span class="nf">work_log_edit_screen.dart   （3ステップ入力BottomSheet）</span>
+└── <span class="d">farms/presentation/tabs/</span>
+    └── <span class="mf">farm_timeline_tab.dart       （「+作業記録」ボタン追加・保存後リフレッシュ）</span>
+  </div>
+
+  <div class="callout">
+    <strong><code>lib/features/work_logs/</code> という新規ディレクトリを作成する理由。</strong>
+    作業ログは farms / results とは独立した関心事（農家の作業記録）であり、
+    既存の feature と分けることで今後の機能拡張（編集・削除・カテゴリ追加）が
+    明確な境界で行えます。<code>ResultsRepository</code> と同じパターンで実装します。
+  </div>
+</section>
+
+<!-- ====== STEP 1: Domain Model ====== -->
+<section id="step1">
+  <h2><span class="n">01</span>WorkLog ドメインモデルの定義 <span class="en">domain model</span></h2>
+
+  <div class="steps">
+    <div class="step">
+      <div class="snum">1</div>
+      <div class="sbody">
+        <h4>ディレクトリ作成とモデルファイル新規作成</h4>
+        <span class="sloc">ターミナル / ローカル</span>
+        <div class="shell">
+<span class="p">$ </span><span class="cmd">mkdir -p lib/features/work_logs/domain
+mkdir -p lib/features/work_logs/data
+mkdir -p lib/features/work_logs/presentation</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="snum">2</div>
+      <div class="sbody">
+        <h4>work_log_entry.dart を作成</h4>
+        <span class="sloc">lib/features/work_logs/domain/work_log_entry.dart（新規作成）</span>
+<pre><span class="fn">lib/features/work_logs/domain/work_log_entry.dart</span><span class="kw">import</span> <span class="st">'package:flutter/material.dart'</span>;
+
+<span class="cm">/// 作業種別 Enum。
+/// バックエンドの work_type 文字列と 1:1 で対応する。</span>
+<span class="kw">enum</span> <span class="cl">WorkType</span> {
+  fertilization(<span class="st">'fertilization'</span>, <span class="st">'施肥'</span>,     <span class="wg">Color</span>(<span class="nm">0xFFB85C00</span>), <span class="wg">Icons</span>.grass),
+  tillage      (<span class="st">'tillage'</span>,       <span class="st">'耕うん'</span>,   <span class="wg">Color</span>(<span class="nm">0xFF7A4525</span>), <span class="wg">Icons</span>.agriculture),
+  pesticide    (<span class="st">'pesticide'</span>,     <span class="st">'農薬'</span>,     <span class="wg">Color</span>(<span class="nm">0xFF5A2D82</span>), <span class="wg">Icons</span>.science),
+  harvest      (<span class="st">'harvest'</span>,       <span class="st">'収穫'</span>,     <span class="wg">Color</span>(<span class="nm">0xFFB8860B</span>), <span class="wg">Icons</span>.eco),
+  other        (<span class="st">'other'</span>,         <span class="st">'その他'</span>,   <span class="wg">Color</span>(<span class="nm">0xFF6B7E68</span>), <span class="wg">Icons</span>.more_horiz);
+
+  <span class="kw">const</span> <span class="cl">WorkType</span>(<span class="kw">this</span>.value, <span class="kw">this</span>.label, <span class="kw">this</span>.color, <span class="kw">this</span>.icon);
+
+  <span class="kw">final</span> <span class="cl">String</span>   value;  <span class="cm">// API送信値</span>
+  <span class="kw">final</span> <span class="cl">String</span>   label;  <span class="cm">// UI表示名</span>
+  <span class="kw">final</span> <span class="cl">Color</span>    color;  <span class="cm">// アクセントカラー</span>
+  <span class="kw">final</span> <span class="cl">IconData</span> icon;   <span class="cm">// ボタンアイコン</span>
+
+  <span class="kw">static</span> <span class="cl">WorkType</span> fromValue(<span class="cl">String</span> v) =&gt;
+      <span class="cl">WorkType</span>.values.firstWhere((e) =&gt; e.value == v, orElse: () =&gt; <span class="cl">WorkType</span>.other);
+}
+
+<span class="cm">/// 入力フォームで組み立てる作業ログのデータクラス。
+/// API の POST body および JSON キューのシリアライズに使う。</span>
+<span class="kw">class</span> <span class="cl">WorkLogEntry</span> {
+  <span class="kw">final</span> <span class="cl">String</span>    workType;   <span class="cm">// WorkType.value</span>
+  <span class="kw">final</span> <span class="cl">String</span>    workDate;   <span class="cm">// "YYYY-MM-DD"</span>
+  <span class="kw">final</span> <span class="cl">String</span>?   title;
+  <span class="kw">final</span> <span class="cl">String</span>?   detail;
+  <span class="kw">final</span> <span class="kw">double</span>?   amountValue;
+  <span class="kw">final</span> <span class="cl">String</span>?   amountUnit;
+  <span class="kw">final</span> <span class="cl">String</span>    scope;      <span class="cm">// 'whole'（Phase 6 は全体固定）</span>
+
+  <span class="kw">const</span> <span class="cl">WorkLogEntry</span>({
+    required <span class="kw">this</span>.workType,
+    required <span class="kw">this</span>.workDate,
+    <span class="kw">this</span>.title,
+    <span class="kw">this</span>.detail,
+    <span class="kw">this</span>.amountValue,
+    <span class="kw">this</span>.amountUnit,
+    <span class="kw">this</span>.scope = <span class="st">'whole'</span>,
+  });
+
+  <span class="cm">/// API POST body / JSON キュー シリアライズ</span>
+  <span class="cl">Map</span>&lt;<span class="cl">String</span>, <span class="kw">dynamic</span>&gt; toJson() =&gt; {
+    <span class="st">'work_type'</span>:    workType,
+    <span class="st">'work_date'</span>:    workDate,
+    <span class="kw">if</span> (title        != <span class="kw">null</span>) <span class="st">'title'</span>:        title,
+    <span class="kw">if</span> (detail       != <span class="kw">null</span>) <span class="st">'detail'</span>:       detail,
+    <span class="kw">if</span> (amountValue  != <span class="kw">null</span>) <span class="st">'amount_value'</span>: amountValue,
+    <span class="kw">if</span> (amountUnit   != <span class="kw">null</span>) <span class="st">'amount_unit'</span>:  amountUnit,
+    <span class="st">'scope'</span>:         scope,
+  };
+
+  <span class="kw">factory</span> <span class="cl">WorkLogEntry</span>.fromJson(<span class="cl">Map</span>&lt;<span class="cl">String</span>, <span class="kw">dynamic</span>&gt; json) =&gt; <span class="cl">WorkLogEntry</span>(
+    workType:    json[<span class="st">'work_type'</span>]    <span class="kw">as</span> <span class="cl">String</span>,
+    workDate:    json[<span class="st">'work_date'</span>]    <span class="kw">as</span> <span class="cl">String</span>,
+    title:       json[<span class="st">'title'</span>]        <span class="kw">as</span> <span class="cl">String</span>?,
+    detail:      json[<span class="st">'detail'</span>]       <span class="kw">as</span> <span class="cl">String</span>?,
+    amountValue: (json[<span class="st">'amount_value'</span>] <span class="kw">as</span> <span class="kw">num</span>?)?.toDouble(),
+    amountUnit:  json[<span class="st">'amount_unit'</span>]  <span class="kw">as</span> <span class="cl">String</span>?,
+    scope:       json[<span class="st">'scope'</span>]        <span class="kw">as</span> <span class="cl">String</span>? ?? <span class="st">'whole'</span>,
+  );
+}
+
+<span class="cm">/// 作業ログのタイトルプリセット（作業種別 → 候補リスト）</span>
+<span class="kw">const</span> titlePresets = &lt;<span class="cl">WorkType</span>, <span class="cl">List</span>&lt;<span class="cl">String</span>&gt;&gt;{
+  <span class="cl">WorkType</span>.fertilization: [<span class="st">'NK化成'</span>, <span class="st">'石灰窒素'</span>, <span class="st">'有機肥料'</span>, <span class="st">'苦土石灰'</span>, <span class="st">'堆肥'</span>],
+  <span class="cl">WorkType</span>.tillage:       [<span class="st">'深起こし'</span>, <span class="st">'浅起こし'</span>, <span class="st">'ロータリー'</span>, <span class="st">'トラクター'</span>],
+  <span class="cl">WorkType</span>.pesticide:     [<span class="st">'除草剤'</span>, <span class="st">'殺虫剤'</span>, <span class="st">'殺菌剤'</span>],
+  <span class="cl">WorkType</span>.harvest:       [<span class="st">'収穫'</span>],
+  <span class="cl">WorkType</span>.other:         [],
+};
+
+<span class="cm">/// 量の単位プリセット（施肥など）</span>
+<span class="kw">const</span> unitPresets = [<span class="st">'kg'</span>, <span class="st">'L'</span>, <span class="st">'袋'</span>, <span class="st">'cm'</span>, <span class="st">'mm'</span>];</pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ====== STEP 2: Repository ====== -->
+<section id="step2">
+  <h2><span class="n">02</span>WorkLogRepository の実装 <span class="en">repository</span></h2>
+
+  <div class="steps">
+    <div class="step" id="step2-queue">
+      <div class="snum">3</div>
+      <div class="sbody">
+        <h4>WorkLogQueue を作成（JSON キューのファイル読み書き）</h4>
+        <span class="sloc">lib/features/work_logs/data/work_log_queue.dart（新規作成）</span>
+        <p>
+          オフライン時の作業ログを <code>pending_work_logs.json</code> に保存します。
+          <strong><code>PendingUploadStore</code> の実装を参考に同じパターンで書いてください</strong>。
+          以下は骨格です。
+        </p>
+<pre><span class="fn">lib/features/work_logs/data/work_log_queue.dart</span><span class="kw">import</span> <span class="st">'dart:convert'</span>;
+<span class="kw">import</span> <span class="st">'dart:io'</span>;
+<span class="kw">import</span> <span class="st">'package:path_provider/path_provider.dart'</span>;
+<span class="kw">import</span> <span class="st">'../domain/work_log_entry.dart'</span>;
+
+<span class="cm">/// オフライン時の作業ログを pending_work_logs.json に保存・取得するクラス。
+/// PendingUploadStore と同じ JSON ファイル方式で実装する。</span>
+<span class="kw">class</span> <span class="cl">WorkLogQueue</span> {
+  <span class="kw">static const</span> _fileName = <span class="st">'pending_work_logs.json'</span>;
+
+  <span class="cm">// ── ファイルパス取得 ──────────────────────────────────────────</span>
+  <span class="kw">Future</span>&lt;<span class="cl">File</span>&gt; _file() <span class="kw">async</span> {
+    <span class="kw">final</span> dir = <span class="kw">await</span> getApplicationDocumentsDirectory();
+    <span class="kw">return</span> <span class="cl">File</span>(<span class="st">'${dir.path}/$_fileName'</span>);
+  }
+
+  <span class="cm">/// キュー全件取得</span>
+  <span class="kw">Future</span>&lt;<span class="cl">List</span>&lt;<span class="cl">PendingWorkLog</span>&gt;&gt; readAll() <span class="kw">async</span> {
+    <span class="kw">final</span> f = <span class="kw">await</span> _file();
+    <span class="kw">if</span> (!<span class="kw">await</span> f.exists()) <span class="kw">return</span> [];
+    <span class="kw">final</span> raw  = <span class="kw">await</span> f.readAsString();
+    <span class="kw">final</span> list = jsonDecode(raw) <span class="kw">as</span> <span class="cl">List</span>;
+    <span class="kw">return</span> list
+        .map((e) =&gt; <span class="cl">PendingWorkLog</span>.fromJson(e <span class="kw">as</span> <span class="cl">Map</span>&lt;<span class="cl">String</span>, <span class="kw">dynamic</span>&gt;))
+        .toList();
+  }
+
+  <span class="cm">/// キューに1件追加</span>
+  <span class="kw">Future</span>&lt;<span class="kw">void</span>&gt; enqueue(<span class="kw">int</span> farmId, <span class="cl">WorkLogEntry</span> entry) <span class="kw">async</span> {
+    <span class="kw">final</span> items = <span class="kw">await</span> readAll();
+    items.add(<span class="cl">PendingWorkLog</span>(
+      localId:   <span class="st">'${DateTime.now().millisecondsSinceEpoch}'</span>,
+      farmId:    farmId,
+      entry:     entry,
+      createdAt: <span class="cl">DateTime</span>.now().toIso8601String(),
+    ));
+    <span class="kw">await</span> _write(items);
+  }
+
+  <span class="cm">/// 送信成功後に localId を指定して削除</span>
+  <span class="kw">Future</span>&lt;<span class="kw">void</span>&gt; remove(<span class="cl">String</span> localId) <span class="kw">async</span> {
+    <span class="kw">final</span> items = <span class="kw">await</span> readAll();
+    items.removeWhere((i) =&gt; i.localId == localId);
+    <span class="kw">await</span> _write(items);
+  }
+
+  <span class="cm">/// キューを全件削除</span>
+  <span class="kw">Future</span>&lt;<span class="kw">void</span>&gt; clear() <span class="kw">async</span> {
+    <span class="kw">final</span> f = <span class="kw">await</span> _file();
+    <span class="kw">if</span> (<span class="kw">await</span> f.exists()) <span class="kw">await</span> f.writeAsString(<span class="st">'[]'</span>);
+  }
+
+  <span class="kw">Future</span>&lt;<span class="kw">void</span>&gt; _write(<span class="cl">List</span>&lt;<span class="cl">PendingWorkLog</span>&gt; items) <span class="kw">async</span> {
+    <span class="kw">final</span> f = <span class="kw">await</span> _file();
+    <span class="kw">await</span> f.writeAsString(jsonEncode(items.map((i) =&gt; i.toJson()).toList()));
+  }
+}
+
+<span class="cm">/// キュー内の1アイテム（localId + farmId + entry）</span>
+<span class="kw">class</span> <span class="cl">PendingWorkLog</span> {
+  <span class="kw">final</span> <span class="cl">String</span>       localId;    <span class="cm">// タイムスタンプ由来の一意ID</span>
+  <span class="kw">final</span> <span class="kw">int</span>          farmId;
+  <span class="kw">final</span> <span class="cl">WorkLogEntry</span> entry;
+  <span class="kw">final</span> <span class="cl">String</span>       createdAt;
+
+  <span class="kw">const</span> <span class="cl">PendingWorkLog</span>({
+    required <span class="kw">this</span>.localId,
+    required <span class="kw">this</span>.farmId,
+    required <span class="kw">this</span>.entry,
+    required <span class="kw">this</span>.createdAt,
+  });
+
+  <span class="cl">Map</span>&lt;<span class="cl">String</span>, <span class="kw">dynamic</span>&gt; toJson() =&gt; {
+    <span class="st">'local_id'</span>:   localId,
+    <span class="st">'farm_id'</span>:    farmId,
+    <span class="st">'entry'</span>:      entry.toJson(),
+    <span class="st">'created_at'</span>: createdAt,
+  };
+
+  <span class="kw">factory</span> <span class="cl">PendingWorkLog</span>.fromJson(<span class="cl">Map</span>&lt;<span class="cl">String</span>, <span class="kw">dynamic</span>&gt; j) =&gt; <span class="cl">PendingWorkLog</span>(
+    localId:   j[<span class="st">'local_id'</span>]   <span class="kw">as</span> <span class="cl">String</span>,
+    farmId:    j[<span class="st">'farm_id'</span>]    <span class="kw">as</span> <span class="kw">int</span>,
+    entry:     <span class="cl">WorkLogEntry</span>.fromJson(j[<span class="st">'entry'</span>] <span class="kw">as</span> <span class="cl">Map</span>&lt;<span class="cl">String</span>, <span class="kw">dynamic</span>&gt;),
+    createdAt: j[<span class="st">'created_at'</span>] <span class="kw">as</span> <span class="cl">String</span>,
+  );
+}</pre>
+
+        <div class="callout warn">
+          <strong>既存の <code>PendingUploadStore</code> のパターンと合わせてください。</strong>
+          前提確認で確認したファイルパスの取得方法や JSON の読み書き方法が
+          <code>PendingUploadStore</code> と異なる場合は、そちらに統一してください。
+          コンシステンシーが重要です。
+        </div>
+      </div>
+    </div>
+
+    <div class="step" id="step2-online">
+      <div class="snum">4</div>
+      <div class="sbody">
+        <h4>WorkLogRepository を作成（オンライン API 呼び出し + キュー統合）</h4>
+        <span class="sloc">lib/features/work_logs/data/work_log_repository.dart（新規作成）</span>
+<pre><span class="fn">lib/features/work_logs/data/work_log_repository.dart</span><span class="kw">import</span> <span class="st">'package:connectivity_plus/connectivity_plus.dart'</span>;
+<span class="kw">import</span> <span class="st">'package:dio/dio.dart'</span>;
+<span class="kw">import</span> <span class="st">'../domain/work_log_entry.dart'</span>;
+<span class="kw">import</span> <span class="st">'work_log_queue.dart'</span>;
+
+<span class="cm">/// 作業ログの CRUD + オフラインキューを一元管理するリポジトリ。
+///
+/// オンライン時: Dio で API を直接呼ぶ。
+/// オフライン時: WorkLogQueue（JSON ファイル）に追加し、
+///              ConnectivityPlus で復帰を検知してリトライする。</span>
+<span class="kw">class</span> <span class="cl">WorkLogRepository</span> {
+  <span class="kw">final</span> <span class="cl">Dio</span>          _dio;
+  <span class="kw">final</span> <span class="cl">WorkLogQueue</span>  _queue;
+
+  <span class="cl">WorkLogRepository</span>({required <span class="cl">Dio</span> dio, <span class="cl">WorkLogQueue</span>? queue})
+      : _dio = dio, _queue = queue ?? <span class="cl">WorkLogQueue</span>();
+
+  <span class="cm">// ── 作成 ─────────────────────────────────────────────────────</span>
+
+  <span class="cm">/// POST /api/v1/farms/{farmId}/work-logs
+  ///
+  /// オンラインなら即座に API 送信。
+  /// オフライン（[DioException] 503/接続不可）なら JSON キューに追加して [true] を返す。
+  /// API バリデーションエラー (422) はそのままスロー。</span>
+  <span class="kw">Future</span>&lt;<span class="cl">WorkLogSaveResult</span>&gt; create(<span class="kw">int</span> farmId, <span class="cl">WorkLogEntry</span> entry) <span class="kw">async</span> {
+    <span class="cm">// ネットワーク接続確認</span>
+    <span class="kw">final</span> conn = <span class="kw">await</span> <span class="cl">Connectivity</span>().checkConnectivity();
+    <span class="kw">final</span> isOnline = conn != <span class="cl">ConnectivityResult</span>.none;
+
+    <span class="kw">if</span> (!isOnline) {
+      <span class="kw">await</span> _queue.enqueue(farmId, entry);
+      <span class="kw">return</span> <span class="kw">const</span> <span class="cl">WorkLogSaveResult</span>(queued: <span class="kw">true</span>);
+    }
+
+    <span class="kw">try</span> {
+      <span class="kw">final</span> res = <span class="kw">await</span> _dio.post(
+        <span class="st">'/api/v1/farms/$farmId/work-logs'</span>,
+        data: entry.toJson(),
+      );
+      <span class="kw">return</span> <span class="cl">WorkLogSaveResult</span>(
+        queued: <span class="kw">false</span>,
+        serverId: res.data[<span class="st">'data'</span>][<span class="st">'id'</span>] <span class="kw">as</span> <span class="kw">int</span>?,
+      );
+    } <span class="kw">on</span> <span class="cl">DioException</span> <span class="kw">catch</span> (e) {
+      <span class="cm">// タイムアウト・接続切断 → キューに積む</span>
+      <span class="kw">if</span> (_isOfflineError(e)) {
+        <span class="kw">await</span> _queue.enqueue(farmId, entry);
+        <span class="kw">return</span> <span class="kw">const</span> <span class="cl">WorkLogSaveResult</span>(queued: <span class="kw">true</span>);
+      }
+      rethrow; <span class="cm">// 422 バリデーションエラー等はそのままスロー</span>
+    }
+  }
+
+  <span class="cm">// ── オフラインキュー処理 ───────────────────────────────────────</span>
+
+  <span class="cm">/// キュー内の全 PendingWorkLog を順次 API 送信し、成功したものを削除する。
+  /// ConnectivityPlus の復帰イベントから呼ばれる。</span>
+  <span class="kw">Future</span>&lt;<span class="kw">void</span>&gt; flushQueue() <span class="kw">async</span> {
+    <span class="kw">final</span> items = <span class="kw">await</span> _queue.readAll();
+    <span class="kw">for</span> (<span class="kw">final</span> pending <span class="kw">in</span> items) {
+      <span class="kw">try</span> {
+        <span class="kw">await</span> _dio.post(
+          <span class="st">'/api/v1/farms/${pending.farmId}/work-logs'</span>,
+          data: pending.entry.toJson(),
+        );
+        <span class="kw">await</span> _queue.remove(pending.localId);
+      } <span class="kw">on</span> <span class="cl">DioException</span> <span class="kw">catch</span> (_) {
+        <span class="cm">// 1件失敗しても次のアイテムを続ける</span>
+        <span class="kw">continue</span>;
+      }
+    }
+  }
+
+  <span class="cm">/// キューの件数を返す（同期ボタンバッジ連携用）</span>
+  <span class="kw">Future</span>&lt;<span class="kw">int</span>&gt; pendingCount() <span class="kw">async</span> {
+    <span class="kw">return</span> (await _queue.readAll()).length;
+  }
+
+  <span class="kw">bool</span> _isOfflineError(<span class="cl">DioException</span> e) =&gt;
+      e.type == <span class="cl">DioExceptionType</span>.connectionTimeout ||
+      e.type == <span class="cl">DioExceptionType</span>.connectionError  ||
+      e.type == <span class="cl">DioExceptionType</span>.receiveTimeout;
+}
+
+<span class="cm">/// create() の返り値。
+/// queued=true はオフラインキューに積まれたことを示す。</span>
+<span class="kw">class</span> <span class="cl">WorkLogSaveResult</span> {
+  <span class="kw">final</span> <span class="kw">bool</span> queued;
+  <span class="kw">final</span> <span class="kw">int</span>?  serverId;
+  <span class="kw">const</span> <span class="cl">WorkLogSaveResult</span>({required <span class="kw">this</span>.queued, <span class="kw">this</span>.serverId});
+}</pre>
+
+        <div class="callout info">
+          <strong><code>connectivity_plus</code> について。</strong>
+          <code>pubspec.yaml</code> に既に含まれているか確認してください。
+          <code>grep "connectivity" pubspec.yaml</code> で確認できます。
+          なければ <code>flutter pub add connectivity_plus</code> で追加します。
+          既存の <code>PendingUploadStore</code> が connectivity_plus を使っているなら
+          確実に入っています。
+        </div>
+        <div class="callout note">
+          <strong><code>Dio</code> インスタンスの取得方法。</strong>
+          <code>WorkLogRepository</code> は Dio インスタンスをコンストラクタで受け取ります。
+          <code>ResultsRepository</code> と同じ Dio インスタンスを使うため、
+          Provider の登録時（<code>main.dart</code> または <code>MultiProvider</code>）で
+          <code>context.read&lt;Dio&gt;()</code> または相当するシングルトン取得方法を使ってください。
+          <code>grep -n "Dio\|dio" lib/main.dart | head -10</code> で確認できます。
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ====== STEP 3: Notifier ====== -->
+<section id="step3">
+  <h2><span class="n">03</span>WorkLogNotifier の実装 <span class="en">notifier</span></h2>
+
+  <div class="steps">
+    <div class="step">
+      <div class="snum">5</div>
+      <div class="sbody">
+        <h4>WorkLogNotifier を作成</h4>
+        <span class="sloc">lib/features/work_logs/presentation/work_log_notifier.dart（新規作成）</span>
+<pre><span class="fn">lib/features/work_logs/presentation/work_log_notifier.dart</span><span class="kw">import</span> <span class="st">'package:flutter/foundation.dart'</span>;
+<span class="kw">import</span> <span class="st">'../data/work_log_repository.dart'</span>;
+<span class="kw">import</span> <span class="st">'../domain/work_log_entry.dart'</span>;
+
+<span class="cm">/// WorkLogEditScreen の状態管理。
+/// フォームの3ステップ状態を保持し、保存処理を担う。</span>
+<span class="kw">class</span> <span class="cl">WorkLogNotifier</span> <span class="kw">extends</span> <span class="cl">ChangeNotifier</span> {
+  <span class="kw">final</span> <span class="kw">int</span>                _farmId;
+  <span class="kw">final</span> <span class="cl">WorkLogRepository</span> _repo;
+
+  <span class="cl">WorkLogNotifier</span>({required <span class="kw">int</span> farmId, required <span class="cl">WorkLogRepository</span> repo})
+      : _farmId = farmId, _repo = repo;
+
+  <span class="cm">// ── フォーム状態 ──────────────────────────────────────────────</span>
+  <span class="kw">int</span>        step       = <span class="nm">0</span>;             <span class="cm">// 0=種別選択 1=詳細入力 2=確認</span>
+  <span class="cl">WorkType</span>?  workType;
+  <span class="cl">String</span>     workDate   = <span class="st">''</span>;            <span class="cm">// "YYYY-MM-DD"</span>
+  <span class="cl">String</span>     title      = <span class="st">''</span>;
+  <span class="cl">String</span>     detail     = <span class="st">''</span>;
+  <span class="cl">String</span>     amountText = <span class="st">''</span>;            <span class="cm">// "20.0" 等</span>
+  <span class="cl">String</span>     amountUnit = <span class="st">''</span>;
+
+  <span class="cm">// ── 保存状態 ──────────────────────────────────────────────────</span>
+  <span class="kw">bool</span>    isSaving  = <span class="kw">false</span>;
+  <span class="kw">bool</span>?   saveQueued;   <span class="cm">// null=未完了 true=キューに追加 false=API送信済み</span>
+  <span class="cl">String</span>? saveError;
+
+  <span class="cm">// ── ステップ操作 ──────────────────────────────────────────────</span>
+  <span class="kw">void</span> selectWorkType(<span class="cl">WorkType</span> t) {
+    workType = t;
+    <span class="cm">// 今日の日付をデフォルトにセット</span>
+    <span class="kw">if</span> (workDate.isEmpty) {
+      <span class="kw">final</span> now = <span class="cl">DateTime</span>.now();
+      workDate = <span class="st">'${now.year}-${now.month.toString().padLeft(2, "0")}'</span>
+                 <span class="st">'-${now.day.toString().padLeft(2, "0")}'</span>;
+    }
+    step = <span class="nm">1</span>;
+    notifyListeners();
+  }
+
+  <span class="kw">void</span> goToConfirm({
+    required <span class="cl">String</span> newTitle,
+    required <span class="cl">String</span> newDetail,
+    required <span class="cl">String</span> newDate,
+    required <span class="cl">String</span> newAmountText,
+    required <span class="cl">String</span> newAmountUnit,
+  }) {
+    title      = newTitle;
+    detail     = newDetail;
+    workDate   = newDate;
+    amountText = newAmountText;
+    amountUnit = newAmountUnit;
+    step       = <span class="nm">2</span>;
+    notifyListeners();
+  }
+
+  <span class="kw">void</span> goBack() {
+    <span class="kw">if</span> (step > <span class="nm">0</span>) { step--; notifyListeners(); }
+  }
+
+  <span class="cm">// ── 保存 ─────────────────────────────────────────────────────</span>
+  <span class="kw">Future</span>&lt;<span class="kw">void</span>&gt; save() <span class="kw">async</span> {
+    <span class="kw">if</span> (workType == <span class="kw">null</span>) <span class="kw">return</span>;
+    isSaving  = <span class="kw">true</span>;
+    saveError = <span class="kw">null</span>;
+    notifyListeners();
+
+    <span class="kw">final</span> entry = <span class="cl">WorkLogEntry</span>(
+      workType:    workType!.value,
+      workDate:    workDate,
+      title:       title.isNotEmpty    ? title    : <span class="kw">null</span>,
+      detail:      detail.isNotEmpty   ? detail   : <span class="kw">null</span>,
+      amountValue: <span class="kw">double</span>.tryParse(amountText),
+      amountUnit:  amountUnit.isNotEmpty ? amountUnit : <span class="kw">null</span>,
+    );
+
+    <span class="kw">try</span> {
+      <span class="kw">final</span> result = <span class="kw">await</span> _repo.create(_farmId, entry);
+      saveQueued = result.queued;
+    } <span class="kw">catch</span> (e) {
+      saveError = e.toString();
+    } <span class="kw">finally</span> {
+      isSaving = <span class="kw">false</span>;
+      notifyListeners();
+    }
+  }
+
+  <span class="kw">bool</span> get isSaveComplete =&gt; saveQueued != <span class="kw">null</span> && saveError == <span class="kw">null</span>;
+}</pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ====== STEP 4: WorkLogEditScreen ====== -->
+<section id="step4">
+  <h2><span class="n">04</span>WorkLogEditScreen の実装 <span class="en">edit screen</span></h2>
+
+  <p>
+    <code>showModalBottomSheet</code> で開く3ステップのボトムシートです。
+    農家が3タップ以内で登録を完了できることを目標にします。
+  </p>
+
+  <div class="steps">
+    <div class="step" id="step4-step1">
+      <div class="snum">6</div>
+      <div class="sbody">
+        <h4>work_log_edit_screen.dart を作成（Step 1: 作業種別選択）</h4>
+        <span class="sloc">lib/features/work_logs/presentation/work_log_edit_screen.dart（新規作成）</span>
+<pre><span class="fn">lib/features/work_logs/presentation/work_log_edit_screen.dart</span><span class="kw">import</span> <span class="st">'package:flutter/material.dart'</span>;
+<span class="kw">import</span> <span class="st">'package:provider/provider.dart'</span>;
+<span class="kw">import</span> <span class="st">'work_log_notifier.dart'</span>;
+<span class="kw">import</span> <span class="st">'../data/work_log_repository.dart'</span>;
+<span class="kw">import</span> <span class="st">'../domain/work_log_entry.dart'</span>;
+
+<span class="cm">/// タイムラインタブの「+作業記録」から showModalBottomSheet で呼び出す。
+///
+/// 使い方:
+/// ```dart
+/// await WorkLogEditScreen.show(context, farmId: widget.farmId);
+/// // 保存完了後にタイムラインを再取得する
+/// ```</span>
+<span class="kw">class</span> <span class="cl">WorkLogEditScreen</span> <span class="kw">extends</span> <span class="cl">StatelessWidget</span> {
+  <span class="kw">const</span> <span class="cl">WorkLogEditScreen</span>({<span class="kw">super</span>.key, required <span class="kw">this</span>.farmId});
+  <span class="kw">final</span> <span class="kw">int</span> farmId;
+
+  <span class="cm">/// BottomSheet を開くためのショートカット。
+  /// 戻り値: true=保存成功(API or Queue), false=キャンセル</span>
+  <span class="kw">static</span> <span class="kw">Future</span>&lt;<span class="kw">bool</span>&gt; show(<span class="cl">BuildContext</span> context, {required <span class="kw">int</span> farmId}) <span class="kw">async</span> {
+    <span class="kw">final</span> result = <span class="kw">await</span> showModalBottomSheet&lt;<span class="kw">bool</span>&gt;(
+      context: context,
+      isScrollControlled: <span class="kw">true</span>,   <span class="cm">// キーボード表示時に押し上げる</span>
+      backgroundColor: <span class="wg">Colors</span>.transparent,
+      builder: (_) =&gt; <span class="wg">ChangeNotifierProvider</span>(
+        create: (ctx) =&gt; <span class="cl">WorkLogNotifier</span>(
+          farmId: farmId,
+          repo:   ctx.read&lt;<span class="cl">WorkLogRepository</span>&gt;(),
+        ),
+        child: <span class="cl">WorkLogEditScreen</span>(farmId: farmId),
+      ),
+    );
+    <span class="kw">return</span> result ?? <span class="kw">false</span>;
+  }
+
+  <span class="kw">@override</span>
+  <span class="cl">Widget</span> build(<span class="cl">BuildContext</span> context) {
+    <span class="kw">final</span> n    = context.watch&lt;<span class="cl">WorkLogNotifier</span>&gt;();
+    <span class="kw">final</span> h    = <span class="cl">MediaQuery</span>.of(context).size.height;
+
+    <span class="kw">return</span> <span class="wg">Container</span>(
+      height: h * <span class="nm">0.75</span>,
+      decoration: <span class="kw">const</span> <span class="wg">BoxDecoration</span>(
+        color: <span class="wg">Colors</span>.white,
+        borderRadius: <span class="wg">BorderRadius</span>.vertical(top: <span class="wg">Radius</span>.circular(<span class="nm">16</span>)),
+      ),
+      child: <span class="wg">Column</span>(children: [
+        <span class="cm">// ドラッグハンドル</span>
+        <span class="wg">Container</span>(width: <span class="nm">40</span>, height: <span class="nm">4</span>,
+            margin: <span class="kw">const</span> <span class="wg">EdgeInsets</span>.symmetric(vertical: <span class="nm">12</span>),
+            decoration: <span class="wg">BoxDecoration</span>(
+                color: <span class="wg">Colors</span>.grey[<span class="nm">300</span>], borderRadius: <span class="wg">BorderRadius</span>.circular(<span class="nm">2</span>))),
+        <span class="cm">// タイトル行</span>
+        <span class="wg">Padding</span>(
+          padding: <span class="kw">const</span> <span class="wg">EdgeInsets</span>.symmetric(horizontal: <span class="nm">20</span>),
+          child: <span class="wg">Row</span>(children: [
+            <span class="wg">Text</span>(<span class="st">'作業記録を追加'</span>,
+                style: <span class="kw">const</span> <span class="wg">TextStyle</span>(fontSize: <span class="nm">17</span>, fontWeight: <span class="wg">FontWeight</span>.bold)),
+            <span class="kw">const</span> <span class="wg">Spacer</span>(),
+            <span class="wg">IconButton</span>(
+              icon: <span class="kw">const</span> <span class="wg">Icon</span>(<span class="wg">Icons</span>.close),
+              onPressed: () =&gt; <span class="wg">Navigator</span>.pop(context, <span class="kw">false</span>),
+            ),
+          ]),
+        ),
+        <span class="cm">// ステップインジケーター</span>
+        <span class="wg">Padding</span>(
+          padding: <span class="kw">const</span> <span class="wg">EdgeInsets</span>.symmetric(horizontal: <span class="nm">20</span>, vertical: <span class="nm">4</span>),
+          child: <span class="cl">_StepIndicator</span>(currentStep: n.step),
+        ),
+        <span class="wg">Expanded</span>(
+          child: n.isSaving
+              ? <span class="kw">const</span> <span class="wg">Center</span>(child: <span class="wg">CircularProgressIndicator</span>())
+              : <span class="kw">switch</span> (n.step) {
+                  <span class="nm">0</span> =&gt; <span class="cl">_Step1WorkTypeGrid</span>(notifier: n),
+                  <span class="nm">1</span> =&gt; <span class="cl">_Step2DetailForm</span>(notifier: n),
+                  <span class="nm">2</span> =&gt; <span class="cl">_Step3Confirm</span>(notifier: n, context: context),
+                  _ =&gt; <span class="cl">_DoneView</span>(notifier: n, context: context),
+                },
+        ),
+      ]),
+    );
+  }
+}
+
+<span class="cm">// ── ステップインジケーター ──────────────────────────────────────</span>
+<span class="kw">class</span> <span class="cl">_StepIndicator</span> <span class="kw">extends</span> <span class="cl">StatelessWidget</span> {
+  <span class="kw">const</span> <span class="cl">_StepIndicator</span>({required <span class="kw">this</span>.currentStep});
+  <span class="kw">final</span> <span class="kw">int</span> currentStep;
+
+  <span class="kw">@override</span>
+  <span class="cl">Widget</span> build(<span class="cl">BuildContext</span> context) {
+    <span class="kw">final</span> labels = [<span class="st">'種別'</span>, <span class="st">'詳細'</span>, <span class="st">'確認'</span>];
+    <span class="kw">return</span> <span class="wg">Row</span>(
+      mainAxisAlignment: <span class="wg">MainAxisAlignment</span>.center,
+      children: labels.indexed.map(((i, label)) {
+        <span class="kw">final</span> isActive = i == currentStep;
+        <span class="kw">final</span> isDone   = i &lt; currentStep;
+        <span class="kw">return</span> <span class="wg">Row</span>(children: [
+          <span class="wg">CircleAvatar</span>(
+            radius: <span class="nm">12</span>,
+            backgroundColor: isDone || isActive
+                ? <span class="kw">const</span> <span class="wg">Color</span>(<span class="nm">0xFF2E5C39</span>) : <span class="wg">Colors</span>.grey[<span class="nm">300</span>],
+            child: <span class="wg">Text</span>(<span class="st">'${i + 1}'</span>,
+                style: <span class="wg">TextStyle</span>(color: isDone || isActive ? <span class="wg">Colors</span>.white : <span class="wg">Colors</span>.grey, fontSize: <span class="nm">11</span>)),
+          ),
+          <span class="wg">Text</span>(<span class="st">' $label'</span>, style: <span class="wg">TextStyle</span>(fontSize: <span class="nm">12</span>, color: isActive ? <span class="wg">Colors</span>.black87 : <span class="wg">Colors</span>.grey)),
+          <span class="kw">if</span> (i &lt; labels.length - <span class="nm">1</span>) <span class="wg">Container</span>(width: <span class="nm">20</span>, height: <span class="nm">1</span>,
+              margin: <span class="kw">const</span> <span class="wg">EdgeInsets</span>.symmetric(horizontal: <span class="nm">6</span>),
+              color: <span class="wg">Colors</span>.grey[<span class="nm">300</span>]),
+        ]);
+      }).toList(),
+    );
+  }
+}</pre>
+      </div>
+    </div>
+
+    <div class="step" id="step4-step2">
+      <div class="snum">7</div>
+      <div class="sbody">
+        <h4>Step 1〜3 の各ウィジェットを実装</h4>
+        <span class="sloc">同ファイルに続けて追記</span>
+<pre><span class="fn">（work_log_edit_screen.dart の続き）</span><span class="cm">// ── Step 1: 作業種別選択グリッド ──────────────────────────────</span>
+<span class="kw">class</span> <span class="cl">_Step1WorkTypeGrid</span> <span class="kw">extends</span> <span class="cl">StatelessWidget</span> {
+  <span class="kw">const</span> <span class="cl">_Step1WorkTypeGrid</span>({required <span class="kw">this</span>.notifier});
+  <span class="kw">final</span> <span class="cl">WorkLogNotifier</span> notifier;
+
+  <span class="kw">@override</span>
+  <span class="cl">Widget</span> build(<span class="cl">BuildContext</span> context) {
+    <span class="kw">return</span> <span class="wg">Padding</span>(
+      padding: <span class="kw">const</span> <span class="wg">EdgeInsets</span>.all(<span class="nm">20</span>),
+      child: <span class="wg">Column</span>(
+        crossAxisAlignment: <span class="wg">CrossAxisAlignment</span>.start,
+        children: [
+          <span class="kw">const</span> <span class="wg">Text</span>(<span class="st">'作業の種類を選んでください'</span>,
+              style: <span class="wg">TextStyle</span>(fontSize: <span class="nm">15</span>, fontWeight: <span class="wg">FontWeight</span>.w600)),
+          <span class="kw">const</span> <span class="wg">SizedBox</span>(height: <span class="nm">20</span>),
+          <span class="wg">Expanded</span>(
+            child: <span class="wg">GridView</span>.count(
+              crossAxisCount: <span class="nm">2</span>,
+              crossAxisSpacing: <span class="nm">12</span>,
+              mainAxisSpacing: <span class="nm">12</span>,
+              childAspectRatio: <span class="nm">2.2</span>,
+              children: <span class="cl">WorkType</span>.values.map((t) =&gt; <span class="wg">Material</span>(
+                color: t.color.withValues(alpha: <span class="nm">0.12</span>),
+                borderRadius: <span class="wg">BorderRadius</span>.circular(<span class="nm">12</span>),
+                child: <span class="wg">InkWell</span>(
+                  borderRadius: <span class="wg">BorderRadius</span>.circular(<span class="nm">12</span>),
+                  onTap: () =&gt; notifier.selectWorkType(t),
+                  child: <span class="wg">Row</span>(
+                    mainAxisAlignment: <span class="wg">MainAxisAlignment</span>.center,
+                    children: [
+                      <span class="wg">Icon</span>(t.icon, color: t.color, size: <span class="nm">22</span>),
+                      <span class="kw">const</span> <span class="wg">SizedBox</span>(width: <span class="nm">8</span>),
+                      <span class="wg">Text</span>(t.label,
+                          style: <span class="wg">TextStyle</span>(
+                              color: t.color,
+                              fontWeight: <span class="wg">FontWeight</span>.bold,
+                              fontSize: <span class="nm">15</span>)),
+                    ],
+                  ),
+                ),
+              )).toList(),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+<span class="cm">// ── Step 2: 詳細入力フォーム ──────────────────────────────────</span>
+<span class="kw">class</span> <span class="cl">_Step2DetailForm</span> <span class="kw">extends</span> <span class="cl">StatefulWidget</span> {
+  <span class="kw">const</span> <span class="cl">_Step2DetailForm</span>({required <span class="kw">this</span>.notifier});
+  <span class="kw">final</span> <span class="cl">WorkLogNotifier</span> notifier;
+  <span class="kw">@override</span>
+  <span class="cl">State</span>&lt;<span class="cl">_Step2DetailForm</span>&gt; createState() =&gt; _Step2DetailFormState();
+}
+
+<span class="kw">class</span> <span class="cl">_Step2DetailFormState</span> <span class="kw">extends</span> <span class="cl">State</span>&lt;<span class="cl">_Step2DetailForm</span>&gt; {
+  <span class="kw">late final</span> _titleCtrl   = <span class="cl">TextEditingController</span>(text: widget.notifier.title);
+  <span class="kw">late final</span> _detailCtrl  = <span class="cl">TextEditingController</span>(text: widget.notifier.detail);
+  <span class="kw">late final</span> _amountCtrl  = <span class="cl">TextEditingController</span>(text: widget.notifier.amountText);
+  <span class="kw">late final</span> _dateCtrl    = <span class="cl">TextEditingController</span>(text: widget.notifier.workDate);
+  <span class="cl">String</span> _selectedUnit    = <span class="st">'kg'</span>;
+
+  <span class="kw">@override</span>
+  <span class="kw">void</span> dispose() {
+    _titleCtrl.dispose(); _detailCtrl.dispose();
+    _amountCtrl.dispose(); _dateCtrl.dispose();
+    <span class="kw">super</span>.dispose();
+  }
+
+  <span class="kw">@override</span>
+  <span class="cl">Widget</span> build(<span class="cl">BuildContext</span> context) {
+    <span class="kw">final</span> t = widget.notifier.workType!;
+    <span class="kw">final</span> presets = titlePresets[t] ?? [];
+
+    <span class="kw">return</span> <span class="wg">SingleChildScrollView</span>(
+      padding: <span class="wg">EdgeInsets</span>.only(
+        left: <span class="nm">20</span>, right: <span class="nm">20</span>, top: <span class="nm">12</span>,
+        bottom: <span class="cl">MediaQuery</span>.of(context).viewInsets.bottom + <span class="nm">20</span>,
+      ),
+      child: <span class="wg">Column</span>(crossAxisAlignment: <span class="wg">CrossAxisAlignment</span>.start, children: [
+        <span class="cm">// 種別バッジ</span>
+        <span class="wg">Chip</span>(
+          avatar: <span class="wg">Icon</span>(t.icon, color: t.color, size: <span class="nm">16</span>),
+          label: <span class="wg">Text</span>(t.label, style: <span class="wg">TextStyle</span>(color: t.color)),
+          backgroundColor: t.color.withValues(alpha: <span class="nm">0.1</span>),
+        ),
+        <span class="kw">const</span> <span class="wg">SizedBox</span>(height: <span class="nm">12</span>),
+        <span class="cm">// 日付</span>
+        <span class="wg">TextField</span>(
+          controller: _dateCtrl,
+          decoration: <span class="kw">const</span> <span class="wg">InputDecoration</span>(
+              labelText: <span class="st">'日付'</span>, hintText: <span class="st">'YYYY-MM-DD'</span>, border: <span class="wg">OutlineInputBorder</span>(),
+              isDense: <span class="kw">true</span>),
+          keyboardType: <span class="wg">TextInputType</span>.datetime,
+        ),
+        <span class="kw">const</span> <span class="wg">SizedBox</span>(height: <span class="nm">12</span>),
+        <span class="cm">// タイトル（プリセット候補）</span>
+        <span class="kw">if</span> (presets.isNotEmpty) ...[
+          <span class="wg">Text</span>(<span class="st">'よく使う'</span>, style: <span class="wg">TextStyle</span>(fontSize: <span class="nm">12</span>, color: <span class="wg">Colors</span>.grey[<span class="nm">600</span>])),
+          <span class="kw">const</span> <span class="wg">SizedBox</span>(height: <span class="nm">4</span>),
+          <span class="wg">Wrap</span>(spacing: <span class="nm">6</span>, children: presets.map((p) =&gt; <span class="wg">ActionChip</span>(
+            label: <span class="wg">Text</span>(p, style: <span class="kw">const</span> <span class="wg">TextStyle</span>(fontSize: <span class="nm">12</span>)),
+            onPressed: () =&gt; setState(() =&gt; _titleCtrl.text = p),
+          )).toList()),
+          <span class="kw">const</span> <span class="wg">SizedBox</span>(height: <span class="nm">8</span>),
+        ],
+        <span class="wg">TextField</span>(
+          controller: _titleCtrl,
+          decoration: <span class="kw">const</span> <span class="wg">InputDecoration</span>(
+              labelText: <span class="st">'タイトル（例: NK化成 20kg）'</span>, border: <span class="wg">OutlineInputBorder</span>(), isDense: <span class="kw">true</span>),
+        ),
+        <span class="kw">const</span> <span class="wg">SizedBox</span>(height: <span class="nm">12</span>),
+        <span class="cm">// 量 + 単位</span>
+        <span class="wg">Row</span>(children: [
+          <span class="wg">Expanded</span>(
+            flex: <span class="nm">2</span>,
+            child: <span class="wg">TextField</span>(
+              controller: _amountCtrl,
+              keyboardType: <span class="kw">const</span> <span class="wg">TextInputType</span>.numberWithOptions(decimal: <span class="kw">true</span>),
+              decoration: <span class="kw">const</span> <span class="wg">InputDecoration</span>(
+                  labelText: <span class="st">'量（任意）'</span>, border: <span class="wg">OutlineInputBorder</span>(), isDense: <span class="kw">true</span>),
+            ),
+          ),
+          <span class="kw">const</span> <span class="wg">SizedBox</span>(width: <span class="nm">8</span>),
+          <span class="wg">DropdownButton</span>&lt;<span class="cl">String</span>&gt;(
+            value: _selectedUnit,
+            items: unitPresets.map((u) =&gt;
+                <span class="wg">DropdownMenuItem</span>(value: u, child: <span class="wg">Text</span>(u))).toList(),
+            onChanged: (v) =&gt; setState(() =&gt; _selectedUnit = v!),
+          ),
+        ]),
+        <span class="kw">const</span> <span class="wg">SizedBox</span>(height: <span class="nm">12</span>),
+        <span class="cm">// 詳細メモ</span>
+        <span class="wg">TextField</span>(
+          controller: _detailCtrl,
+          maxLines: <span class="nm">2</span>,
+          decoration: <span class="kw">const</span> <span class="wg">InputDecoration</span>(
+              labelText: <span class="st">'詳細メモ（任意）'</span>, border: <span class="wg">OutlineInputBorder</span>(), isDense: <span class="kw">true</span>),
+        ),
+        <span class="kw">const</span> <span class="wg">SizedBox</span>(height: <span class="nm">20</span>),
+        <span class="wg">Row</span>(children: [
+          <span class="wg">OutlinedButton</span>(
+            onPressed: () =&gt; widget.notifier.goBack(),
+            child: <span class="kw">const</span> <span class="wg">Text</span>(<span class="st">'戻る'</span>),
+          ),
+          <span class="kw">const</span> <span class="wg">SizedBox</span>(width: <span class="nm">12</span>),
+          <span class="wg">Expanded</span>(
+            child: <span class="wg">ElevatedButton</span>(
+              style: <span class="wg">ElevatedButton</span>.styleFrom(
+                  backgroundColor: <span class="kw">const</span> <span class="wg">Color</span>(<span class="nm">0xFF2E5C39</span>)),
+              onPressed: () =&gt; widget.notifier.goToConfirm(
+                newTitle:      _titleCtrl.text.trim(),
+                newDetail:     _detailCtrl.text.trim(),
+                newDate:       _dateCtrl.text.trim(),
+                newAmountText: _amountCtrl.text.trim(),
+                newAmountUnit: _selectedUnit,
+              ),
+              child: <span class="kw">const</span> <span class="wg">Text</span>(<span class="st">'確認へ'</span>, style: <span class="wg">TextStyle</span>(color: <span class="wg">Colors</span>.white)),
+            ),
+          ),
+        ]),
+      ]),
+    );
+  }
+}
+
+<span class="cm">// ── Step 3: 確認 &amp; 保存 ──────────────────────────────────────</span>
+<span class="kw">class</span> <span class="cl">_Step3Confirm</span> <span class="kw">extends</span> <span class="cl">StatelessWidget</span> {
+  <span class="kw">const</span> <span class="cl">_Step3Confirm</span>({required <span class="kw">this</span>.notifier, required <span class="kw">this</span>.context});
+  <span class="kw">final</span> <span class="cl">WorkLogNotifier</span> notifier;
+  <span class="kw">final</span> <span class="cl">BuildContext</span>    context;
+
+  <span class="kw">@override</span>
+  <span class="cl">Widget</span> build(<span class="cl">BuildContext</span> _) {
+    <span class="kw">final</span> t = notifier.workType!;
+    <span class="kw">return</span> <span class="wg">Padding</span>(
+      padding: <span class="kw">const</span> <span class="wg">EdgeInsets</span>.all(<span class="nm">20</span>),
+      child: <span class="wg">Column</span>(crossAxisAlignment: <span class="wg">CrossAxisAlignment</span>.start, children: [
+        <span class="kw">const</span> <span class="wg">Text</span>(<span class="st">'以下の内容で登録します'</span>,
+            style: <span class="wg">TextStyle</span>(fontSize: <span class="nm">15</span>, fontWeight: <span class="wg">FontWeight</span>.w600)),
+        <span class="kw">const</span> <span class="wg">SizedBox</span>(height: <span class="nm">16</span>),
+        <span class="wg">_ConfirmRow</span>(<span class="st">'種別'</span>,   t.label),
+        <span class="wg">_ConfirmRow</span>(<span class="st">'日付'</span>,   notifier.workDate),
+        <span class="kw">if</span> (notifier.title.isNotEmpty)      <span class="wg">_ConfirmRow</span>(<span class="st">'タイトル'</span>, notifier.title),
+        <span class="kw">if</span> (notifier.amountText.isNotEmpty) <span class="wg">_ConfirmRow</span>(<span class="st">'量'</span>,
+            <span class="st">'${notifier.amountText} ${notifier.amountUnit}'</span>),
+        <span class="kw">if</span> (notifier.detail.isNotEmpty)     <span class="wg">_ConfirmRow</span>(<span class="st">'メモ'</span>,    notifier.detail),
+        <span class="kw">if</span> (notifier.saveError != <span class="kw">null</span>)
+          <span class="wg">Padding</span>(
+            padding: <span class="kw">const</span> <span class="wg">EdgeInsets</span>.only(top: <span class="nm">12</span>),
+            child: <span class="wg">Text</span>(<span class="st">'エラー: ${notifier.saveError}'</span>,
+                style: <span class="kw">const</span> <span class="wg">TextStyle</span>(color: <span class="wg">Colors</span>.red)),
+          ),
+        <span class="kw">const</span> <span class="wg">Spacer</span>(),
+        <span class="wg">Row</span>(children: [
+          <span class="wg">OutlinedButton</span>(
+            onPressed: () =&gt; notifier.goBack(),
+            child: <span class="kw">const</span> <span class="wg">Text</span>(<span class="st">'修正'</span>),
+          ),
+          <span class="kw">const</span> <span class="wg">SizedBox</span>(width: <span class="nm">12</span>),
+          <span class="wg">Expanded</span>(
+            child: <span class="wg">ElevatedButton</span>(
+              style: <span class="wg">ElevatedButton</span>.styleFrom(
+                  backgroundColor: <span class="kw">const</span> <span class="wg">Color</span>(<span class="nm">0xFF2E5C39</span>)),
+              onPressed: () <span class="kw">async</span> {
+                <span class="kw">await</span> notifier.save();
+                <span class="kw">if</span> (notifier.isSaveComplete) {
+                  <span class="kw">if</span> (context.mounted) <span class="wg">Navigator</span>.pop(context, <span class="kw">true</span>);
+                }
+              },
+              child: <span class="kw">const</span> <span class="wg">Text</span>(<span class="st">'保存'</span>, style: <span class="wg">TextStyle</span>(color: <span class="wg">Colors</span>.white)),
+            ),
+          ),
+        ]),
+      ]),
+    );
+  }
+}
+
+<span class="kw">class</span> <span class="cl">_ConfirmRow</span> <span class="kw">extends</span> <span class="cl">StatelessWidget</span> {
+  <span class="kw">const</span> <span class="cl">_ConfirmRow</span>(<span class="kw">this</span>.label, <span class="kw">this</span>.value);
+  <span class="kw">final</span> <span class="cl">String</span> label, value;
+  <span class="kw">@override</span>
+  <span class="cl">Widget</span> build(<span class="cl">BuildContext</span> context) =&gt; <span class="wg">Padding</span>(
+    padding: <span class="kw">const</span> <span class="wg">EdgeInsets</span>.symmetric(vertical: <span class="nm">6</span>),
+    child: <span class="wg">Row</span>(children: [
+      <span class="wg">SizedBox</span>(width: <span class="nm">80</span>,
+          child: <span class="wg">Text</span>(label, style: <span class="wg">TextStyle</span>(color: <span class="wg">Colors</span>.grey[<span class="nm">600</span>], fontSize: <span class="nm">13</span>))),
+      <span class="wg">Text</span>(value, style: <span class="kw">const</span> <span class="wg">TextStyle</span>(fontWeight: <span class="wg">FontWeight</span>.w600, fontSize: <span class="nm">13</span>)),
+    ]),
+  );
+}
+
+<span class="cm">// ── 保存完了ビュー（step >= 3 のフォールバック用）──────────────</span>
+<span class="kw">class</span> <span class="cl">_DoneView</span> <span class="kw">extends</span> <span class="cl">StatelessWidget</span> {
+  <span class="kw">const</span> <span class="cl">_DoneView</span>({required <span class="kw">this</span>.notifier, required <span class="kw">this</span>.context});
+  <span class="kw">final</span> <span class="cl">WorkLogNotifier</span> notifier;
+  <span class="kw">final</span> <span class="cl">BuildContext</span>    context;
+  <span class="kw">@override</span>
+  <span class="cl">Widget</span> build(<span class="cl">BuildContext</span> _) =&gt; <span class="wg">Center</span>(
+    child: <span class="wg">Column</span>(mainAxisSize: <span class="wg">MainAxisSize</span>.min, children: [
+      <span class="wg">Icon</span>(notifier.saveQueued == <span class="kw">true</span>
+          ? <span class="wg">Icons</span>.cloud_queue : <span class="wg">Icons</span>.check_circle,
+          color: <span class="kw">const</span> <span class="wg">Color</span>(<span class="nm">0xFF2E5C39</span>), size: <span class="nm">56</span>),
+      <span class="kw">const</span> <span class="wg">SizedBox</span>(height: <span class="nm">12</span>),
+      <span class="wg">Text</span>(notifier.saveQueued == <span class="kw">true</span> ? <span class="st">'オフライン保存しました\nネットワーク復帰時に同期されます'</span> : <span class="st">'登録しました'</span>,
+          textAlign: <span class="wg">TextAlign</span>.center),
+    ]),
+  );
+}</pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ====== STEP 5: タイムライン接続 ====== -->
+<section id="step5">
+  <h2><span class="n">05</span>タイムラインタブへの接続 <span class="en">wire timeline</span></h2>
+
+  <div class="steps">
+    <div class="step" id="step5-button">
+      <div class="snum">8</div>
+      <div class="sbody">
+        <h4>FarmTimelineTab に「+作業記録」ボタンを追加</h4>
+        <span class="sloc">lib/features/farms/presentation/tabs/farm_timeline_tab.dart（既存ファイルを編集）</span>
+        <p>
+          Phase 5 で実装した <code>_TimelineView</code> の <code>build</code> に
+          FloatingActionButton 相当のボタンを追加します。
+          タイムラインタブが <code>Scaffold</code> に包まれていない場合は
+          <code>Stack</code> + <code>Positioned</code> を使って右下に配置してください。
+        </p>
+<pre><span class="fn">farm_timeline_tab.dart の build メソッドへ追加</span><span class="cm">// 変更前（Phase 5 実装）</span>
+<span class="kw">return</span> <span class="wg">ListView</span>.separated( ... );
+
+<span class="cm">// 変更後: Stack で「+作業記録」FAB を重ねる</span>
+<span class="kw">return</span> <span class="wg">Stack</span>(children: [
+  <span class="wg">ListView</span>.separated( ... ),  <span class="cm">// 既存リスト</span>
+
+  <span class="cm">// 「+作業記録」ボタン（右下）</span>
+  <span class="wg">Positioned</span>(
+    right: <span class="nm">16</span>, bottom: <span class="nm">16</span>,
+    child: <span class="wg">FloatingActionButton</span>.extended(
+      heroTag: <span class="st">'work_log_fab'</span>,   <span class="cm">// 複数 FAB がある場合の衝突回避</span>
+      backgroundColor: <span class="kw">const</span> <span class="wg">Color</span>(<span class="nm">0xFF2E5C39</span>),
+      icon: <span class="kw">const</span> <span class="wg">Icon</span>(<span class="wg">Icons</span>.add, color: <span class="wg">Colors</span>.white),
+      label: <span class="kw">const</span> <span class="wg">Text</span>(<span class="st">'作業記録'</span>, style: <span class="wg">TextStyle</span>(color: <span class="wg">Colors</span>.white)),
+      onPressed: () =&gt; _addWorkLog(context, n),
+    ),
+  ),
+]);</pre>
+      </div>
+    </div>
+
+    <div class="step" id="step5-refresh">
+      <div class="snum">9</div>
+      <div class="sbody">
+        <h4>「+作業記録」タップ後の処理（保存完了 → タイムライン再取得）</h4>
+        <span class="sloc">同ファイルに追記</span>
+<pre><span class="fn">_TimelineView に追加するメソッド</span>  <span class="kw">Future</span>&lt;<span class="kw">void</span>&gt; _addWorkLog(
+    <span class="cl">BuildContext</span> context, <span class="cl">TimelineNotifier</span> n) <span class="kw">async</span> {
+    <span class="cm">// farmId は FarmTimelineTab のコンストラクタから受け取る</span>
+    <span class="kw">final</span> saved = <span class="kw">await</span> <span class="cl">WorkLogEditScreen</span>.show(context, farmId: n.farmId);
+
+    <span class="kw">if</span> (saved && context.mounted) {
+      <span class="cm">// 保存成功（API送信 or キュー追加）後にタイムラインを再取得</span>
+      <span class="kw">await</span> n.refresh();
+
+      <span class="cm">// オフラインキューに積まれた場合はスナックバーで通知</span>
+      <span class="kw">if</span> (context.mounted) {
+        <span class="wg">ScaffoldMessenger</span>.of(context).showSnackBar(
+          <span class="kw">const</span> <span class="wg">SnackBar</span>(content: <span class="wg">Text</span>(<span class="st">'作業記録を保存しました'</span>)),
+        );
+      }
+    }
+  }</pre>
+
+        <p>
+          また <code>TimelineNotifier</code> に <code>refresh()</code> メソッドと
+          <code>farmId</code> ゲッターを追加します。
+        </p>
+<pre><span class="fn">lib/features/results/presentation/providers/timeline_notifier.dart に追記</span>  <span class="cm">// farmId を外部から参照できるようにする</span>
+  <span class="kw">int</span> get farmId =&gt; _farmId;
+
+  <span class="cm">// 保存後のリフレッシュ用（init() と同じロジック）</span>
+  <span class="kw">Future</span>&lt;<span class="kw">void</span>&gt; refresh() =&gt; _load();</pre>
+
+        <div class="callout warn">
+          <strong><code>WorkLogEditScreen</code> を呼び出すために <code>WorkLogRepository</code> が Provider に登録されている必要があります。</strong>
+          <code>WorkLogEditScreen.show</code> 内で <code>context.read&lt;WorkLogRepository&gt;()</code> を呼ぶため、
+          <code>main.dart</code> または <code>MultiProvider</code> ルートに以下を追加してください。
+        </div>
+<pre><span class="fn">main.dart または MultiProvider への追加</span><span class="kw">import</span> <span class="st">'features/work_logs/data/work_log_repository.dart'</span>;
+
+<span class="cm">// MultiProvider の providers リストに追加</span>
+<span class="wg">Provider</span>&lt;<span class="cl">WorkLogRepository</span>&gt;(
+  create: (ctx) =&gt; <span class="cl">WorkLogRepository</span>(
+    <span class="cm">// 既存の Dio シングルトンと同じインスタンスを使う</span>
+    dio: ctx.read&lt;<span class="cl">Dio</span>&gt;(),  <span class="cm">// 実際の取得方法に合わせること</span>
+  ),
+),</pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ====== STEP 6: SyncScreen統合 ====== -->
+<section id="step6">
+  <h2><span class="n">06</span>同期画面へのオフラインキュー統合 <span class="en">sync integration</span></h2>
+
+  <p>
+    作業ログのオフラインキュー（<code>pending_work_logs.json</code>）が溜まったとき、
+    Phase 3 で実装した <code>SyncScreen</code> から確認・送信できるよう統合します。
+  </p>
+
+  <div class="steps">
+    <div class="step">
+      <div class="snum">10</div>
+      <div class="sbody">
+        <h4>SyncScreen に作業ログキューのセクションを追加</h4>
+        <span class="sloc">lib/screens/sync/sync_screen.dart（既存ファイルを編集）</span>
+        <p>
+          既存の <code>SyncScreen</code> は未アップロード測定データのみを扱っていました。
+          作業ログキューの件数を表示し、一括送信ボタンを追加します。
+        </p>
+<pre><span class="fn">SyncScreen の build に追加するセクション</span><span class="cm">// 既存の未アップロード測定データのリスト表示の後に追加</span>
+
+<span class="cm">// 作業ログキューのセクション</span>
+<span class="wg">FutureBuilder</span>&lt;<span class="kw">int</span>&gt;(
+  future: context.read&lt;<span class="cl">WorkLogRepository</span>&gt;().pendingCount(),
+  builder: (ctx, snap) {
+    <span class="kw">final</span> count = snap.data ?? <span class="nm">0</span>;
+    <span class="kw">if</span> (count == <span class="nm">0</span>) <span class="kw">return const</span> <span class="wg">SizedBox</span>.shrink();
+    <span class="kw">return</span> <span class="wg">ListTile</span>(
+      leading: <span class="kw">const</span> <span class="wg">Icon</span>(<span class="wg">Icons</span>.agriculture, color: <span class="wg">Color</span>(<span class="nm">0xFFB85C00</span>)),
+      title: <span class="wg">Text</span>(<span class="st">'未送信の作業記録: $count 件'</span>),
+      subtitle: <span class="kw">const</span> <span class="wg">Text</span>(<span class="st">'オフライン時に保存されたデータです'</span>),
+      trailing: <span class="wg">ElevatedButton</span>(
+        onPressed: () <span class="kw">async</span> {
+          <span class="kw">await</span> context.read&lt;<span class="cl">WorkLogRepository</span>&gt;().flushQueue();
+          <span class="kw">if</span> (ctx.mounted) setState(() {});  <span class="cm">// FutureBuilder を再実行</span>
+        },
+        child: <span class="kw">const</span> <span class="wg">Text</span>(<span class="st">'送信'</span>),
+      ),
+    );
+  },
+),</pre>
+
+        <div class="callout note">
+          <strong>ConnectivityPlus による自動フラッシュについて。</strong>
+          ネットワーク復帰時に自動で <code>flushQueue()</code> を呼ぶには、
+          <code>WorkLogRepository</code> を <code>ChangeNotifier</code> として実装して
+          <code>Connectivity().onConnectivityChanged</code> を listen する方法が一般的です。
+          Phase 6 では手動の「送信」ボタンから呼ぶ方式で実装します。
+          自動フラッシュは既存の <code>PendingUploadStore</code> がどのように実装しているかを確認し、
+          同じ方式に揃えることを推奨します。
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ====== STEP 7: 動作確認 ====== -->
+<section id="step7">
+  <h2><span class="n">07</span>動作確認（ローカル） <span class="en">local check</span></h2>
+
+  <div class="steps">
+    <div class="step">
+      <div class="snum">11</div>
+      <div class="sbody">
+        <h4>flutter analyze でエラー件数を確認</h4>
+        <span class="sloc">ターミナル / ローカル</span>
+        <div class="shell">
+<span class="p">$ </span><span class="cmd">flutter analyze 2>&1 | tail -5</span>
+<span class="c"># baseline: 117 issues found</span>
+<span class="c"># 今回追加したファイルに error / warning がないこと</span>
+<span class="c"># withOpacity ではなく withValues(alpha:) を使うこと</span>
+        </div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="snum">12</div>
+      <div class="sbody">
+        <h4>エミュレーター or 実機で動作確認</h4>
+        <span class="sloc">Android エミュレーター or 実機</span>
+        <div class="shell">
+<span class="p">$ </span><span class="cmd">flutter run</span>
+        </div>
+        <table>
+          <thead><tr><th>確認項目</th><th>期待動作</th></tr></thead>
+          <tbody>
+            <tr><td>タイムラインタブ右下に「+作業記録」ボタンが表示される</td><td>緑の FAB が表示される</td></tr>
+            <tr><td>「+作業記録」タップ</td><td>ボトムシートが底から引き出される（ドラッグハンドル表示）</td></tr>
+            <tr><td>Step 1: 作業種別グリッド</td><td>施肥 / 耕うん / 農薬 / 収穫 / その他 が2列グリッドで表示される</td></tr>
+            <tr><td>「施肥」タップ</td><td>Step 2 の詳細入力フォームに遷移。プリセット候補チップが表示される</td></tr>
+            <tr><td>プリセット「NK化成」タップ</td><td>タイトル欄に「NK化成」が入力される</td></tr>
+            <tr><td>「確認へ」タップ</td><td>Step 3 の確認画面に遷移。入力内容が一覧表示される</td></tr>
+            <tr><td>「保存」タップ（オンライン）</td><td>API が呼ばれ、ボトムシートが閉じる。スナックバー表示。タイムライン更新</td></tr>
+            <tr><td>「保存」タップ（オフライン）</td><td>JSON キューに保存。ボトムシートが閉じる。スナックバー表示</td></tr>
+            <tr><td>「戻る」タップ</td><td>前のステップに戻る</td></tr>
+            <tr><td>×ボタンタップ</td><td>ボトムシートが閉じる。タイムラインは更新されない</td></tr>
+            <tr><td>タイムライン再取得</td><td>保存後にタイムラインタブが更新され、新しい作業ログカードが表示される</td></tr>
+            <tr><td>SyncScreen に作業ログキューが表示される</td><td>オフライン時に保存したログの件数が表示される</td></tr>
+          </tbody>
+        </table>
+        <div class="callout info">
+          <strong>オフライン動作のテスト方法。</strong>
+          エミュレーターの場合: Android Studio の「No network」フライトモードを使う。
+          実機の場合: 機内モードに切り替えてから「保存」をタップする。
+          その後通常モードに戻して同期画面から「送信」を確認する。
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ====== STEP 8: PR & CI/CD ====== -->
+<section id="step8">
+  <h2><span class="n">08</span>commit → PR → main マージ <span class="en">deploy</span></h2>
+
+  <div class="steps">
+    <div class="step">
+      <div class="snum">13</div>
+      <div class="sbody">
+        <h4>変更をコミットして push</h4>
+        <span class="sloc">ターミナル / ローカル</span>
+        <div class="shell">
+<span class="p">$ </span><span class="cmd">git add -A</span>
+<span class="p">$ </span><span class="cmd">git diff --cached --stat</span>
+<span class="c"># 新規: work_log_entry.dart / work_log_queue.dart / work_log_repository.dart</span>
+<span class="c">#       work_log_notifier.dart / work_log_edit_screen.dart</span>
+<span class="c"># 変更: farm_timeline_tab.dart / timeline_notifier.dart</span>
+<span class="c">#       sync_screen.dart / main.dart（WorkLogRepository の Provider 登録）</span>
+
+<span class="p">$ </span><span class="cmd">git commit -m "feat: add work log input screen with offline queue (Phase 6)"</span>
+<span class="p">$ </span><span class="cmd">git push origin feature/phase6-work-log-input</span>
+        </div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="snum">14</div>
+      <div class="sbody">
+        <h4>GitHub でプルリクエストを作成してマージ</h4>
+        <span class="sloc">GitHub Web UI</span>
+        <ol>
+          <li>PR タイトル: <code>feat: add work log input screen with offline queue (Phase 6)</code></li>
+          <li>PR 本文: 作成・変更ファイルの一覧 + analyze 件数 + 動作確認コメント（スクリーンショット推奨）</li>
+          <li><strong>Squash and merge</strong> で main にマージ → feature ブランチを削除</li>
+        </ol>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ====== STEP 9: 実機確認 ====== -->
+<section id="step9">
+  <h2><span class="n">09</span>実機デプロイ後の確認 <span class="en">device check</span></h2>
+
+  <div class="steps">
+    <div class="step">
+      <div class="snum">15</div>
+      <div class="sbody">
+        <h4>実機で APK をインストールして最終確認</h4>
+        <span class="sloc">ターミナル + Android 実機</span>
+        <div class="shell">
+<span class="p">$ </span><span class="cmd">flutter build apk --debug && flutter install</span>
+        </div>
+        <ul>
+          <li>本番 API（<code>POST /api/v1/farms/{id}/work-logs</code>）に実データが登録されること</li>
+          <li>登録後にタイムラインタブを再取得すると作業ログカードが表示されること</li>
+          <li>機内モードで保存 → <code>pending_work_logs.json</code> に保存されること</li>
+          <li>機内モード解除後、SyncScreen から送信するとキューが空になること</li>
+          <li>時系列グラフの縦線（作業タイミング）に今回登録したログが反映されること</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ====== DoD ====== -->
+<section id="dod">
+  <h2><span class="n">✓</span>完了条件チェックリスト <span class="en">definition of done</span></h2>
+
+  <p style="font-size:13px;color:var(--ink3);margin-bottom:16px;">
+    <span class="tag l">L</span> ローカル確認 &nbsp;
+    <span class="tag ci">CI</span> PR &amp; CI/CD 確認 &nbsp;
+    <span class="tag e">E</span> 実機デプロイ後確認
+  </p>
+
+  <ul class="dod-list">
+    <li>
+      <span class="tag l">L</span> <code>flutter analyze</code> の info 件数が Phase 5 時点（117件）から増えていない
+      <span class="dc">確認: flutter analyze 2>&amp;1 | tail -5</span>
+    </li>
+    <li>
+      <span class="tag l">L</span> タイムラインタブに「+作業記録」FAB が表示される
+    </li>
+    <li>
+      <span class="tag l">L</span> FAB タップでボトムシートが開き、3ステップ（種別→詳細→確認）が動作する
+    </li>
+    <li>
+      <span class="tag l">L</span> 保存後にボトムシートが閉じ、タイムラインが更新される
+    </li>
+    <li>
+      <span class="tag l">L</span> オフライン時に保存すると <code>pending_work_logs.json</code> にデータが書き込まれる
+    </li>
+    <li>
+      <span class="tag l">L</span> SyncScreen に作業ログの未送信件数が表示される（オフライン保存後）
+    </li>
+    <li>
+      <span class="tag ci">CI</span> feature ブランチが main にマージされ、CI が success になっている
+    </li>
+    <li>
+      <span class="tag ci">CI</span> feature ブランチが GitHub 上で削除されている
+    </li>
+    <li>
+      <span class="tag e">E</span> 実機で本番 API に作業ログが登録され、タイムラインカードに表示される
+    </li>
+    <li>
+      <span class="tag e">E</span> 実機で機内モード保存 → 復帰後 SyncScreen 送信が動作する
+    </li>
+  </ul>
+
+  <div class="callout info" style="margin-top:24px;">
+    <strong>Phase 7（測定画面の地図中心1画面化）への引き継ぎ。</strong>
+    Phase 6 完了後、作業ログの登録・表示・オフラインキューが動作していることを確認してから
+    Phase 7 の Cursor セッションを開始してください。
+    Phase 7 では現行の Step1〜3 の4画面遷移測定フローを
+    「地図中心1画面 + 上部ステータスチップ3つ」に刷新します。
+    既存の <code>MeasurementSessionScreen</code> の USB シリアル通信・GPS・アップロードロジックは
+    Phase 7 でそのまま引き継ぎます。
+  </div>
+</section>
+
+</main>
+</div>
+</body>
+</html>

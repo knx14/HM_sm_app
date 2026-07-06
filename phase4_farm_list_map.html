@@ -1,0 +1,1371 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>HenryMonitor Phase 4 実装手順書 — 圃場一覧 / 圃場詳細マップタブ</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&family=Noto+Serif+JP:wght@700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#f8f7f1;--paper:#fff;--ink:#1a2318;--ink2:#3d4f3a;--ink3:#6b7e68;
+  --line:#dbd6c4;--lines:#eae6d6;
+  --leaf:#2e5c39;--leafl:#4a8459;--leafp:#e2ede4;
+  --soil:#7a4525;--soilp:#f2e8e0;
+  --amber:#b85c00;--amberp:#fef0d8;
+  --red:#b02020;--redp:#fce4e4;
+  --blue:#1a4f7a;--bluep:#ddeaf5;
+  --teal:#1a6a6a;--tealp:#d8efef;
+  --code-bg:#181f16;--code-fg:#d4e8cc;
+  --ccm:#5a8f58;--ckw:#7dd3a8;--cst:#f7c07a;--cnm:#7ec8e3;--ccl:#e8d07a;--cwg:#f0b060;
+  --sl:#b0c8b0;
+}
+*{box-sizing:border-box;}html{scroll-behavior:smooth;}
+body{margin:0;padding:0;background:var(--bg);color:var(--ink);font-family:"Noto Sans JP",sans-serif;font-size:14.5px;line-height:1.8;-webkit-font-smoothing:antialiased;}
+.layout{display:flex;min-height:100vh;}
+
+/* sidebar */
+.toc{width:256px;flex-shrink:0;background:#0f1a0e;color:#c8d8c4;padding:28px 0 60px;position:sticky;top:0;height:100vh;overflow-y:auto;}
+.toc-logo{padding:0 20px 18px;border-bottom:1px solid rgba(255,255,255,.08);margin-bottom:14px;}
+.toc-logo .proj{font-size:11px;letter-spacing:.18em;color:#5a9a56;text-transform:uppercase;}
+.toc-logo .phase{font-family:"Noto Serif JP",serif;font-size:18px;color:#e8f0e4;font-weight:700;margin-top:4px;}
+.toc-logo .sub{font-size:11px;color:#5a9a56;margin-top:2px;line-height:1.5;}
+.toc ul{list-style:none;margin:0;padding:0;}
+.toc li a{display:block;padding:6px 20px;font-size:12px;color:#8ab88a;text-decoration:none;border-left:3px solid transparent;transition:all .15s;}
+.toc li a:hover{background:rgba(255,255,255,.06);color:#e8f0e4;border-left-color:var(--leafl);}
+.toc li a.sec{font-weight:700;color:#c4dcc0;font-size:12px;margin-top:8px;}
+.toc li a.sub{padding-left:32px;font-size:11.5px;color:#6a9a66;}
+.toc hr{border:none;border-top:1px solid rgba(255,255,255,.06);margin:8px 20px;}
+
+/* main */
+.main{flex:1;padding:48px 56px 100px;max-width:900px;}
+
+/* cover */
+.cover{background:var(--paper);border:1px solid var(--line);padding:40px 44px;position:relative;overflow:hidden;margin-bottom:52px;}
+.cover::after{content:"";position:absolute;top:0;left:0;right:0;height:5px;background:linear-gradient(90deg,var(--leaf) 0%,var(--leafl) 50%,var(--teal) 100%);}
+.badge{font-family:"JetBrains Mono",monospace;font-size:11px;letter-spacing:.2em;background:var(--leafp);color:var(--leaf);padding:3px 10px;border-radius:2px;display:inline-block;margin-bottom:14px;text-transform:uppercase;}
+.cover h1{font-family:"Noto Serif JP",serif;font-size:28px;font-weight:700;margin:0 0 8px;line-height:1.35;}
+.cover .desc{color:var(--ink2);font-size:14px;margin:0 0 24px;}
+.cmeta{display:flex;gap:24px;flex-wrap:wrap;border-top:1px solid var(--lines);padding-top:18px;}
+.cmeta dl{margin:0;}.cmeta dt{font-family:"JetBrains Mono",monospace;font-size:10px;letter-spacing:.15em;text-transform:uppercase;color:var(--ink3);margin:0 0 3px;}.cmeta dd{margin:0;font-size:13px;font-weight:500;}
+
+/* sections */
+section{margin-bottom:60px;}
+h2{font-family:"Noto Serif JP",serif;font-size:21px;font-weight:700;margin:0 0 20px;padding:13px 18px;background:var(--ink);color:#e8f0e4;display:flex;align-items:center;gap:14px;}
+h2 .n{font-family:"JetBrains Mono",monospace;font-size:12px;color:var(--leafl);letter-spacing:.1em;}
+h2 .en{font-family:"JetBrains Mono",monospace;font-size:10px;color:#6a9a66;letter-spacing:.2em;text-transform:uppercase;margin-left:auto;}
+h3{font-size:16px;font-weight:700;margin:32px 0 10px;padding-bottom:7px;border-bottom:2px solid var(--leafp);color:var(--leaf);}
+h4{font-size:14px;font-weight:700;margin:20px 0 8px;color:var(--ink2);}
+p{margin:0 0 12px;}ul,ol{margin:0 0 12px;padding-left:20px;}li{margin-bottom:5px;}strong{color:var(--ink);}
+
+/* steps */
+.steps{position:relative;}
+.step{display:grid;grid-template-columns:52px 1fr;gap:0 18px;margin-bottom:8px;position:relative;}
+.step::before{content:"";position:absolute;left:25px;top:52px;bottom:-8px;width:2px;background:var(--sl);}
+.step:last-child::before{display:none;}
+.snum{width:52px;height:52px;border-radius:50%;background:var(--leaf);color:#fff;display:flex;align-items:center;justify-content:center;font-family:"JetBrains Mono",monospace;font-size:14px;font-weight:700;flex-shrink:0;position:relative;z-index:1;align-self:start;margin-top:12px;}
+.snum.chk{background:var(--blue);}
+.snum.wrn{background:var(--amber);}
+.sbody{background:var(--paper);border:1px solid var(--line);padding:18px 22px 16px;}
+.sbody h4{margin-top:0;font-size:15px;color:var(--ink);}
+.sbody p:last-child,.sbody ul:last-child{margin-bottom:0;}
+.sloc{font-family:"JetBrains Mono",monospace;font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink3);background:var(--bg);border:1px solid var(--lines);padding:2px 8px;border-radius:2px;display:inline-block;margin-bottom:8px;}
+
+/* code */
+pre{background:var(--code-bg);color:var(--code-fg);padding:16px 18px;border-radius:3px;overflow-x:auto;font-family:"JetBrains Mono",monospace;font-size:12.5px;line-height:1.7;margin:10px 0 12px;}
+pre .fn{display:block;font-size:10px;letter-spacing:.1em;color:#486a46;margin-bottom:10px;border-bottom:1px solid rgba(255,255,255,.06);padding-bottom:8px;}
+pre .cm{color:var(--ccm);}pre .kw{color:var(--ckw);}pre .st{color:var(--cst);}
+pre .nm{color:var(--cnm);}pre .cl{color:var(--ccl);}pre .wg{color:var(--cwg);}
+code{font-family:"JetBrains Mono",monospace;font-size:12.5px;background:#edeadc;color:var(--soil);padding:1px 5px;border-radius:2px;}
+.shell{background:#090f08;color:#a8d8a0;padding:14px 18px;border-radius:3px;font-family:"JetBrains Mono",monospace;font-size:12.5px;line-height:1.7;margin:10px 0 12px;border-left:3px solid var(--leafl);overflow-x:auto;}
+.shell .p{color:#4a8a48;user-select:none;}.shell .c{color:#326030;}.shell .cmd{color:#c0e0b8;}
+
+/* callouts */
+.callout{padding:12px 16px;margin:12px 0;font-size:13.5px;border-left:4px solid var(--leaf);background:var(--leafp);}
+.callout.warn{border-color:var(--amber);background:var(--amberp);}
+.callout.danger{border-color:var(--red);background:var(--redp);}
+.callout.info{border-color:var(--blue);background:var(--bluep);}
+.callout.note{border-color:var(--soil);background:var(--soilp);}
+.callout.teal{border-color:var(--teal);background:var(--tealp);}
+.callout strong{display:block;margin-bottom:3px;}
+
+/* tables */
+table{border-collapse:collapse;width:100%;margin:10px 0 14px;font-size:13px;}
+th,td{padding:8px 12px;border-bottom:1px solid var(--lines);text-align:left;vertical-align:top;}
+th{background:var(--leafp);font-weight:700;font-size:11.5px;letter-spacing:.04em;border-bottom:2px solid var(--leaf);color:var(--leaf);}
+tr:hover td{background:#f5f2e8;}
+
+/* tags */
+.tag{display:inline-block;font-family:"JetBrains Mono",monospace;font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:2px 7px;border-radius:2px;vertical-align:middle;margin:0 2px;}
+.tag.new{background:var(--leafp);color:var(--leaf);}
+.tag.mod{background:var(--bluep);color:var(--blue);}
+.tag.kept{background:#ede9d8;color:var(--ink3);}
+.tag.l{background:var(--leafp);color:var(--leaf);}
+.tag.ci{background:var(--bluep);color:var(--blue);}
+.tag.e{background:var(--soilp);color:var(--soil);}
+
+/* file tree */
+.filetree{background:var(--paper);border:1px solid var(--line);padding:16px 20px;font-family:"JetBrains Mono",monospace;font-size:12.5px;line-height:1.9;margin:10px 0 14px;}
+.filetree .d{color:var(--leaf);font-weight:700;}
+.filetree .nf{color:var(--amber);}
+.filetree .nf::after{content:" ← NEW";font-size:10px;opacity:.7;}
+.filetree .mf{color:var(--blue);}
+.filetree .mf::after{content:" ← EDIT";font-size:10px;opacity:.7;}
+
+/* screen spec box */
+.spec-box{border:1px solid var(--line);background:var(--paper);margin:16px 0 24px;}
+.spec-header{background:var(--ink);color:#e8f0e4;padding:10px 16px;display:flex;align-items:center;gap:12px;font-family:"JetBrains Mono",monospace;font-size:13px;}
+.spec-label{font-size:10px;letter-spacing:.15em;text-transform:uppercase;background:rgba(255,255,255,.12);padding:2px 8px;border-radius:2px;}
+.spec-body{padding:16px 18px;}
+.spec-body h4{margin-top:12px;color:var(--soil);font-size:13px;}
+.spec-body h4:first-child{margin-top:0;}
+
+/* DoD */
+.dod-list{list-style:none;padding-left:0;}
+.dod-list li{padding:10px 14px 10px 40px;position:relative;border-bottom:1px solid var(--lines);font-size:13.5px;}
+.dod-list li::before{content:"☐";position:absolute;left:12px;color:var(--leaf);font-size:16px;line-height:1;top:12px;}
+.dod-list li:last-child{border-bottom:none;}
+.dod-list li .dc{display:block;margin-top:3px;font-size:12px;color:var(--ink3);}
+
+@media(max-width:900px){.layout{display:block;}.toc{width:100%;height:auto;position:static;}.main{padding:28px 20px 64px;}}
+</style>
+</head>
+<body>
+<div class="layout">
+
+<!-- ======== TOC ======== -->
+<nav class="toc">
+  <div class="toc-logo">
+    <div class="proj">HenryMonitor</div>
+    <div class="phase">Phase 4</div>
+    <div class="sub">圃場一覧 / 圃場詳細<br>マップタブ（Flutter）</div>
+  </div>
+  <ul>
+    <li><a class="sec" href="#overview">0. Phase 4 の全体像</a></li>
+    <li><a class="sub" href="#prereq">前提確認</a></li>
+    <li><a class="sub" href="#files">作成・編集ファイル一覧</a></li>
+    <hr>
+    <li><a class="sec" href="#step1">1. API クライアント追加</a></li>
+    <li><a class="sub" href="#step1-model">データモデル定義</a></li>
+    <li><a class="sub" href="#step1-client">FarmApiClient 拡張</a></li>
+    <hr>
+    <li><a class="sec" href="#step2">2. FarmListScreen 実装</a></li>
+    <li><a class="sub" href="#step2-screen">カードレイアウト</a></li>
+    <li><a class="sub" href="#step2-route">ルーティング接続</a></li>
+    <hr>
+    <li><a class="sec" href="#step3">3. FarmDetailScreen 実装</a></li>
+    <li><a class="sub" href="#step3-scaffold">3タブ Scaffold</a></li>
+    <li><a class="sec" href="#step4">4. FarmMapTab 実装</a></li>
+    <li><a class="sub" href="#step4-api">API 接続</a></li>
+    <li><a class="sub" href="#step4-map">地図表示</a></li>
+    <li><a class="sub" href="#step4-param">パラメータ切替</a></li>
+    <hr>
+    <li><a class="sec" href="#step5">5. 時系列・タイムラインタブ（スタブ）</a></li>
+    <li><a class="sec" href="#step6">6. routes.dart 接続</a></li>
+    <li><a class="sec" href="#step7">7. 動作確認（ローカル）</a></li>
+    <li><a class="sec" href="#step8">8. commit → PR → CI/CD</a></li>
+    <li><a class="sec" href="#step9">9. 実機確認</a></li>
+    <li><a class="sec" href="#dod">✓ 完了条件</a></li>
+  </ul>
+</nav>
+
+<!-- ======== Main ======== -->
+<main class="main">
+
+<div class="cover">
+  <span class="badge">Phase 4 / farm list &amp; map tab</span>
+  <h1>圃場一覧 / 圃場詳細マップタブ — 実装手順書</h1>
+  <p class="desc">
+    Phase 3 で <code>AppRoutes</code> に登録した <code>FarmScreen</code> を
+    <strong>カードレイアウトの <code>FarmListScreen</code></strong> に刷新し、
+    圃場詳細の <strong>3タブ Scaffold（マップ / 時系列 / タイムライン）</strong> を構築します。
+    本 Phase ではマップタブを実データで動かすところまで完成させ、
+    時系列・タイムラインタブは Phase 5 用のスタブ（「準備中」表示）として置きます。
+    バックエンドは変更ありません。
+  </p>
+  <div class="cmeta">
+    <dl><dt>STEP 1〜7</dt><dd>ローカル Flutter 環境で実施</dd></dl>
+    <dl><dt>STEP 8</dt><dd>commit → PR → main マージ → CI/CD</dd></dl>
+    <dl><dt>STEP 9</dt><dd>実機（Android）での動作確認</dd></dl>
+    <dl><dt>ブランチ</dt><dd><code>feature/phase4-farm-list-map</code></dd></dl>
+  </div>
+</div>
+
+<!-- ====== 0. OVERVIEW ====== -->
+<section id="overview">
+  <h2><span class="n">00</span>Phase 4 の全体像 <span class="en">overview</span></h2>
+
+  <h3>Phase 4 で実装する画面と既存コードとの関係</h3>
+  <table>
+    <thead><tr><th>画面 / クラス</th><th>状態</th><th>Phase 4 での扱い</th></tr></thead>
+    <tbody>
+      <tr><td><code>FarmScreen</code></td><td>既存（圃場管理タブ。詳細遷移は TODO）</td><td><span class="tag mod">廃止→置換</span> <code>FarmListScreen</code> に全面刷新</td></tr>
+      <tr><td><code>FarmListScreen</code></td><td>なし</td><td><span class="tag new">新規</span> カードレイアウト一覧</td></tr>
+      <tr><td><code>FarmDetailScreen</code></td><td>なし</td><td><span class="tag new">新規</span> 3タブ Scaffold</td></tr>
+      <tr><td><code>FarmMapTab</code></td><td>なし</td><td><span class="tag new">新規</span> 実データで動作（マップ + CEC ヒートピン + パラメータ切替）</td></tr>
+      <tr><td><code>FarmTimeseriesTab</code></td><td>なし</td><td><span class="tag new">スタブ</span> 「Phase 5 で実装予定」表示のみ</td></tr>
+      <tr><td><code>FarmTimelineTab</code></td><td>なし</td><td><span class="tag new">スタブ</span> 「Phase 5 で実装予定」表示のみ</td></tr>
+      <tr><td><code>FarmApiClient</code>（または既存の API クライアント）</td><td>既存（圃場一覧取得のみ）</td><td><span class="tag mod">拡張</span> 測定日一覧・マップデータ取得メソッドを追加</td></tr>
+    </tbody>
+  </table>
+
+  <div class="callout info">
+    <strong>既存の <code>FarmScreen</code> について。</strong>
+    現行の <code>FarmScreen</code> は圃場一覧表示の骨格のみで、
+    圃場詳細への遷移が <code>TODO</code> のままです。
+    Phase 4 では <code>FarmListScreen</code> として完全に作り直し、
+    <code>routes.dart</code> の <code>AppRoutes.farmList</code>（または相当するキー）を
+    <code>FarmListScreen</code> へ差し替えます。
+  </div>
+
+  <h3>利用するバックエンド API（Phase 2 実装済み）</h3>
+  <table>
+    <thead><tr><th>API</th><th>エンドポイント</th><th>Phase 4 での用途</th></tr></thead>
+    <tbody>
+      <tr>
+        <td>圃場一覧</td>
+        <td><code>GET /api/v1/farms</code></td>
+        <td>FarmListScreen のカード表示。最終測定日・平均値を含む（既存）</td>
+      </tr>
+      <tr>
+        <td>測定日一覧</td>
+        <td><code>GET /api/farms/{farmId}/results/dates</code>（既存）</td>
+        <td>マップタブの日付セレクタ</td>
+      </tr>
+      <tr>
+        <td>マップデータ</td>
+        <td><code>GET /api/farms/{farmId}/results/map?parameter=CEC</code>（既存）</td>
+        <td>マップタブの測定ピン（緯度経度 + 値）</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="callout note">
+    <strong>API パスのバージョン体系について（既知の混在）。</strong>
+    このプロジェクトでは圃場系が <code>/api/v1/farms</code>、結果系が <code>/api/farms/{id}/...</code>
+    とバージョン体系が混在しています（スキルドキュメントに記載あり）。
+    実際の既存 API クライアントコードを <code>grep -rn "api/farms\|api/v1" lib/</code> で確認してから
+    正確なパスを使うようにしてください。
+  </div>
+
+  <h3 id="prereq">前提確認</h3>
+  <div class="steps">
+    <div class="step">
+      <div class="snum chk">✓</div>
+      <div class="sbody">
+        <h4>Phase 3 完了・main マージ済みを確認してブランチ作成</h4>
+        <span class="sloc">ターミナル / ローカル</span>
+        <div class="shell">
+<span class="p">$ </span><span class="cmd">git checkout main && git pull origin main</span>
+<span class="p">$ </span><span class="cmd">git log --oneline -3</span>
+<span class="c"># Phase 3 のコミットが含まれること（BottomNav 廃止のコミットメッセージ）</span>
+
+<span class="p">$ </span><span class="cmd">git checkout -b feature/phase4-farm-list-map</span>
+        </div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="snum chk">✓</div>
+      <div class="sbody">
+        <h4>既存の圃場・結果系 API クライアントのコードを確認</h4>
+        <span class="sloc">ターミナル / ローカル</span>
+        <p>
+          Phase 4 の前に、<strong>既存の API クライアントのクラス名とファイルパスを必ず確認</strong>してください。
+          手順書では <code>FarmApiClient</code> と表記しますが、
+          実際のクラス名に読み替えてください。
+        </p>
+        <div class="shell">
+<span class="c"># API クライアント関連ファイルを検索</span>
+<span class="p">$ </span><span class="cmd">find lib -name "*api*" -o -name "*client*" -o -name "*service*" | grep -v ".dart_tool" | sort</span>
+
+<span class="c"># 既存の圃場一覧・結果取得 API コールを確認</span>
+<span class="p">$ </span><span class="cmd">grep -rn "api/farms\|api/v1/farms\|results/map\|results/dates" lib/ | head -20</span>
+        </div>
+        <div class="callout teal">
+          <strong>Cursor に渡す前に確認した内容を冒頭に明記してください。</strong>
+          「既存の API クライアントのクラス名は ○○、ファイルパスは lib/○○/○○.dart」
+          という形で Cursor セッションの最初に伝えると、
+          インポートパスの誤りを防げます。
+        </div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="snum chk">✓</div>
+      <div class="sbody">
+        <h4>flutter analyze の baseline を確認（既存 info 件数を把握）</h4>
+        <span class="sloc">ターミナル / ローカル</span>
+        <div class="shell">
+<span class="p">$ </span><span class="cmd">flutter analyze 2>&1 | tail -5</span>
+<span class="c"># Phase 3 完了時点の info 件数（117件）を把握しておく</span>
+<span class="c"># Phase 4 の実装で増やさないことを確認するため</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <h3 id="files">作成・編集ファイル一覧</h3>
+  <div class="filetree">
+lib/
+├── <span class="d">models/</span>（既存ディレクトリ）
+│   ├── <span class="nf">farm_summary.dart        （圃場カード表示用モデル）</span>
+│   ├── <span class="nf">map_point.dart           （マップ測定ピン用モデル）</span>
+│   └── <span class="nf">measurement_date.dart    （測定日一覧用モデル）</span>
+├── <span class="d">api/</span>（既存 API クライアントのディレクトリ。名前はプロジェクトに合わせる）
+│   └── <span class="mf">farm_api_client.dart     （測定日一覧・マップデータ取得メソッドを追加）</span>
+├── <span class="d">providers/</span>（既存）
+│   └── <span class="nf">farm_detail_provider.dart（圃場詳細の状態管理）</span>
+└── <span class="d">screens/</span>
+    └── <span class="d">farm/</span>
+        ├── <span class="mf">farm_screen.dart          → FarmListScreen に全面置き換え</span>
+        ├── <span class="nf">farm_detail_screen.dart  （3タブ Scaffold）</span>
+        └── <span class="d">tabs/</span>
+            ├── <span class="nf">farm_map_tab.dart        （マップタブ: 実装済み）</span>
+            ├── <span class="nf">farm_timeseries_tab.dart （時系列タブ: Phase 5 スタブ）</span>
+            └── <span class="nf">farm_timeline_tab.dart   （タイムラインタブ: Phase 5 スタブ）</span>
+  </div>
+</section>
+
+<!-- ====== STEP 1: API Client ====== -->
+<section id="step1">
+  <h2><span class="n">01</span>データモデル定義と API クライアント拡張 <span class="en">api client</span></h2>
+
+  <div class="steps">
+    <div class="step" id="step1-model">
+      <div class="snum">1</div>
+      <div class="sbody">
+        <h4>Phase 4 で使うデータモデルを定義</h4>
+        <span class="sloc">lib/models/（既存ディレクトリ、なければ作成）</span>
+        <p>
+          既存の <code>models/</code> に以下の3ファイルを追加します。
+          すでに類似モデルが存在する場合はそちらを流用し、フィールドを必要に応じて追加してください。
+        </p>
+<pre><span class="fn">lib/models/farm_summary.dart  — 圃場一覧カードに必要なデータ</span><span class="cm">/// 圃場一覧カードの1行分に必要なデータ。
+/// GET /api/v1/farms レスポンスの各要素をマッピングする。</span>
+<span class="kw">class</span> <span class="cl">FarmSummary</span> {
+  <span class="kw">final</span> <span class="kw">int</span>     id;
+  <span class="kw">final</span> <span class="cl">String</span>  farmName;
+  <span class="kw">final</span> <span class="cl">String</span>? cropType;
+  <span class="kw">final</span> <span class="kw">double</span>? areaSqm;          <span class="cm">// 面積（㎡）</span>
+  <span class="kw">final</span> <span class="cl">String</span>? lastMeasuredDate; <span class="cm">// 最終測定日 "YYYY-MM-DD"</span>
+  <span class="kw">final</span> <span class="kw">int</span>?    lastPointCount;   <span class="cm">// 最終測定の点数</span>
+  <span class="kw">final</span> <span class="kw">double</span>? avgCec;
+  <span class="kw">final</span> <span class="kw">double</span>? avgCao;
+  <span class="kw">final</span> <span class="kw">double</span>? avgK2o;
+  <span class="kw">final</span> <span class="kw">double</span>? avgMgo;
+
+  <span class="kw">const</span> <span class="cl">FarmSummary</span>({
+    required <span class="kw">this</span>.id,
+    required <span class="kw">this</span>.farmName,
+    <span class="kw">this</span>.cropType,
+    <span class="kw">this</span>.areaSqm,
+    <span class="kw">this</span>.lastMeasuredDate,
+    <span class="kw">this</span>.lastPointCount,
+    <span class="kw">this</span>.avgCec,
+    <span class="kw">this</span>.avgCao,
+    <span class="kw">this</span>.avgK2o,
+    <span class="kw">this</span>.avgMgo,
+  });
+
+  <span class="kw">factory</span> <span class="cl">FarmSummary</span>.fromJson(<span class="cl">Map</span>&lt;<span class="cl">String</span>, <span class="kw">dynamic</span>&gt; json) {
+    <span class="kw">final</span> latest = json[<span class="st">'latest_result'</span>] <span class="kw">as</span> <span class="cl">Map</span>? ?? {};
+    <span class="kw">return</span> <span class="cl">FarmSummary</span>(
+      id:              json[<span class="st">'id'</span>] <span class="kw">as int</span>,
+      farmName:        json[<span class="st">'farm_name'</span>] <span class="kw">as</span> <span class="cl">String</span>,
+      cropType:        json[<span class="st">'crop_type'</span>]       <span class="kw">as</span> <span class="cl">String</span>?,
+      areaSqm:         (json[<span class="st">'area_sqm'</span>]       <span class="kw">as</span> <span class="kw">num</span>?)?.toDouble(),
+      lastMeasuredDate:latest[<span class="st">'measurement_date'</span>] <span class="kw">as</span> <span class="cl">String</span>?,
+      lastPointCount:  latest[<span class="st">'count_points'</span>]   <span class="kw">as</span> <span class="kw">int</span>?,
+      avgCec:          (latest[<span class="st">'avg_cec'</span>]  <span class="kw">as</span> <span class="kw">num</span>?)?.toDouble(),
+      avgCao:          (latest[<span class="st">'avg_cao'</span>]  <span class="kw">as</span> <span class="kw">num</span>?)?.toDouble(),
+      avgK2o:          (latest[<span class="st">'avg_k2o'</span>]  <span class="kw">as</span> <span class="kw">num</span>?)?.toDouble(),
+      avgMgo:          (latest[<span class="st">'avg_mgo'</span>]  <span class="kw">as</span> <span class="kw">num</span>?)?.toDouble(),
+    );
+  }
+}</pre>
+
+<pre><span class="fn">lib/models/map_point.dart  — マップ上のピン1点分のデータ</span><span class="cm">/// GET /api/farms/{id}/results/map の points 配列の1要素。</span>
+<span class="kw">class</span> <span class="cl">MapPoint</span> {
+  <span class="kw">final</span> <span class="kw">double</span> latitude;
+  <span class="kw">final</span> <span class="kw">double</span> longitude;
+  <span class="kw">final</span> <span class="kw">double</span>? value;   <span class="cm">// CEC / CaO / K2O / MgO のいずれか</span>
+  <span class="kw">final</span> <span class="cl">String</span>? unit;
+
+  <span class="kw">const</span> <span class="cl">MapPoint</span>({
+    required <span class="kw">this</span>.latitude,
+    required <span class="kw">this</span>.longitude,
+    <span class="kw">this</span>.value,
+    <span class="kw">this</span>.unit,
+  });
+
+  <span class="kw">factory</span> <span class="cl">MapPoint</span>.fromJson(<span class="cl">Map</span>&lt;<span class="cl">String</span>, <span class="kw">dynamic</span>&gt; json) =&gt; <span class="cl">MapPoint</span>(
+    latitude:  (json[<span class="st">'latitude'</span>]  <span class="kw">as</span> <span class="kw">num</span>).toDouble(),
+    longitude: (json[<span class="st">'longitude'</span>] <span class="kw">as</span> <span class="kw">num</span>).toDouble(),
+    value:     (json[<span class="st">'value'</span>]     <span class="kw">as</span> <span class="kw">num</span>?)?.toDouble(),
+    unit:       json[<span class="st">'unit'</span>]      <span class="kw">as</span> <span class="cl">String</span>?,
+  );
+}</pre>
+
+<pre><span class="fn">lib/models/measurement_date.dart  — 測定日一覧</span><span class="cm">/// GET /api/farms/{id}/results/dates の1要素。</span>
+<span class="kw">class</span> <span class="cl">MeasurementDate</span> {
+  <span class="kw">final</span> <span class="cl">String</span> date;   <span class="cm">// "YYYY-MM-DD"</span>
+  <span class="kw">final</span> <span class="kw">int</span>    count;  <span class="cm">// その日の測定点数</span>
+
+  <span class="kw">const</span> <span class="cl">MeasurementDate</span>({required <span class="kw">this</span>.date, required <span class="kw">this</span>.count});
+
+  <span class="kw">factory</span> <span class="cl">MeasurementDate</span>.fromJson(<span class="cl">Map</span>&lt;<span class="cl">String</span>, <span class="kw">dynamic</span>&gt; json) =&gt;
+      <span class="cl">MeasurementDate</span>(
+        date:  json[<span class="st">'date'</span>]  <span class="kw">as</span> <span class="cl">String</span>,
+        count: json[<span class="st">'count'</span>] <span class="kw">as</span> <span class="kw">int</span>,
+      );
+}</pre>
+
+        <div class="callout warn">
+          <strong><code>FarmSummary.fromJson</code> のキー名について。</strong>
+          <code>latest_result</code> / <code>avg_cec</code> などのキーは
+          <code>GET /api/v1/farms</code> の実際のレスポンス構造に合わせてください。
+          以下のコマンドで既存のレスポンスを確認してから実装してください。
+          <code style="display:block;margin-top:6px;">curl -s "https://api.hm-admin.com/api/v1/farms" -H "Authorization: Bearer $TOKEN" | jq '.[0]'</code>
+          もし最終測定値サマリーがレスポンスに含まれていない場合は、
+          フィールドを <code>null</code> のままにして、マップタブ用の別 API から取得する形で対応します。
+        </div>
+      </div>
+    </div>
+
+    <div class="step" id="step1-client">
+      <div class="snum">2</div>
+      <div class="sbody">
+        <h4>既存 API クライアントに測定日一覧・マップデータ取得メソッドを追加</h4>
+        <span class="sloc">lib/api/farm_api_client.dart（または既存の相当ファイルを編集）</span>
+        <p>
+          既存クラスを開き、以下の2メソッドを末尾に追記します。
+          既存の <code>dio</code> インスタンスとベースURL設定をそのまま流用します。
+        </p>
+<pre><span class="fn">追記するメソッド 2本（既存クラス内の末尾に追記）</span>  <span class="cm">/// GET /api/farms/{farmId}/results/dates
+  /// マップタブの日付セレクタ用。measurement_date の一覧を返す。</span>
+  <span class="kw">Future</span>&lt;<span class="cl">List</span>&lt;<span class="cl">MeasurementDate</span>&gt;&gt; fetchMeasurementDates(<span class="kw">int</span> farmId) <span class="kw">async</span> {
+    <span class="kw">final</span> res = <span class="kw">await</span> _dio.get(<span class="st">'/api/farms/$farmId/results/dates'</span>);
+    <span class="kw">final</span> list = res.data[<span class="st">'data'</span>] <span class="kw">as</span> <span class="cl">List</span>;
+    <span class="kw">return</span> list
+        .map((e) =&gt; <span class="cl">MeasurementDate</span>.fromJson(e <span class="kw">as</span> <span class="cl">Map</span>&lt;<span class="cl">String</span>, <span class="kw">dynamic</span>&gt;))
+        .toList();
+  }
+
+  <span class="cm">/// GET /api/farms/{farmId}/results/map?parameter=CEC&amp;date=YYYY-MM-DD
+  /// マップタブのピン描画用。測定点ごとの緯度経度 + 値を返す。
+  ///
+  /// [parameter]: 'CEC' | 'CaO' | 'K2O' | 'MgO'
+  /// [date]: 表示する測定日 "YYYY-MM-DD"（省略時は最新日）</span>
+  <span class="kw">Future</span>&lt;<span class="cl">List</span>&lt;<span class="cl">MapPoint</span>&gt;&gt; fetchMapPoints(
+      <span class="kw">int</span> farmId, {
+      <span class="cl">String</span> parameter = <span class="st">'CEC'</span>,
+      <span class="cl">String</span>? date,
+  }) <span class="kw">async</span> {
+    <span class="kw">final</span> params = &lt;<span class="cl">String</span>, <span class="kw">dynamic</span>&gt;{<span class="st">'parameter'</span>: parameter};
+    <span class="kw">if</span> (date != <span class="kw">null</span>) params[<span class="st">'date'</span>] = date;
+
+    <span class="kw">final</span> res = <span class="kw">await</span> _dio.get(
+      <span class="st">'/api/farms/$farmId/results/map'</span>,
+      queryParameters: params,
+    );
+    <span class="kw">final</span> list = res.data[<span class="st">'data'</span>] <span class="kw">as</span> <span class="cl">List</span>;
+    <span class="kw">return</span> list
+        .map((e) =&gt; <span class="cl">MapPoint</span>.fromJson(e <span class="kw">as</span> <span class="cl">Map</span>&lt;<span class="cl">String</span>, <span class="kw">dynamic</span>&gt;))
+        .toList();
+  }</pre>
+        <div class="callout">
+          <strong><code>_dio</code> の変数名と <code>res.data</code> のラッパーキー名について。</strong>
+          既存クライアントの <code>Dio</code> インスタンス変数名（<code>_dio</code> / <code>dio</code> / <code>client</code> 等）と、
+          レスポンスのトップレベルキー（<code>data</code> / <code>points</code> / ラッパーなし等）は
+          実際のコードに合わせてください。
+          <code>grep -n "dio\." lib/api/farm_api_client.dart | head -10</code> で確認できます。
+        </div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="snum">3</div>
+      <div class="sbody">
+        <h4>FarmDetailProvider を新規作成</h4>
+        <span class="sloc">lib/providers/farm_detail_provider.dart（新規作成）</span>
+        <p>
+          圃場詳細画面（3タブ）で共通に使う状態を管理します。
+          タブを切り替えてもデータがリセットされないよう、
+          <code>FarmDetailScreen</code> の親ウィジェットで <code>ChangeNotifierProvider</code> として提供します。
+        </p>
+<pre><span class="fn">lib/providers/farm_detail_provider.dart</span><span class="kw">import</span> <span class="st">'package:flutter/foundation.dart'</span>;
+<span class="kw">import</span> <span class="st">'../models/map_point.dart'</span>;
+<span class="kw">import</span> <span class="st">'../models/measurement_date.dart'</span>;
+<span class="cm">// 既存クライアントのパスに合わせること</span>
+<span class="kw">import</span> <span class="st">'../api/farm_api_client.dart'</span>;
+
+<span class="kw">class</span> <span class="cl">FarmDetailProvider</span> <span class="kw">extends</span> <span class="cl">ChangeNotifier</span> {
+  <span class="kw">final</span> <span class="kw">int</span> farmId;
+  <span class="kw">final</span> <span class="cl">FarmApiClient</span> _client;
+
+  <span class="cl">FarmDetailProvider</span>({required <span class="kw">this</span>.farmId, required <span class="cl">FarmApiClient</span> client})
+      : _client = client;
+
+  <span class="cm">// ── マップタブ用の状態 ────────────────────────────────────────</span>
+  <span class="cl">List</span>&lt;<span class="cl">MeasurementDate</span>&gt; measurementDates = [];
+  <span class="cl">String</span>?               selectedDate;
+  <span class="cl">String</span>                selectedParam = <span class="st">'CEC'</span>; <span class="cm">// CEC | CaO | K2O | MgO</span>
+  <span class="cl">List</span>&lt;<span class="cl">MapPoint</span>&gt;         mapPoints     = [];
+  <span class="kw">bool</span>                  isLoadingMap  = <span class="kw">false</span>;
+  <span class="cl">String</span>?               mapError;
+
+  <span class="cm">// ── 初回ロード ─────────────────────────────────────────────</span>
+  <span class="kw">Future</span>&lt;<span class="kw">void</span>&gt; init() <span class="kw">async</span> {
+    <span class="kw">await</span> loadMeasurementDates();
+  }
+
+  <span class="cm">/// 測定日一覧を取得し、最新日を selectedDate にセットしてマップを読み込む。</span>
+  <span class="kw">Future</span>&lt;<span class="kw">void</span>&gt; loadMeasurementDates() <span class="kw">async</span> {
+    <span class="kw">try</span> {
+      measurementDates = <span class="kw">await</span> _client.fetchMeasurementDates(farmId);
+      <span class="kw">if</span> (measurementDates.isNotEmpty) {
+        selectedDate = measurementDates.first.date; <span class="cm">// 最新日（降順前提）</span>
+        <span class="kw">await</span> loadMapPoints();
+      }
+    } <span class="kw">catch</span> (e) {
+      mapError = e.toString();
+      notifyListeners();
+    }
+  }
+
+  <span class="cm">/// パラメータまたは日付変更時にマップデータを再取得する。</span>
+  <span class="kw">Future</span>&lt;<span class="kw">void</span>&gt; loadMapPoints() <span class="kw">async</span> {
+    isLoadingMap = <span class="kw">true</span>;
+    mapError     = <span class="kw">null</span>;
+    notifyListeners();
+    <span class="kw">try</span> {
+      mapPoints = <span class="kw">await</span> _client.fetchMapPoints(
+        farmId,
+        parameter: selectedParam,
+        date:      selectedDate,
+      );
+    } <span class="kw">catch</span> (e) {
+      mapError = e.toString();
+    } <span class="kw">finally</span> {
+      isLoadingMap = <span class="kw">false</span>;
+      notifyListeners();
+    }
+  }
+
+  <span class="cm">/// パラメータタブ切替（CEC → CaO → K2O → MgO）</span>
+  <span class="kw">Future</span>&lt;<span class="kw">void</span>&gt; selectParam(<span class="cl">String</span> param) <span class="kw">async</span> {
+    <span class="kw">if</span> (selectedParam == param) <span class="kw">return</span>;
+    selectedParam = param;
+    <span class="kw">await</span> loadMapPoints();
+  }
+
+  <span class="cm">/// 日付セレクタで日付変更</span>
+  <span class="kw">Future</span>&lt;<span class="kw">void</span>&gt; selectDate(<span class="cl">String</span> date) <span class="kw">async</span> {
+    <span class="kw">if</span> (selectedDate == date) <span class="kw">return</span>;
+    selectedDate = date;
+    <span class="kw">await</span> loadMapPoints();
+  }
+}</pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ====== STEP 2: FarmListScreen ====== -->
+<section id="step2">
+  <h2><span class="n">02</span>FarmListScreen の実装 <span class="en">farm list</span></h2>
+
+  <div class="steps">
+    <div class="step" id="step2-screen">
+      <div class="snum">4</div>
+      <div class="sbody">
+        <h4>farm_screen.dart を FarmListScreen に全面置き換え</h4>
+        <span class="sloc">lib/screens/farm/farm_screen.dart（既存ファイルを全面置き換え）</span>
+
+        <div class="spec-box">
+          <div class="spec-header">
+            <span class="spec-label">仕様</span>FarmListScreen — カードレイアウト（3行構成）
+          </div>
+          <div class="spec-body">
+            <h4>カード1行目</h4>
+            <p>サムネイル（将来: 航空写真。現時点は圃場名頭文字のアバター）+ 圃場名 + 作物・面積</p>
+            <h4>カード2行目</h4>
+            <p>最終測定日 + 測定点数</p>
+            <h4>カード3行目</h4>
+            <p>CEC / CaO / K2O / MgO の最終測定日平均値 4列。未実装モデルは「—」表示</p>
+            <h4>操作</h4>
+            <p>カードタップ → FarmDetailScreen へ遷移。上部に検索バー（クライアントサイド絞り込み）。下部に「+ 新規圃場を登録」ボタン（既存の圃場登録画面に遷移）</p>
+          </div>
+        </div>
+
+<pre><span class="fn">lib/screens/farm/farm_screen.dart（全面置き換え）</span><span class="kw">import</span> <span class="st">'package:flutter/material.dart'</span>;
+<span class="kw">import</span> <span class="st">'package:provider/provider.dart'</span>;
+<span class="cm">// 既存の圃場一覧 Provider/Client のパスに合わせること</span>
+<span class="kw">import</span> <span class="st">'../../providers/farm_list_provider.dart'</span>;
+<span class="kw">import</span> <span class="st">'../../models/farm_summary.dart'</span>;
+<span class="kw">import</span> <span class="st">'farm_detail_screen.dart'</span>;
+
+<span class="kw">class</span> <span class="cl">FarmListScreen</span> <span class="kw">extends</span> <span class="cl">StatefulWidget</span> {
+  <span class="kw">const</span> <span class="cl">FarmListScreen</span>({<span class="kw">super</span>.key});
+  <span class="kw">@override</span>
+  <span class="cl">State</span>&lt;<span class="cl">FarmListScreen</span>&gt; createState() =&gt; _FarmListScreenState();
+}
+
+<span class="kw">class</span> <span class="cl">_FarmListScreenState</span> <span class="kw">extends</span> <span class="cl">State</span>&lt;<span class="cl">FarmListScreen</span>&gt; {
+  <span class="kw">final</span> _searchCtrl = <span class="cl">TextEditingController</span>();
+  <span class="cl">String</span> _query = <span class="st">''</span>;
+
+  <span class="kw">@override</span>
+  <span class="kw">void</span> initState() {
+    <span class="kw">super</span>.initState();
+    <span class="cm">// 画面表示時に圃場一覧を取得（既存 Provider のメソッドを使う）</span>
+    <span class="kw">WidgetsBinding</span>.instance.addPostFrameCallback((_) {
+      context.read&lt;<span class="cl">FarmListProvider</span>&gt;().fetchFarms();
+    });
+  }
+
+  <span class="kw">@override</span>
+  <span class="kw">void</span> dispose() { _searchCtrl.dispose(); <span class="kw">super</span>.dispose(); }
+
+  <span class="kw">@override</span>
+  <span class="cl">Widget</span> build(<span class="cl">BuildContext</span> context) {
+    <span class="kw">final</span> prov  = context.watch&lt;<span class="cl">FarmListProvider</span>&gt;();
+    <span class="kw">final</span> farms = prov.farms
+        .where((f) =&gt;
+            _query.isEmpty ||
+            f.farmName.contains(_query) ||
+            (f.cropType?.contains(_query) ?? <span class="kw">false</span>))
+        .toList();
+
+    <span class="kw">return</span> <span class="wg">Scaffold</span>(
+      appBar: <span class="wg">AppBar</span>(
+        title: <span class="kw">const</span> <span class="wg">Text</span>(<span class="st">'圃場'</span>),
+        backgroundColor: <span class="kw">const</span> <span class="wg">Color</span>(<span class="nm">0xFF2E5C39</span>),
+        foregroundColor: <span class="wg">Colors</span>.white,
+      ),
+      body: <span class="wg">Column</span>(children: [
+        <span class="cm">// 検索バー</span>
+        <span class="wg">Padding</span>(
+          padding: <span class="kw">const</span> <span class="wg">EdgeInsets</span>.all(<span class="nm">12</span>),
+          child: <span class="wg">TextField</span>(
+            controller: _searchCtrl,
+            decoration: <span class="kw">const</span> <span class="wg">InputDecoration</span>(
+              hintText: <span class="st">'圃場を検索'</span>,
+              prefixIcon: <span class="wg">Icon</span>(<span class="wg">Icons</span>.search),
+              border: <span class="wg">OutlineInputBorder</span>(),
+              isDense: <span class="kw">true</span>,
+            ),
+            onChanged: (v) =&gt; setState(() =&gt; _query = v),
+          ),
+        ),
+        <span class="cm">// 圃場一覧</span>
+        <span class="wg">Expanded</span>(
+          child: prov.isLoading
+              ? <span class="kw">const</span> <span class="wg">Center</span>(child: <span class="wg">CircularProgressIndicator</span>())
+              : farms.isEmpty
+                  ? <span class="kw">const</span> <span class="wg">Center</span>(child: <span class="wg">Text</span>(<span class="st">'圃場がありません'</span>))
+                  : <span class="wg">ListView</span>.separated(
+                      itemCount:     farms.length,
+                      separatorBuilder: (_, __) =&gt; <span class="kw">const</span> <span class="wg">Divider</span>(height: <span class="nm">1</span>),
+                      itemBuilder:   (_, i) =&gt; _FarmCard(farm: farms[i]),
+                    ),
+        ),
+      ]),
+      <span class="cm">// 新規圃場登録ボタン</span>
+      bottomNavigationBar: <span class="wg">SafeArea</span>(
+        child: <span class="wg">Padding</span>(
+          padding: <span class="kw">const</span> <span class="wg">EdgeInsets</span>.all(<span class="nm">12</span>),
+          child: <span class="wg">ElevatedButton</span>.icon(
+            icon:  <span class="kw">const</span> <span class="wg">Icon</span>(<span class="wg">Icons</span>.add),
+            label: <span class="kw">const</span> <span class="wg">Text</span>(<span class="st">'新規圃場を登録'</span>),
+            style: <span class="wg">ElevatedButton</span>.styleFrom(
+                backgroundColor: <span class="kw">const</span> <span class="wg">Color</span>(<span class="nm">0xFF2E5C39</span>),
+                foregroundColor: <span class="wg">Colors</span>.white),
+            <span class="cm">// 既存の圃場登録画面への遷移（routes.dart のキーを使うこと）</span>
+            onPressed: () =&gt; <span class="wg">Navigator</span>.pushNamed(context, <span class="st">'/farm/register'</span>),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+<span class="cm">// ── 圃場カード ─────────────────────────────────────────────────</span>
+<span class="kw">class</span> <span class="cl">_FarmCard</span> <span class="kw">extends</span> <span class="cl">StatelessWidget</span> {
+  <span class="kw">const</span> <span class="cl">_FarmCard</span>({required <span class="kw">this</span>.farm});
+  <span class="kw">final</span> <span class="cl">FarmSummary</span> farm;
+
+  <span class="kw">@override</span>
+  <span class="cl">Widget</span> build(<span class="cl">BuildContext</span> context) {
+    <span class="kw">return</span> <span class="wg">InkWell</span>(
+      onTap: () =&gt; <span class="wg">Navigator</span>.push(
+        context,
+        <span class="wg">MaterialPageRoute</span>(
+          builder: (_) =&gt; <span class="wg">FarmDetailScreen</span>(farmId: farm.id, farmName: farm.farmName),
+        ),
+      ),
+      child: <span class="wg">Padding</span>(
+        padding: <span class="kw">const</span> <span class="wg">EdgeInsets</span>.symmetric(horizontal: <span class="nm">16</span>, vertical: <span class="nm">12</span>),
+        child: <span class="wg">Row</span>(children: [
+          <span class="cm">// サムネイル（頭文字アバター）</span>
+          <span class="wg">CircleAvatar</span>(
+            backgroundColor: <span class="kw">const</span> <span class="wg">Color</span>(<span class="nm">0xFF2E5C39</span>),
+            radius: <span class="nm">28</span>,
+            child: <span class="wg">Text</span>(
+              farm.farmName.isNotEmpty ? farm.farmName[<span class="nm">0</span>] : <span class="st">'?'</span>,
+              style: <span class="kw">const</span> <span class="wg">TextStyle</span>(color: <span class="wg">Colors</span>.white, fontSize: <span class="nm">20</span>),
+            ),
+          ),
+          <span class="kw">const</span> <span class="wg">SizedBox</span>(width: <span class="nm">12</span>),
+          <span class="wg">Expanded</span>(child: <span class="wg">Column</span>(
+            crossAxisAlignment: <span class="wg">CrossAxisAlignment</span>.start,
+            children: [
+              <span class="cm">// 行1: 圃場名 + 作物・面積</span>
+              <span class="wg">Row</span>(children: [
+                <span class="wg">Text</span>(farm.farmName,
+                    style: <span class="kw">const</span> <span class="wg">TextStyle</span>(fontWeight: <span class="wg">FontWeight</span>.bold, fontSize: <span class="nm">15</span>)),
+                <span class="kw">const</span> <span class="wg">Spacer</span>(),
+                <span class="kw">if</span> (farm.cropType != <span class="kw">null</span>)
+                  <span class="wg">Text</span>(<span class="st">'${farm.cropType} '</span>,
+                      style: <span class="wg">TextStyle</span>(fontSize: <span class="nm">12</span>, color: <span class="wg">Colors</span>.grey[<span class="nm">600</span>])),
+                <span class="kw">if</span> (farm.areaSqm != <span class="kw">null</span>)
+                  <span class="wg">Text</span>(<span class="st">'${farm.areaSqm!.toStringAsFixed(1)}㎡'</span>,
+                      style: <span class="wg">TextStyle</span>(fontSize: <span class="nm">12</span>, color: <span class="wg">Colors</span>.grey[<span class="nm">600</span>])),
+              ]),
+              <span class="kw">const</span> <span class="wg">SizedBox</span>(height: <span class="nm">4</span>),
+              <span class="cm">// 行2: 最終測定日 + 点数</span>
+              <span class="kw">if</span> (farm.lastMeasuredDate != <span class="kw">null</span>)
+                <span class="wg">Text</span>(
+                  <span class="st">'最終測定 ${farm.lastMeasuredDate}'</span> +
+                      (farm.lastPointCount != <span class="kw">null</span>
+                          ? <span class="st">' 測定点数：${farm.lastPointCount}点'</span> : <span class="st">''</span>),
+                  style: <span class="wg">TextStyle</span>(fontSize: <span class="nm">12</span>,
+                      color: <span class="kw">const</span> <span class="wg">Color</span>(<span class="nm">0xFF4A8459</span>)),
+                ),
+              <span class="kw">const</span> <span class="wg">SizedBox</span>(height: <span class="nm">4</span>),
+              <span class="cm">// 行3: CEC / CaO / K2O / MgO 平均値 4列</span>
+              <span class="wg">Row</span>(children: [
+                _ValueChip(<span class="st">'CEC'</span>,  farm.avgCec),
+                _ValueChip(<span class="st">'CaO'</span>,  farm.avgCao),
+                _ValueChip(<span class="st">'K₂O'</span>, farm.avgK2o),
+                _ValueChip(<span class="st">'MgO'</span>,  farm.avgMgo),
+              ]),
+            ],
+          )),
+          <span class="kw">const</span> <span class="wg">Icon</span>(<span class="wg">Icons</span>.chevron_right, color: <span class="wg">Colors</span>.grey),
+        ]),
+      ),
+    );
+  }
+}
+
+<span class="kw">class</span> <span class="cl">_ValueChip</span> <span class="kw">extends</span> <span class="cl">StatelessWidget</span> {
+  <span class="kw">const</span> <span class="cl">_ValueChip</span>(<span class="kw">this</span>.label, <span class="kw">this</span>.value);
+  <span class="kw">final</span> <span class="cl">String</span>  label;
+  <span class="kw">final</span> <span class="kw">double</span>? value;
+
+  <span class="kw">@override</span>
+  <span class="cl">Widget</span> build(<span class="cl">BuildContext</span> context) =&gt; <span class="wg">Padding</span>(
+    padding: <span class="kw">const</span> <span class="wg">EdgeInsets</span>.only(right: <span class="nm">10</span>),
+    child: <span class="wg">RichText</span>(text: <span class="wg">TextSpan</span>(
+      style: <span class="wg">DefaultTextStyle</span>.of(context).style.copyWith(fontSize: <span class="nm">12</span>),
+      children: [
+        <span class="wg">TextSpan</span>(text: <span class="st">'$label '</span>,
+            style: <span class="wg">TextStyle</span>(color: <span class="wg">Colors</span>.grey[<span class="nm">600</span>])),
+        <span class="wg">TextSpan</span>(
+          text: value != <span class="kw">null</span> ? value!.toStringAsFixed(<span class="nm">1</span>) : <span class="st">'—'</span>,
+          style: <span class="kw">const</span> <span class="wg">TextStyle</span>(fontWeight: <span class="wg">FontWeight</span>.bold),
+        ),
+      ],
+    )),
+  );
+}</pre>
+
+        <div class="callout warn">
+          <strong><code>FarmListProvider</code> と既存の圃場登録画面のルートについて。</strong>
+          <ul>
+            <li><code>FarmListProvider</code>（または相当するクラス名）は既存のものを使います。<code>grep -rn "class.*Provider" lib/providers/</code> で確認してください。</li>
+            <li><code>'/farm/register'</code> の部分は実際の <code>routes.dart</code> のキーに置き換えてください（<code>grep -n "register\|farm_register\|farmRegister" lib/app/routes.dart</code> で確認）。</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ====== STEP 3: FarmDetailScreen ====== -->
+<section id="step3">
+  <h2><span class="n">03</span>FarmDetailScreen の実装（3タブ Scaffold） <span class="en">farm detail</span></h2>
+
+  <div class="steps">
+    <div class="step" id="step3-scaffold">
+      <div class="snum">5</div>
+      <div class="sbody">
+        <h4>farm_detail_screen.dart を新規作成</h4>
+        <span class="sloc">lib/screens/farm/farm_detail_screen.dart（新規作成）</span>
+<pre><span class="fn">lib/screens/farm/farm_detail_screen.dart</span><span class="kw">import</span> <span class="st">'package:flutter/material.dart'</span>;
+<span class="kw">import</span> <span class="st">'package:provider/provider.dart'</span>;
+<span class="kw">import</span> <span class="st">'../../providers/farm_detail_provider.dart'</span>;
+<span class="kw">import</span> <span class="st">'../../api/farm_api_client.dart'</span>;
+<span class="kw">import</span> <span class="st">'tabs/farm_map_tab.dart'</span>;
+<span class="kw">import</span> <span class="st">'tabs/farm_timeseries_tab.dart'</span>;
+<span class="kw">import</span> <span class="st">'tabs/farm_timeline_tab.dart'</span>;
+
+<span class="kw">class</span> <span class="cl">FarmDetailScreen</span> <span class="kw">extends</span> <span class="cl">StatelessWidget</span> {
+  <span class="kw">const</span> <span class="cl">FarmDetailScreen</span>({
+    <span class="kw">super</span>.key,
+    required <span class="kw">this</span>.farmId,
+    required <span class="kw">this</span>.farmName,
+  });
+
+  <span class="kw">final</span> <span class="kw">int</span>    farmId;
+  <span class="kw">final</span> <span class="cl">String</span> farmName;
+
+  <span class="kw">@override</span>
+  <span class="cl">Widget</span> build(<span class="cl">BuildContext</span> context) {
+    <span class="cm">// FarmDetailProvider を FarmDetailScreen スコープで提供する。
+    // タブを切り替えてもデータが破棄されないよう、この位置で ChangeNotifierProvider を置く。</span>
+    <span class="kw">return</span> <span class="wg">ChangeNotifierProvider</span>(
+      create: (_) =&gt; <span class="cl">FarmDetailProvider</span>(
+        farmId: farmId,
+        client: context.read&lt;<span class="cl">FarmApiClient</span>&gt;(),
+      )..init(),
+      child: <span class="cl">_FarmDetailView</span>(farmName: farmName),
+    );
+  }
+}
+
+<span class="kw">class</span> <span class="cl">_FarmDetailView</span> <span class="kw">extends</span> <span class="cl">StatelessWidget</span> {
+  <span class="kw">const</span> <span class="cl">_FarmDetailView</span>({required <span class="kw">this</span>.farmName});
+  <span class="kw">final</span> <span class="cl">String</span> farmName;
+
+  <span class="kw">@override</span>
+  <span class="cl">Widget</span> build(<span class="cl">BuildContext</span> context) {
+    <span class="kw">return</span> <span class="wg">DefaultTabController</span>(
+      length: <span class="nm">3</span>,
+      child: <span class="wg">Scaffold</span>(
+        appBar: <span class="wg">AppBar</span>(
+          title: <span class="wg">Text</span>(farmName),
+          backgroundColor: <span class="kw">const</span> <span class="wg">Color</span>(<span class="nm">0xFF2E5C39</span>),
+          foregroundColor: <span class="wg">Colors</span>.white,
+          bottom: <span class="kw">const</span> <span class="wg">TabBar</span>(
+            labelColor:   <span class="wg">Colors</span>.white,
+            unselectedLabelColor: <span class="wg">Colors</span>.white70,
+            indicatorColor: <span class="wg">Colors</span>.white,
+            tabs: [
+              <span class="wg">Tab</span>(text: <span class="st">'マップ'</span>),
+              <span class="wg">Tab</span>(text: <span class="st">'時系列'</span>),
+              <span class="wg">Tab</span>(text: <span class="st">'タイムライン'</span>),
+            ],
+          ),
+        ),
+        body: <span class="kw">const</span> <span class="wg">TabBarView</span>(
+          children: [
+            <span class="wg">FarmMapTab</span>(),
+            <span class="wg">FarmTimeseriesTab</span>(),
+            <span class="wg">FarmTimelineTab</span>(),
+          ],
+        ),
+      ),
+    );
+  }
+}</pre>
+
+        <div class="callout">
+          <strong><code>context.read&lt;FarmApiClient&gt;()</code> について。</strong>
+          <code>FarmApiClient</code>（または既存クライアントのクラス名）が
+          アプリのルートレベルで <code>Provider</code> として登録されている前提です。
+          <code>main.dart</code> または <code>MultiProvider</code> の設定で確認してください。
+          登録されていない場合は、コンストラクタで直接 <code>new</code> するか、
+          既存のシングルトン取得方法に合わせてください。
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ====== STEP 4: FarmMapTab ====== -->
+<section id="step4">
+  <h2><span class="n">04</span>FarmMapTab の実装（実データ接続） <span class="en">map tab</span></h2>
+
+  <div class="steps">
+    <div class="step" id="step4-api">
+      <div class="snum">6</div>
+      <div class="sbody">
+        <h4>tabs/ ディレクトリを作成し farm_map_tab.dart を新規作成</h4>
+        <span class="sloc">lib/screens/farm/tabs/farm_map_tab.dart（新規作成）</span>
+        <div class="shell">
+<span class="p">$ </span><span class="cmd">mkdir -p lib/screens/farm/tabs</span>
+<span class="p">$ </span><span class="cmd">touch lib/screens/farm/tabs/farm_map_tab.dart</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="step" id="step4-map">
+      <div class="snum">7</div>
+      <div class="sbody">
+        <h4>FarmMapTab を実装（パラメータ切替 + 日付セレクタ + マップピン）</h4>
+        <span class="sloc">lib/screens/farm/tabs/farm_map_tab.dart</span>
+
+        <div class="spec-box">
+          <div class="spec-header">
+            <span class="spec-label">仕様</span>FarmMapTab — マップタブ
+          </div>
+          <div class="spec-body">
+            <h4>パラメータ切替チップ</h4>
+            <p>CEC / CaO / K2O / MgO の4チップ。CaO/K2O/MgO は現時点でモデル未実装のためデータがなければグレーアウト表示（disable にはしない—将来データが来たとき自動で有効化）。</p>
+            <h4>日付セレクタ</h4>
+            <p>測定日の DropdownButton。最新日がデフォルト選択。</p>
+            <h4>地図</h4>
+            <p>Google Maps（<code>google_maps_flutter</code>、既存プロジェクト使用中）。圃場ポリゴンを赤枠で描画。測定点を数値ラベル付きの円マーカーで描画。下部にカラースケール凡例と平均値。</p>
+            <h4>ピンの色</h4>
+            <p>値域の最小〜最大に対してグラデーション（青低→赤高）。値がないピンはグレー。</p>
+          </div>
+        </div>
+
+<pre><span class="fn">lib/screens/farm/tabs/farm_map_tab.dart</span><span class="kw">import</span> <span class="st">'package:flutter/material.dart'</span>;
+<span class="kw">import</span> <span class="st">'package:google_maps_flutter/google_maps_flutter.dart'</span>;
+<span class="kw">import</span> <span class="st">'package:provider/provider.dart'</span>;
+<span class="kw">import</span> <span class="st">'../../../providers/farm_detail_provider.dart'</span>;
+<span class="kw">import</span> <span class="st">'../../../models/map_point.dart'</span>;
+<span class="kw">import</span> <span class="st">'dart:math'</span> show min, max;
+<span class="kw">import</span> <span class="st">'dart:ui'</span> as ui;
+
+<span class="kw">class</span> <span class="cl">FarmMapTab</span> <span class="kw">extends</span> <span class="cl">StatelessWidget</span> {
+  <span class="kw">const</span> <span class="cl">FarmMapTab</span>({<span class="kw">super</span>.key});
+
+  <span class="kw">static const</span> _params = [<span class="st">'CEC'</span>, <span class="st">'CaO'</span>, <span class="st">'K2O'</span>, <span class="st">'MgO'</span>];
+
+  <span class="kw">@override</span>
+  <span class="cl">Widget</span> build(<span class="cl">BuildContext</span> context) {
+    <span class="kw">final</span> prov = context.watch&lt;<span class="cl">FarmDetailProvider</span>&gt;();
+
+    <span class="kw">return</span> <span class="wg">Column</span>(children: [
+      <span class="cm">// ── パラメータ切替チップ行 ─────────────────────────────</span>
+      <span class="wg">Padding</span>(
+        padding: <span class="kw">const</span> <span class="wg">EdgeInsets</span>.symmetric(horizontal: <span class="nm">12</span>, vertical: <span class="nm">8</span>),
+        child: <span class="wg">SingleChildScrollView</span>(
+          scrollDirection: <span class="wg">Axis</span>.horizontal,
+          child: <span class="wg">Row</span>(
+            children: _params.map((p) =&gt; <span class="wg">Padding</span>(
+              padding: <span class="kw">const</span> <span class="wg">EdgeInsets</span>.only(right: <span class="nm">8</span>),
+              child: <span class="wg">ChoiceChip</span>(
+                label: <span class="wg">Text</span>(p),
+                selected: prov.selectedParam == p,
+                selectedColor: <span class="kw">const</span> <span class="wg">Color</span>(<span class="nm">0xFF2E5C39</span>),
+                labelStyle: <span class="wg">TextStyle</span>(
+                  color: prov.selectedParam == p
+                      ? <span class="wg">Colors</span>.white : <span class="wg">Colors</span>.black87,
+                ),
+                onSelected: (_) => prov.selectParam(p),
+              ),
+            )).toList(),
+          ),
+        ),
+      ),
+
+      <span class="cm">// ── 日付セレクタ ──────────────────────────────────────</span>
+      <span class="kw">if</span> (prov.measurementDates.isNotEmpty)
+        <span class="wg">Padding</span>(
+          padding: <span class="kw">const</span> <span class="wg">EdgeInsets</span>.symmetric(horizontal: <span class="nm">12</span>),
+          child: <span class="wg">DropdownButton</span>&lt;<span class="cl">String</span>&gt;(
+            value: prov.selectedDate,
+            isExpanded: <span class="kw">true</span>,
+            items: prov.measurementDates.map((d) =&gt;
+              <span class="wg">DropdownMenuItem</span>(
+                value: d.date,
+                child: <span class="wg">Text</span>(<span class="st">'${d.date}（${d.count}点）'</span>),
+              )
+            ).toList(),
+            onChanged: (v) =&gt; v != <span class="kw">null</span> ? prov.selectDate(v) : <span class="kw">null</span>,
+          ),
+        ),
+
+      <span class="cm">// ── 地図エリア ────────────────────────────────────────</span>
+      <span class="wg">Expanded</span>(
+        child: prov.isLoadingMap
+            ? <span class="kw">const</span> <span class="wg">Center</span>(child: <span class="wg">CircularProgressIndicator</span>())
+            : prov.mapError != <span class="kw">null</span>
+                ? <span class="wg">Center</span>(child: <span class="wg">Text</span>(<span class="st">'エラー: ${prov.mapError}'</span>))
+                : <span class="cl">_MapView</span>(points: prov.mapPoints),
+      ),
+
+      <span class="cm">// ── 下部: 統計サマリー ────────────────────────────────</span>
+      <span class="kw">if</span> (prov.mapPoints.isNotEmpty)
+        _buildSummaryBar(prov),
+    ]);
+  }
+
+  <span class="cl">Widget</span> _buildSummaryBar(<span class="cl">FarmDetailProvider</span> prov) {
+    <span class="kw">final</span> values = prov.mapPoints
+        .map((p) =&gt; p.value)
+        .whereType&lt;<span class="kw">double</span>&gt;()
+        .toList();
+    <span class="kw">if</span> (values.isEmpty) <span class="kw">return const</span> <span class="wg">SizedBox</span>.shrink();
+    <span class="kw">final</span> minVal = values.reduce(min);
+    <span class="kw">final</span> maxVal = values.reduce(max);
+    <span class="kw">final</span> avg    = values.reduce((a, b) =&gt; a + b) / values.length;
+    <span class="kw">final</span> unit   = prov.mapPoints.first.unit ?? <span class="st">''</span>;
+
+    <span class="kw">return</span> <span class="wg">Container</span>(
+      padding: <span class="kw">const</span> <span class="wg">EdgeInsets</span>.symmetric(horizontal: <span class="nm">16</span>, vertical: <span class="nm">8</span>),
+      color: <span class="kw">const</span> <span class="wg">Color</span>(<span class="nm">0xFFF5F5F0</span>),
+      child: <span class="wg">Row</span>(children: [
+        <span class="wg">Text</span>(<span class="st">'低 ${minVal.toStringAsFixed(1)}'</span>,
+            style: <span class="kw">const</span> <span class="wg">TextStyle</span>(fontSize: <span class="nm">12</span>)),
+        <span class="wg">Expanded</span>(child: <span class="wg">Container</span>(
+          height: <span class="nm">8</span>, margin: <span class="kw">const</span> <span class="wg">EdgeInsets</span>.symmetric(horizontal: <span class="nm">8</span>),
+          decoration: <span class="wg">BoxDecoration</span>(
+            gradient: <span class="kw">const</span> <span class="wg">LinearGradient</span>(
+              colors: [<span class="wg">Colors</span>.blue, <span class="wg">Colors</span>.green, <span class="wg">Colors</span>.red]),
+            borderRadius: <span class="wg">BorderRadius</span>.circular(<span class="nm">4</span>),
+          ),
+        )),
+        <span class="wg">Text</span>(<span class="st">'高 ${maxVal.toStringAsFixed(1)}'</span>,
+            style: <span class="kw">const</span> <span class="wg">TextStyle</span>(fontSize: <span class="nm">12</span>)),
+        <span class="kw">const</span> <span class="wg">SizedBox</span>(width: <span class="nm">16</span>),
+        <span class="wg">Text</span>(<span class="st">'Ave: ${avg.toStringAsFixed(1)} $unit'</span>,
+            style: <span class="kw">const</span> <span class="wg">TextStyle</span>(fontWeight: <span class="wg">FontWeight</span>.bold, fontSize: <span class="nm">13</span>)),
+      ]),
+    );
+  }
+}
+
+<span class="cm">// ── Google Maps ビュー ────────────────────────────────────────</span>
+<span class="kw">class</span> <span class="cl">_MapView</span> <span class="kw">extends</span> <span class="cl">StatelessWidget</span> {
+  <span class="kw">const</span> <span class="cl">_MapView</span>({required <span class="kw">this</span>.points});
+  <span class="kw">final</span> <span class="cl">List</span>&lt;<span class="cl">MapPoint</span>&gt; points;
+
+  <span class="kw">@override</span>
+  <span class="cl">Widget</span> build(<span class="cl">BuildContext</span> context) {
+    <span class="kw">if</span> (points.isEmpty) {
+      <span class="kw">return const</span> <span class="wg">Center</span>(child: <span class="wg">Text</span>(<span class="st">'この日の測定データがありません'</span>));
+    }
+
+    <span class="kw">final</span> values = points.map((p) =&gt; p.value).whereType&lt;<span class="kw">double</span>&gt;().toList();
+    <span class="kw">final</span> minV   = values.isEmpty ? <span class="nm">0.0</span> : values.reduce(min);
+    <span class="kw">final</span> maxV   = values.isEmpty ? <span class="nm">1.0</span> : values.reduce(max);
+
+    <span class="kw">final</span> initialPos = <span class="cl">LatLng</span>(points.first.latitude, points.first.longitude);
+
+    <span class="kw">return</span> <span class="wg">GoogleMap</span>(
+      initialCameraPosition: <span class="wg">CameraPosition</span>(target: initialPos, zoom: <span class="nm">17</span>),
+      mapType: <span class="wg">MapType</span>.satellite,
+      myLocationButtonEnabled: <span class="kw">false</span>,
+      markers: points.indexed.map(((i, p)) {
+        <span class="kw">final</span> ratio = (maxV == minV) ? <span class="nm">0.5</span>
+            : ((p.value ?? minV) - minV) / (maxV - minV);
+        <span class="kw">final</span> hue = ui.lerpDouble(<span class="nm">240</span>, <span class="nm">0</span>, ratio)!; <span class="cm">// 青(240) → 赤(0)</span>
+        <span class="kw">return</span> <span class="wg">Marker</span>(
+          markerId: <span class="wg">MarkerId</span>(<span class="st">'pin_$i'</span>),
+          position: <span class="cl">LatLng</span>(p.latitude, p.longitude),
+          icon: <span class="wg">BitmapDescriptor</span>.defaultMarkerWithHue(hue.clamp(<span class="nm">0</span>, <span class="nm">360</span>).toDouble()),
+          infoWindow: <span class="wg">InfoWindow</span>(
+            title: <span class="st">'${i + 1}: ${p.value?.toStringAsFixed(1) ?? "—"} ${p.unit ?? ""}'</span>,
+          ),
+        );
+      }).toSet(),
+    );
+  }
+}</pre>
+
+        <div class="callout note">
+          <strong>カスタム番号付き円マーカーについて。</strong>
+          上記は <code>BitmapDescriptor.defaultMarkerWithHue</code> で色分けした標準ピンを使います。
+          仕様書の「数値ラベル付きの円マーカー」を完全再現するには
+          Canvas で描画したカスタムアイコンが必要です（処理コスト高）。
+          Phase 4 では標準ピン + InfoWindow で実データ確認を優先し、
+          カスタム円マーカーは Phase 7（測定画面刷新）合わせで対応する方針にしています。
+          Cursor に完全なカスタムマーカーを実装させたい場合は、
+          この callout を Cursor に見せて判断させてください。
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ====== STEP 5: Stub tabs ====== -->
+<section id="step5">
+  <h2><span class="n">05</span>時系列・タイムラインタブのスタブ作成 <span class="en">stub tabs</span></h2>
+
+  <div class="steps">
+    <div class="step">
+      <div class="snum">8</div>
+      <div class="sbody">
+        <h4>farm_timeseries_tab.dart と farm_timeline_tab.dart を Phase 5 スタブとして作成</h4>
+        <span class="sloc">lib/screens/farm/tabs/（新規作成）</span>
+        <p>
+          Phase 5 で実装するため、今は「準備中」を表示するだけのウィジェットとして作成します。
+          ファイルが存在しないと <code>FarmDetailScreen</code> がコンパイルエラーになるためです。
+        </p>
+<pre><span class="fn">lib/screens/farm/tabs/farm_timeseries_tab.dart</span><span class="kw">import</span> <span class="st">'package:flutter/material.dart'</span>;
+
+<span class="cm">/// Phase 5 で実装予定。
+/// バックエンド: GET /api/farms/{farmId}/results/timeseries</span>
+<span class="kw">class</span> <span class="cl">FarmTimeseriesTab</span> <span class="kw">extends</span> <span class="cl">StatelessWidget</span> {
+  <span class="kw">const</span> <span class="cl">FarmTimeseriesTab</span>({<span class="kw">super</span>.key});
+
+  <span class="kw">@override</span>
+  <span class="cl">Widget</span> build(<span class="cl">BuildContext</span> context) =&gt; <span class="kw">const</span> <span class="wg">Center</span>(
+        child: <span class="wg">Column</span>(
+          mainAxisSize: <span class="wg">MainAxisSize</span>.min,
+          children: [
+            <span class="wg">Icon</span>(<span class="wg">Icons</span>.show_chart, size: <span class="nm">48</span>, color: <span class="wg">Colors</span>.grey),
+            <span class="wg">SizedBox</span>(height: <span class="nm">12</span>),
+            <span class="wg">Text</span>(<span class="st">'時系列タブは Phase 5 で実装予定です'</span>,
+                style: <span class="wg">TextStyle</span>(color: <span class="wg">Colors</span>.grey)),
+          ],
+        ),
+      );
+}</pre>
+<pre><span class="fn">lib/screens/farm/tabs/farm_timeline_tab.dart</span><span class="kw">import</span> <span class="st">'package:flutter/material.dart'</span>;
+
+<span class="cm">/// Phase 5 で実装予定。
+/// バックエンド: GET /api/farms/{farmId}/timeline</span>
+<span class="kw">class</span> <span class="cl">FarmTimelineTab</span> <span class="kw">extends</span> <span class="cl">StatelessWidget</span> {
+  <span class="kw">const</span> <span class="cl">FarmTimelineTab</span>({<span class="kw">super</span>.key});
+
+  <span class="kw">@override</span>
+  <span class="cl">Widget</span> build(<span class="cl">BuildContext</span> context) =&gt; <span class="kw">const</span> <span class="wg">Center</span>(
+        child: <span class="wg">Column</span>(
+          mainAxisSize: <span class="wg">MainAxisSize</span>.min,
+          children: [
+            <span class="wg">Icon</span>(<span class="wg">Icons</span>.timeline, size: <span class="nm">48</span>, color: <span class="wg">Colors</span>.grey),
+            <span class="wg">SizedBox</span>(height: <span class="nm">12</span>),
+            <span class="wg">Text</span>(<span class="st">'タイムラインタブは Phase 5 で実装予定です'</span>,
+                style: <span class="wg">TextStyle</span>(color: <span class="wg">Colors</span>.grey)),
+          ],
+        ),
+      );
+}</pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ====== STEP 6: routes ====== -->
+<section id="step6">
+  <h2><span class="n">06</span>routes.dart への接続確認 <span class="en">routing</span></h2>
+
+  <div class="steps">
+    <div class="step">
+      <div class="snum">9</div>
+      <div class="sbody">
+        <h4>lib/app/routes.dart を確認・修正</h4>
+        <span class="sloc">lib/app/routes.dart（既存ファイルを確認・編集）</span>
+        <p>
+          Phase 3 で <code>AppRoutes.farmList</code>（または相当するキー）が
+          <code>FarmScreen</code>（旧）を指しているはずです。
+          Phase 4 では <code>FarmScreen</code> クラス自体を <code>FarmListScreen</code> に書き換えているため、
+          ルートの定義変更は不要な場合があります。
+          クラス名を変えた場合のみ import を更新してください。
+        </p>
+        <div class="shell">
+<span class="c"># routes.dart で FarmScreen のインポートを確認</span>
+<span class="p">$ </span><span class="cmd">grep -n "FarmScreen\|farm_screen\|FarmList" lib/app/routes.dart</span>
+<span class="c"># FarmScreen を import している行のパスが farm_screen.dart を指していれば変更不要</span>
+<span class="c">（farm_screen.dart の中身を FarmListScreen に書き換えたので、</span>
+<span class="c"> インポート先のファイルは同じ。クラス名が変わった場合は合わせる）</span>
+        </div>
+        <div class="callout teal">
+          <strong>圃場登録画面のルートキーを確認。</strong>
+          <code>FarmListScreen</code> の「+ 新規圃場を登録」ボタンの <code>pushNamed</code> に
+          正しいルートキーを使えているか確認します。
+          <code>grep -n "register\|boundary\|farm_register" lib/app/routes.dart</code>
+          で既存の登録画面ルートキーを確認し、<code>farm_screen.dart</code> の <code>onPressed</code> と合わせてください。
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ====== STEP 7: 動作確認 ====== -->
+<section id="step7">
+  <h2><span class="n">07</span>動作確認（ローカル） <span class="en">local check</span></h2>
+
+  <div class="steps">
+    <div class="step">
+      <div class="snum">10</div>
+      <div class="sbody">
+        <h4>flutter analyze でエラー件数を確認</h4>
+        <span class="sloc">ターミナル / ローカル</span>
+        <div class="shell">
+<span class="p">$ </span><span class="cmd">flutter analyze 2>&1 | tail -5</span>
+<span class="c"># Phase 3 時点の info 117件から増えていないことを確認</span>
+<span class="c"># 今回追加したファイルにエラー（error/warning）がないこと</span>
+        </div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="snum">11</div>
+      <div class="sbody">
+        <h4>エミュレーター or 実機で起動して画面遷移と実データ表示を確認</h4>
+        <span class="sloc">Android エミュレーター or 実機</span>
+        <div class="shell">
+<span class="p">$ </span><span class="cmd">flutter run</span>
+        </div>
+        <table>
+          <thead><tr><th>確認項目</th><th>期待動作</th></tr></thead>
+          <tbody>
+            <tr><td>HomeScreen「圃場」タップ</td><td>FarmListScreen に遷移する</td></tr>
+            <tr><td>圃場一覧の表示</td><td>圃場カードが3行レイアウトで表示される</td></tr>
+            <tr><td>カード3行目（CEC/CaO/K2O/MgO）</td><td>CEC は実値、未実装モデルは「—」が表示される</td></tr>
+            <tr><td>検索バー</td><td>圃場名 or 作物名で絞り込みができる</td></tr>
+            <tr><td>圃場カードタップ</td><td>FarmDetailScreen に遷移し、3タブが表示される</td></tr>
+            <tr><td>マップタブの表示</td><td>Google Map が表示され、測定ピンが描画される</td></tr>
+            <tr><td>パラメータ切替（CEC→CaO等）</td><td>ローディングが走り、選択したパラメータのピンに更新される</td></tr>
+            <tr><td>日付セレクタ切替</td><td>選択日のマップデータに更新される</td></tr>
+            <tr><td>時系列タブ</td><td>「Phase 5 で実装予定」のスタブ表示</td></tr>
+            <tr><td>タイムラインタブ</td><td>「Phase 5 で実装予定」のスタブ表示</td></tr>
+            <tr><td>バック操作</td><td>FarmListScreen → HomeScreen に正しく戻れる</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ====== STEP 8: PR & CI/CD ====== -->
+<section id="step8">
+  <h2><span class="n">08</span>commit → PR → main マージ <span class="en">deploy</span></h2>
+
+  <div class="steps">
+    <div class="step">
+      <div class="snum">12</div>
+      <div class="sbody">
+        <h4>変更をコミットして push</h4>
+        <span class="sloc">ターミナル / ローカル</span>
+        <div class="shell">
+<span class="p">$ </span><span class="cmd">git add -A</span>
+<span class="p">$ </span><span class="cmd">git diff --cached --stat</span>
+<span class="c"># 新規: farm_summary.dart / map_point.dart / measurement_date.dart</span>
+<span class="c">#       farm_detail_provider.dart / farm_detail_screen.dart</span>
+<span class="c">#       farm_map_tab.dart / farm_timeseries_tab.dart / farm_timeline_tab.dart</span>
+<span class="c"># 変更: farm_screen.dart（FarmListScreen に置き換え）/ farm_api_client.dart</span>
+
+<span class="p">$ </span><span class="cmd">git commit -m "feat: add FarmListScreen and FarmDetailScreen with map tab (Phase 4)"</span>
+<span class="p">$ </span><span class="cmd">git push origin feature/phase4-farm-list-map</span>
+        </div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="snum">13</div>
+      <div class="sbody">
+        <h4>GitHub でプルリクエストを作成してマージ</h4>
+        <span class="sloc">GitHub Web UI</span>
+        <ol>
+          <li>「Compare &amp; pull request」をクリック</li>
+          <li>PR タイトル: <code>feat: add FarmListScreen and FarmDetailScreen with map tab (Phase 4)</code></li>
+          <li>PR 本文に記載：
+            <ul>
+              <li>作成・変更ファイルの一覧</li>
+              <li><code>flutter analyze</code> の info 件数（前後で増えていないことの確認）</li>
+              <li>実機 or エミュレーターで圃場一覧・マップタブが動作することの確認コメント</li>
+            </ul>
+          </li>
+          <li><strong>Squash and merge</strong> で main にマージ</li>
+          <li>feature ブランチを GitHub 上で削除</li>
+        </ol>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ====== STEP 9: 実機確認 ====== -->
+<section id="step9">
+  <h2><span class="n">09</span>実機デプロイ後の確認 <span class="en">device check</span></h2>
+
+  <div class="steps">
+    <div class="step">
+      <div class="snum">14</div>
+      <div class="sbody">
+        <h4>実機で APK をインストールして最終確認</h4>
+        <span class="sloc">ターミナル + Android 実機</span>
+        <div class="shell">
+<span class="p">$ </span><span class="cmd">flutter build apk --debug && flutter install</span>
+        </div>
+        <p>以下を重点確認します。</p>
+        <ul>
+          <li>実際の本番 API（<code>https://api.hm-admin.com</code>）から圃場データが取得できること</li>
+          <li>本番環境の <code>completed</code> 状態の測定データがマップに表示されること</li>
+          <li>パラメータ切替で CEC のデータが正しく表示されること（CaO/K2O/MgO は「—」でも可）</li>
+          <li>Google Maps が正常に表示されること（API キーが実機で有効であること）</li>
+        </ul>
+        <div class="callout info">
+          <strong>Google Maps API キーについて。</strong>
+          <code>android/app/src/main/AndroidManifest.xml</code> に設定されている
+          Maps API キーが本番環境で有効であることを確認してください。
+          開発用と本番用で制限（SHA-1 フィンガープリント）が異なる場合があります。
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ====== DoD ====== -->
+<section id="dod">
+  <h2><span class="n">✓</span>完了条件チェックリスト <span class="en">definition of done</span></h2>
+
+  <p style="font-size:13px;color:var(--ink3);margin-bottom:16px;">
+    <span class="tag l">L</span> ローカル確認 &nbsp;
+    <span class="tag ci">CI</span> PR &amp; CI/CD 確認 &nbsp;
+    <span class="tag e">E</span> 実機デプロイ後確認
+  </p>
+
+  <ul class="dod-list">
+    <li>
+      <span class="tag l">L</span> <code>flutter analyze</code> の info 件数が Phase 3 時点（117件）から増えていない
+      <span class="dc">確認: flutter analyze 2>&amp;1 | tail -5</span>
+    </li>
+    <li>
+      <span class="tag l">L</span> HomeScreen「圃場」→ FarmListScreen（カード3行レイアウト）が表示される
+    </li>
+    <li>
+      <span class="tag l">L</span> 圃場カードタップ → FarmDetailScreen の3タブ Scaffold（マップ / 時系列 / タイムライン）が表示される
+    </li>
+    <li>
+      <span class="tag l">L</span> マップタブで実 API データのピンが Google Maps 上に描画される
+    </li>
+    <li>
+      <span class="tag l">L</span> パラメータ切替チップ（CEC / CaO / K2O / MgO）が動作し、切替時にローディングが走る
+    </li>
+    <li>
+      <span class="tag l">L</span> 日付セレクタで測定日を切り替えると対応するデータに更新される
+    </li>
+    <li>
+      <span class="tag l">L</span> 時系列・タイムラインタブは「Phase 5 で実装予定」のスタブ表示になっている
+    </li>
+    <li>
+      <span class="tag l">L</span> 検索バーで圃場名・作物名による絞り込みができる
+    </li>
+    <li>
+      <span class="tag l">L</span> バック操作で FarmListScreen → HomeScreen に正しく戻れる
+    </li>
+    <li>
+      <span class="tag ci">CI</span> feature ブランチが push されており、PR が main にマージされている
+    </li>
+    <li>
+      <span class="tag ci">CI</span> feature ブランチが GitHub 上で削除されている
+    </li>
+    <li>
+      <span class="tag e">E</span> 実機で本番 API から圃場データが正常に取得・表示される
+    </li>
+    <li>
+      <span class="tag e">E</span> 実機で Google Maps が表示され、本番データのピンが描画される
+    </li>
+  </ul>
+
+  <div class="callout info" style="margin-top:24px;">
+    <strong>Phase 5（時系列タブ・タイムラインタブの実装）への引き継ぎ。</strong>
+    Phase 4 完了後、<code>FarmDetailScreen</code> の3タブ Scaffold と
+    <code>FarmDetailProvider</code> が動いていることを前提に、
+    Phase 5 では <code>FarmTimeseriesTab</code> と <code>FarmTimelineTab</code> のスタブを
+    Phase 2 で実装したバックエンド API（<code>/results/timeseries</code> / <code>/timeline</code>）に接続します。
+    実機確認まで全 OK を確認してから Phase 5 の Cursor セッションを開始してください。
+  </div>
+</section>
+
+</main>
+</div>
+</body>
+</html>

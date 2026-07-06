@@ -1,0 +1,1597 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1.0" />
+<title>HenryMonitor Phase 2 実装手順書 — 時系列 / タイムライン API</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&family=Noto+Serif+JP:wght@700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #f8f7f2;
+  --paper: #ffffff;
+  --ink: #1a2318;
+  --ink-2: #3d4f3a;
+  --ink-3: #6b7e68;
+  --line: #dbd6c4;
+  --line-soft: #eae6d6;
+  --leaf: #2e5c39;
+  --leaf-light: #4a8459;
+  --leaf-pale: #e2ede4;
+  --soil: #7a4525;
+  --soil-pale: #f2e8e0;
+  --amber: #b85c00;
+  --amber-pale: #fef0d8;
+  --red: #b02020;
+  --red-pale: #fce4e4;
+  --blue: #1a4f7a;
+  --blue-pale: #ddeaf5;
+  --purple: #5a2d82;
+  --purple-pale: #ede5f5;
+  --code-bg: #1a241a;
+  --code-fg: #d4e8cc;
+  --code-comment: #6a8f60;
+  --code-key: #7dd3a8;
+  --code-str: #f7c07a;
+  --code-num: #7ec8e3;
+  --code-class: #e8d07a;
+  --step-line: #b0c8b0;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  margin: 0; padding: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: "Noto Sans JP", sans-serif;
+  font-size: 14.5px;
+  line-height: 1.8;
+  -webkit-font-smoothing: antialiased;
+}
+.layout { display: flex; min-height: 100vh; }
+
+/* ── Sidebar ── */
+.toc {
+  width: 248px; flex-shrink: 0;
+  background: #141f12; color: #c8d8c4;
+  padding: 28px 0 60px;
+  position: sticky; top: 0; height: 100vh; overflow-y: auto;
+}
+.toc-logo { padding: 0 20px 20px; border-bottom: 1px solid rgba(255,255,255,0.08); margin-bottom: 14px; }
+.toc-logo .proj { font-size: 11px; letter-spacing: 0.18em; color: #6a9a66; text-transform: uppercase; }
+.toc-logo .phase { font-family: "Noto Serif JP", serif; font-size: 18px; color: #e8f0e4; font-weight: 700; margin-top: 4px; }
+.toc-logo .sub { font-size: 11px; color: #6a9a66; margin-top: 2px; line-height: 1.5; }
+.toc ul { list-style: none; margin: 0; padding: 0; }
+.toc li a {
+  display: block; padding: 6px 20px;
+  font-size: 12px; color: #9ab89a; text-decoration: none;
+  border-left: 3px solid transparent;
+  transition: all 0.15s;
+}
+.toc li a:hover { background: rgba(255,255,255,0.06); color: #e8f0e4; border-left-color: var(--leaf-light); }
+.toc li a.sec { font-weight: 700; color: #c4dcc0; font-size: 12px; margin-top: 8px; }
+.toc li a.sub { padding-left: 32px; font-size: 11.5px; color: #7a9a76; }
+.toc-divider { height: 1px; background: rgba(255,255,255,0.06); margin: 8px 20px; }
+
+/* ── Main ── */
+.main { flex: 1; padding: 48px 56px 100px; max-width: 880px; }
+
+/* ── Cover ── */
+.cover {
+  background: var(--paper); border: 1px solid var(--line);
+  padding: 40px 44px; position: relative; overflow: hidden; margin-bottom: 52px;
+}
+.cover::after {
+  content: ""; position: absolute; top: 0; left: 0; right: 0; height: 5px;
+  background: linear-gradient(90deg, var(--leaf) 0%, #4a9a5c 40%, var(--amber) 100%);
+}
+.phase-badge {
+  font-family: "JetBrains Mono", monospace; font-size: 11px; letter-spacing: 0.2em;
+  background: var(--leaf-pale); color: var(--leaf);
+  padding: 3px 10px; border-radius: 2px; display: inline-block; margin-bottom: 14px;
+  text-transform: uppercase;
+}
+.cover h1 { font-family: "Noto Serif JP", serif; font-size: 28px; font-weight: 700; margin: 0 0 8px; line-height: 1.35; }
+.cover .desc { color: var(--ink-2); font-size: 14px; margin: 0 0 24px; }
+.cover-meta { display: flex; gap: 24px; flex-wrap: wrap; border-top: 1px solid var(--line-soft); padding-top: 18px; }
+.cover-meta dl { margin: 0; }
+.cover-meta dt { font-family: "JetBrains Mono", monospace; font-size: 10px; letter-spacing: 0.15em; text-transform: uppercase; color: var(--ink-3); margin: 0 0 3px; }
+.cover-meta dd { margin: 0; font-size: 13px; font-weight: 500; }
+
+/* ── Sections ── */
+section { margin-bottom: 60px; }
+h2 {
+  font-family: "Noto Serif JP", serif; font-size: 21px; font-weight: 700;
+  margin: 0 0 20px; padding: 13px 18px;
+  background: var(--ink); color: #e8f0e4;
+  display: flex; align-items: center; gap: 14px;
+}
+h2 .n { font-family: "JetBrains Mono", monospace; font-size: 12px; color: var(--leaf-light); letter-spacing: 0.1em; }
+h2 .en { font-family: "JetBrains Mono", monospace; font-size: 10px; color: #6a9a66; letter-spacing: 0.2em; text-transform: uppercase; margin-left: auto; }
+h3 { font-size: 16px; font-weight: 700; margin: 32px 0 10px; padding-bottom: 7px; border-bottom: 2px solid var(--leaf-pale); color: var(--leaf); }
+h4 { font-size: 14px; font-weight: 700; margin: 20px 0 8px; color: var(--ink-2); }
+p { margin: 0 0 12px; }
+ul, ol { margin: 0 0 12px; padding-left: 20px; }
+li { margin-bottom: 5px; }
+strong { color: var(--ink); }
+
+/* ── API Spec boxes ── */
+.api-box {
+  border: 1px solid var(--line);
+  background: var(--paper);
+  margin: 20px 0 28px;
+}
+.api-box-header {
+  padding: 14px 18px;
+  background: var(--ink);
+  display: flex; align-items: center; gap: 14px;
+}
+.api-method {
+  font-family: "JetBrains Mono", monospace; font-size: 11px; font-weight: 700;
+  padding: 3px 10px; border-radius: 2px; letter-spacing: 0.05em;
+}
+.api-method.get { background: #1a5a2a; color: #7dd3a8; }
+.api-method.post { background: #2a4a7a; color: #7ec8e3; }
+.api-path { font-family: "JetBrains Mono", monospace; font-size: 14px; color: #e8f0e4; flex: 1; }
+.api-purpose { font-size: 12px; color: #9ab89a; }
+.api-box-body { padding: 16px 18px; }
+.api-box-body h4 { margin-top: 14px; color: var(--soil); font-size: 13px; }
+.api-box-body h4:first-child { margin-top: 0; }
+
+/* ── Steps ── */
+.steps { position: relative; }
+.step { display: grid; grid-template-columns: 52px 1fr; gap: 0 18px; margin-bottom: 8px; position: relative; }
+.step::before { content: ""; position: absolute; left: 25px; top: 52px; bottom: -8px; width: 2px; background: var(--step-line); }
+.step:last-child::before { display: none; }
+.step-num {
+  width: 52px; height: 52px; border-radius: 50%;
+  background: var(--leaf); color: #fff;
+  display: flex; align-items: center; justify-content: center;
+  font-family: "JetBrains Mono", monospace; font-size: 14px; font-weight: 700;
+  flex-shrink: 0; position: relative; z-index: 1; align-self: start; margin-top: 12px;
+}
+.step-num.check { background: var(--blue); }
+.step-num.warn  { background: var(--amber); }
+.step-body {
+  background: var(--paper); border: 1px solid var(--line);
+  padding: 18px 22px 16px;
+}
+.step-body h4 { margin-top: 0; font-size: 15px; color: var(--ink); }
+.step-body p:last-child, .step-body ul:last-child { margin-bottom: 0; }
+.step-loc {
+  font-family: "JetBrains Mono", monospace; font-size: 10.5px; letter-spacing: 0.1em;
+  text-transform: uppercase; color: var(--ink-3);
+  background: var(--bg); border: 1px solid var(--line-soft);
+  padding: 2px 8px; border-radius: 2px; display: inline-block; margin-bottom: 8px;
+}
+
+/* ── Code ── */
+pre {
+  background: var(--code-bg); color: var(--code-fg);
+  padding: 16px 18px; border-radius: 3px; overflow-x: auto;
+  font-family: "JetBrains Mono", monospace; font-size: 12.5px; line-height: 1.7;
+  margin: 10px 0 12px; position: relative;
+}
+pre .fn { display: block; font-size: 10px; letter-spacing: 0.1em; color: #4a7a48; margin-bottom: 10px; border-bottom: 1px solid rgba(255,255,255,0.06); padding-bottom: 8px; }
+pre .cm { color: var(--code-comment); }
+pre .kw { color: var(--code-key); }
+pre .st { color: var(--code-str); }
+pre .nm { color: var(--code-num); }
+pre .cl { color: var(--code-class); }
+code { font-family: "JetBrains Mono", monospace; font-size: 12.5px; background: #edeadc; color: var(--soil); padding: 1px 5px; border-radius: 2px; }
+.shell {
+  background: #0a180a; color: #b0e0a8; padding: 14px 18px; border-radius: 3px;
+  font-family: "JetBrains Mono", monospace; font-size: 12.5px; line-height: 1.7;
+  margin: 10px 0 12px; border-left: 3px solid var(--leaf-light); overflow-x: auto;
+}
+.shell .p { color: #5a9a56; user-select: none; }
+.shell .c { color: #3a6038; }
+.shell .cmd { color: #c8e8c0; }
+
+/* ── Callouts ── */
+.callout { padding: 12px 16px; margin: 12px 0; font-size: 13.5px; border-left: 4px solid var(--leaf); background: var(--leaf-pale); }
+.callout.warn  { border-color: var(--amber);  background: var(--amber-pale); }
+.callout.danger{ border-color: var(--red);    background: var(--red-pale); }
+.callout.info  { border-color: var(--blue);   background: var(--blue-pale); }
+.callout.note  { border-color: var(--soil);   background: var(--soil-pale); }
+.callout.purple{ border-color: var(--purple); background: var(--purple-pale); }
+.callout strong { display: block; margin-bottom: 3px; }
+
+/* ── Tables ── */
+table { border-collapse: collapse; width: 100%; margin: 10px 0 14px; font-size: 13px; }
+th, td { padding: 8px 12px; border-bottom: 1px solid var(--line-soft); text-align: left; vertical-align: top; }
+th { background: var(--leaf-pale); font-weight: 700; font-size: 11.5px; letter-spacing: 0.04em; border-bottom: 2px solid var(--leaf); color: var(--leaf); }
+tr:hover td { background: #f5f2e8; }
+
+/* ── Tags ── */
+.tag { display: inline-block; font-family: "JetBrains Mono", monospace; font-size: 10px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; padding: 2px 7px; border-radius: 2px; vertical-align: middle; margin: 0 2px; }
+.tag.new { background: var(--leaf-pale); color: var(--leaf); }
+.tag.mod { background: var(--blue-pale); color: var(--blue); }
+.tag.ext { background: var(--soil-pale); color: var(--soil); }
+.tag.l   { background: var(--leaf-pale); color: var(--leaf); }
+.tag.ci  { background: var(--blue-pale); color: var(--blue); }
+.tag.e   { background: var(--soil-pale); color: var(--soil); }
+
+/* ── File tree ── */
+.filetree { background: var(--paper); border: 1px solid var(--line); padding: 16px 20px; font-family: "JetBrains Mono", monospace; font-size: 12.5px; line-height: 1.9; margin: 10px 0 14px; }
+.filetree .d { color: var(--leaf); font-weight: 700; }
+.filetree .nf { color: var(--amber); }
+.filetree .nf::after { content: " ← NEW"; font-size: 10px; opacity: 0.7; }
+.filetree .mf { color: var(--blue); }
+.filetree .mf::after { content: " ← EDIT"; font-size: 10px; opacity: 0.7; }
+
+/* ── DoD ── */
+.dod-list { list-style: none; padding-left: 0; }
+.dod-list li { padding: 10px 14px 10px 40px; position: relative; border-bottom: 1px solid var(--line-soft); font-size: 13.5px; }
+.dod-list li::before { content: "☐"; position: absolute; left: 12px; color: var(--leaf); font-size: 16px; line-height: 1; top: 12px; }
+.dod-list li:last-child { border-bottom: none; }
+.dod-list li .dc { display: block; margin-top: 3px; font-size: 12px; color: var(--ink-3); }
+
+/* ── Responsive ── */
+@media (max-width: 900px) {
+  .layout { display: block; }
+  .toc { width: 100%; height: auto; position: static; }
+  .main { padding: 28px 20px 64px; }
+}
+</style>
+</head>
+<body>
+<div class="layout">
+
+<!-- ======== TOC ======== -->
+<nav class="toc">
+  <div class="toc-logo">
+    <div class="proj">HenryMonitor</div>
+    <div class="phase">Phase 2</div>
+    <div class="sub">時系列 / タイムライン API<br>（Laravel バックエンド）</div>
+  </div>
+  <ul>
+    <li><a class="sec" href="#overview">0. Phase 2 の全体像</a></li>
+    <li><a class="sub" href="#prereq">前提確認</a></li>
+    <li><a class="sub" href="#files">作成・編集ファイル一覧</a></li>
+
+    <div class="toc-divider"></div>
+    <li><a class="sec" href="#api-design">1. API 設計と目的</a></li>
+    <li><a class="sub" href="#api-timeseries">時系列 API の目的</a></li>
+    <li><a class="sub" href="#api-timeline">タイムライン API の目的</a></li>
+
+    <div class="toc-divider"></div>
+    <li><a class="sec" href="#step1">2. TimeseriesService 実装</a></li>
+    <li><a class="sub" href="#step1-make">ファイル作成</a></li>
+    <li><a class="sub" href="#step1-logic">集計ロジック</a></li>
+
+    <div class="toc-divider"></div>
+    <li><a class="sec" href="#step2">3. TimelineService 実装</a></li>
+    <li><a class="sub" href="#step2-make">ファイル作成</a></li>
+    <li><a class="sub" href="#step2-logic">マージ・delta ロジック</a></li>
+
+    <div class="toc-divider"></div>
+    <li><a class="sec" href="#step3">4. Controller 追記</a></li>
+    <li><a class="sec" href="#step4">5. Route 登録</a></li>
+    <li><a class="sec" href="#step5">6. Feature テスト（ローカル）</a></li>
+    <li><a class="sub" href="#step5-ts">時系列テスト</a></li>
+    <li><a class="sub" href="#step5-tl">タイムラインテスト</a></li>
+    <li><a class="sub" href="#step5-run">テスト実行</a></li>
+
+    <div class="toc-divider"></div>
+    <li><a class="sec" href="#step6">7. commit → PR → CI/CD</a></li>
+    <li><a class="sec" href="#step7">8. EC2 デプロイ後確認</a></li>
+    <li><a class="sec" href="#dod">✓ 完了条件</a></li>
+  </ul>
+</nav>
+
+<!-- ======== Main ======== -->
+<main class="main">
+
+<div class="cover">
+  <span class="phase-badge">Phase 2 / timeseries &amp; timeline</span>
+  <h1>時系列・タイムライン API — 実装手順書</h1>
+  <p class="desc">
+    圃場詳細画面の「時系列タブ」と「タイムラインタブ」を支えるバックエンド API を
+    2 本追加します。Laravel の Service クラスに集計ロジックを実装し、
+    既存の Controller に追記する形で完結します。
+    DB スキーマの変更はなく、<strong>Phase 1 で作成した <code>work_logs</code> テーブルと
+    既存の <code>uploads / analysis_results / result_values</code> を組み合わせます。</strong>
+  </p>
+  <div class="cover-meta">
+    <dl><dt>STEP 2〜6</dt><dd>ローカル Docker 環境で実施</dd></dl>
+    <dl><dt>STEP 7</dt><dd>commit → PR → main マージ → CI/CD 自動デプロイ</dd></dl>
+    <dl><dt>STEP 8</dt><dd>EC2 上でデプロイ後確認（curl スモークテスト）</dd></dl>
+    <dl><dt>ブランチ</dt><dd><code>feature/phase2-timeseries-timeline</code></dd></dl>
+  </div>
+</div>
+
+<!-- ====== 0. OVERVIEW ====== -->
+<section id="overview">
+  <h2><span class="n">00</span>Phase 2 の全体像 <span class="en">overview</span></h2>
+
+  <div class="callout info">
+    <strong>DB 変更なし。ロジックのみ追加。</strong>
+    Phase 2 では migration は不要です。既存テーブルと Phase 1 で作成した
+    <code>work_logs</code> テーブルを SQL で集計する Service クラスを 2 本書き、
+    それを呼び出す Controller メソッドと Route を追加します。
+  </div>
+
+  <h3>実装する API の全体像</h3>
+  <table>
+    <thead><tr><th>API</th><th>Method / Path</th><th>画面での用途</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><strong>時系列</strong></td>
+        <td><code>GET /api/farms/{farmId}/results/timeseries</code></td>
+        <td>圃場詳細「時系列タブ」の折れ線グラフ（測定日ごとの平均/min/max + 作業タイミング）</td>
+      </tr>
+      <tr>
+        <td><strong>タイムライン</strong></td>
+        <td><code>GET /api/farms/{farmId}/timeline</code></td>
+        <td>圃場詳細「タイムラインタブ」の統合カードリスト（測定結果 + 作業ログを日付降順でマージ）</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3>既存コードとの関係</h3>
+  <table>
+    <thead><tr><th>既存クラス / テーブル</th><th>Phase 2 での使い方</th></tr></thead>
+    <tbody>
+      <tr><td><code>ResultsAggregationService</code></td><td>既存の <code>computeCecStats()</code> を参考に、新規 <code>ResultsTimeseriesService</code> を独立して作成</td></tr>
+      <tr><td><code>uploads / analysis_results / result_values</code></td><td>時系列 API の集計元。<code>status='completed'</code> のみ対象</td></tr>
+      <tr><td><code>work_logs</code>（Phase 1 で新設）</td><td>タイムライン API で測定結果と合流。作業タイミングの縦線オーバーレイにも使用</td></tr>
+      <tr><td><code>FarmsController</code> または既存 Results系 Controller</td><td>新メソッドを追記（新規 Controller ファイルは作らない）</td></tr>
+    </tbody>
+  </table>
+
+  <h3 id="prereq">前提確認（作業開始前チェック）</h3>
+
+  <div class="steps">
+    <div class="step">
+      <div class="step-num check">✓</div>
+      <div class="step-body">
+        <h4>Phase 1 完了・main マージ済みであることを確認</h4>
+        <span class="step-loc">ターミナル / ローカル</span>
+        <div class="shell">
+<span class="c"># main を最新に更新（Phase 1 のマージ済みコードを取り込む）</span>
+<span class="p">$ </span><span class="cmd">git checkout main && git pull origin main</span>
+
+<span class="c"># work_logs テーブルがローカル DB に存在することを確認</span>
+<span class="p">$ </span><span class="cmd">docker compose exec php-fpm php artisan db:table work_logs</span>
+<span class="c"># カラム一覧が表示されれば Phase 1 完了済み</span>
+        </div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num check">✓</div>
+      <div class="step-body">
+        <h4>feature ブランチを作成</h4>
+        <span class="step-loc">ターミナル / ローカル</span>
+        <div class="shell">
+<span class="p">$ </span><span class="cmd">git checkout -b feature/phase2-timeseries-timeline</span>
+<span class="p">$ </span><span class="cmd">git branch</span>
+<span class="c"># * feature/phase2-timeseries-timeline と表示されれば OK</span>
+        </div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num check">✓</div>
+      <div class="step-body">
+        <h4>ローカル Docker が起動・テストが通ることを確認</h4>
+        <span class="step-loc">ターミナル / ローカル</span>
+        <div class="shell">
+<span class="p">$ </span><span class="cmd">docker compose exec php-fpm php artisan test</span>
+<span class="c"># 全件 PASS を確認してから作業開始</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <h3 id="files">作成・編集ファイル一覧</h3>
+  <div class="filetree">
+app/
+└── <span class="d">Services/</span>
+    ├── <span class="nf">ResultsTimeseriesService.php</span>
+    └── <span class="nf">FarmTimelineService.php</span>
+app/Http/Controllers/Api/
+└── <span class="mf">FarmResultsController.php  （既存ファイルに timeseries / timeline メソッドを追記）</span>
+routes/
+└── <span class="mf">api.php  （2本のルートを追記）</span>
+tests/Feature/
+├── <span class="nf">ResultsTimeseriesApiTest.php</span>
+└── <span class="nf">FarmTimelineApiTest.php</span>
+  </div>
+
+  <div class="callout note">
+    <strong>既存の Results 系 Controller 名について。</strong>
+    プロジェクトによって <code>FarmResultsController</code> / <code>ResultsController</code> など名前が異なります。
+    <code>php artisan route:list --path=farms</code> で既存の Results 系ルートが使っている Controller 名を確認し、
+    そのファイルに追記してください。以降の手順では <code>FarmResultsController</code> と表記します。
+  </div>
+</section>
+
+<!-- ====== 1. API DESIGN ====== -->
+<section id="api-design">
+  <h2><span class="n">01</span>API 設計と目的 <span class="en">api design</span></h2>
+
+  <p>
+    実装に入る前に、各 API が<strong>何のために存在するか・何を返すか</strong>を
+    明確にしておきます。ここを理解してから実装することで、Cursor への指示精度が上がり
+    テストケースも自然に書けるようになります。
+  </p>
+
+  <!-- ─── Timeseries API ─── -->
+  <h3 id="api-timeseries">① 時系列 API — なぜ必要か</h3>
+
+  <p>
+    農家が「施肥をして土壌が改善されたか」を確認したい場合、
+    <em>複数の測定日にまたがって CEC 値の推移を見る</em>必要があります。
+    時系列タブはこの折れ線グラフを表示するために使います。
+  </p>
+  <p>
+    <strong>固定地点は導入しない</strong>（Phase 設計の決定事項）ため、
+    各測定日の「圃場全体の測定点を平均した値」を時系列で返します。
+    min/max も返すことで「ばらつきの変化」も合わせて確認できるようにします。
+  </p>
+
+  <div class="api-box" id="api-ts-spec">
+    <div class="api-box-header">
+      <span class="api-method get">GET</span>
+      <span class="api-path">/api/farms/{farmId}/results/timeseries</span>
+      <span class="api-purpose">時系列タブ用 — 測定日ごとの圃場平均/min/max/count</span>
+    </div>
+    <div class="api-box-body">
+      <h4>クエリパラメータ</h4>
+      <table>
+        <thead><tr><th>パラメータ</th><th>必須</th><th>デフォルト</th><th>説明</th></tr></thead>
+        <tbody>
+          <tr><td><code>parameter</code></td><td>任意</td><td><code>CEC</code></td><td><code>result_values.parameter_name</code> に一致する文字列。Flutter 側から切り替えて使う4種: <code>CEC</code> / <code>CaO</code> / <code>K2O</code> / <code>MgO</code>。未指定は <code>CEC</code>。</td></tr>
+        </tbody>
+      </table>
+      <div class="callout note">
+        <strong>推定値は17種類あるが、地図・時系列タブで表示するのは4種のみ。</strong>
+        UIのパラメータ切替タブ（CEC / CaO / K2O / MgO）に対応する4値を対象とします。
+        各タブを切り替えるたびに Flutter がこのエンドポイントを <code>?parameter=CEC</code>（または CaO/K2O/MgO）で叩きます。
+        残り13種は将来的に必要になった時点で対応します。
+      </div>
+      <h4>集計ルール</h4>
+      <ul>
+        <li><code>uploads.status = 'completed'</code> のみ対象</li>
+        <li>集計単位は <code>uploads.measurement_date</code>（同日に複数 upload がある場合も日付で統合）</li>
+        <li><code>count</code> は upload 数ではなく <strong>測定点数（analysis_results 行数）</strong></li>
+        <li>該当パラメータのデータがない日は結果から除外</li>
+      </ul>
+      <h4>レスポンス例</h4>
+<pre><span class="fn">JSON Response</span>{
+  <span class="st">"parameter"</span>: <span class="st">"CEC"</span>,
+  <span class="st">"unit"</span>: <span class="st">"me/100g"</span>,
+  <span class="st">"points"</span>: [
+    { <span class="st">"date"</span>: <span class="st">"2026-02-05"</span>, <span class="st">"avg"</span>: <span class="nm">21.1</span>, <span class="st">"min"</span>: <span class="nm">19.8</span>, <span class="st">"max"</span>: <span class="nm">22.6</span>, <span class="st">"count"</span>: <span class="nm">5</span> },
+    { <span class="st">"date"</span>: <span class="st">"2026-03-10"</span>, <span class="st">"avg"</span>: <span class="nm">21.2</span>, <span class="st">"min"</span>: <span class="nm">20.0</span>, <span class="st">"max"</span>: <span class="nm">22.5</span>, <span class="st">"count"</span>: <span class="nm">4</span> },
+    { <span class="st">"date"</span>: <span class="st">"2026-03-28"</span>, <span class="st">"avg"</span>: <span class="nm">24.3</span>, <span class="st">"min"</span>: <span class="nm">22.4</span>, <span class="st">"max"</span>: <span class="nm">25.6</span>, <span class="st">"count"</span>: <span class="nm">6</span> }
+  ],
+  <span class="st">"work_logs"</span>: [
+    { <span class="st">"date"</span>: <span class="st">"2026-03-16"</span>, <span class="st">"work_type"</span>: <span class="st">"fertilization"</span>, <span class="st">"title"</span>: <span class="st">"NK化成 20kg"</span> }
+  ]
+}</pre>
+      <div class="callout note">
+        <strong><code>work_logs</code> を一緒に返す理由。</strong>
+        Flutter 側で折れ線グラフに「作業タイミングの縦線」を重畳描画するには、
+        同じ API コール 1 本で両データを受け取る方が効率的です。
+        タイムライン API（別エンドポイント）とは目的が異なり、
+        ここでの <code>work_logs</code> は「グラフ上の縦線座標」として使われます。
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── Timeline API ─── -->
+  <h3 id="api-timeline">② タイムライン API — なぜ必要か</h3>
+
+  <p>
+    農家の行動サイクルは「施肥 → 測定 → 効果確認」の繰り返しです。
+    タイムラインタブはこのサイクルを<em>一本の縦スクロールリスト</em>として見せることで、
+    「あの施肥の後に CEC が上がったな」という因果関係を直感的に把握できるようにします。
+  </p>
+  <p>
+    測定結果カードには<strong>「効果（delta）」</strong>として直前の測定結果との差分を自動計算して表示します。
+    直前測定との avg 差分を返すことで、農家が変化量を一目で確認できます。
+  </p>
+
+  <div class="api-box">
+    <div class="api-box-header">
+      <span class="api-method get">GET</span>
+      <span class="api-path">/api/farms/{farmId}/timeline</span>
+      <span class="api-purpose">タイムラインタブ用 — 測定結果 + 作業ログを日付降順でマージ</span>
+    </div>
+    <div class="api-box-body">
+      <h4>並び順</h4>
+      <p>日付降順（新しい順）。同日の場合は測定結果 → 作業ログの順。</p>
+      <h4>values に含めるパラメータ</h4>
+      <p>タイムラインの測定結果カードには <strong>CEC / CaO / K2O / MgO の4種</strong> の avg/min/max を含めます。Flutter 側はデフォルトで CEC の avg を表示し、他3種は補足表示に使います。</p>
+      <h4>delta（効果）の算出ルール</h4>
+      <ul>
+        <li>delta は <strong>CEC のみ</strong>。CaO/K2O/MgO の delta は返しません（delta の主目的は「土壌改善の全体傾向」の把握のため CEC で十分）</li>
+        <li>各測定結果アイテムについて、<strong>その日の直前の測定日</strong>（<code>status='completed'</code> の中で最も近い過去日）の CEC avg との差分を計算</li>
+        <li>直前測定が存在しない（最初の測定）場合は <code>null</code></li>
+      </ul>
+      <h4>レスポンス例</h4>
+<pre><span class="fn">JSON Response</span>{
+  <span class="st">"items"</span>: [
+    {
+      <span class="st">"type"</span>: <span class="st">"measurement"</span>,
+      <span class="st">"date"</span>: <span class="st">"2026-03-28"</span>,
+      <span class="st">"count_points"</span>: <span class="nm">6</span>,
+      <span class="st">"values"</span>: {
+        <span class="st">"CEC"</span> : { <span class="st">"avg"</span>: <span class="nm">24.3</span>, <span class="st">"min"</span>: <span class="nm">22.4</span>, <span class="st">"max"</span>: <span class="nm">25.6</span>, <span class="st">"unit"</span>: <span class="st">"me/100g"</span> },
+        <span class="st">"CaO"</span> : { <span class="st">"avg"</span>: <span class="nm">142.1</span>, <span class="st">"min"</span>: <span class="nm">130.0</span>, <span class="st">"max"</span>: <span class="nm">155.2</span>, <span class="st">"unit"</span>: <span class="st">"mg/100g"</span> },
+        <span class="st">"K2O"</span> : { <span class="st">"avg"</span>: <span class="nm">89.4</span>,  <span class="st">"min"</span>: <span class="nm">80.0</span>, <span class="st">"max"</span>:  <span class="nm">98.0</span>, <span class="st">"unit"</span>: <span class="st">"mg/100g"</span> },
+        <span class="st">"MgO"</span> : { <span class="st">"avg"</span>: <span class="nm">38.2</span>,  <span class="st">"min"</span>: <span class="nm">34.0</span>, <span class="st">"max"</span>:  <span class="nm">42.0</span>, <span class="st">"unit"</span>: <span class="st">"mg/100g"</span> }
+      },
+      <span class="st">"delta"</span>: {
+        <span class="st">"CEC"</span>: <span class="nm">3.1</span>   <span class="cm">// CEC のみ。直前測定(2026-03-10) avg=21.2 との差分</span>
+      }
+    },
+    {
+      <span class="st">"type"</span>: <span class="st">"work_log"</span>,
+      <span class="st">"date"</span>: <span class="st">"2026-03-16"</span>,
+      <span class="st">"work_type"</span>: <span class="st">"fertilization"</span>,
+      <span class="st">"title"</span>: <span class="st">"NK化成 20kg"</span>,
+      <span class="st">"detail"</span>: <span class="kw">null</span>,
+      <span class="st">"amount_value"</span>: <span class="nm">20.0</span>,
+      <span class="st">"amount_unit"</span>: <span class="st">"kg"</span>
+    },
+    {
+      <span class="st">"type"</span>: <span class="st">"measurement"</span>,
+      <span class="st">"date"</span>: <span class="st">"2026-03-10"</span>,
+      <span class="st">"count_points"</span>: <span class="nm">4</span>,
+      <span class="st">"values"</span>: {
+        <span class="st">"CEC"</span> : { <span class="st">"avg"</span>: <span class="nm">21.2</span>, <span class="st">"min"</span>: <span class="nm">20.0</span>, <span class="st">"max"</span>: <span class="nm">22.5</span>, <span class="st">"unit"</span>: <span class="st">"me/100g"</span> },
+        <span class="st">"CaO"</span> : { <span class="st">"avg"</span>: <span class="nm">138.0</span>, <span class="st">"min"</span>: <span class="nm">128.0</span>, <span class="st">"max"</span>: <span class="nm">148.0</span>, <span class="st">"unit"</span>: <span class="st">"mg/100g"</span> },
+        <span class="st">"K2O"</span> : { <span class="st">"avg"</span>: <span class="nm">85.0</span>,  <span class="st">"min"</span>: <span class="nm">78.0</span>, <span class="st">"max"</span>:  <span class="nm">92.0</span>, <span class="st">"unit"</span>: <span class="st">"mg/100g"</span> },
+        <span class="st">"MgO"</span> : { <span class="st">"avg"</span>: <span class="nm">36.5</span>,  <span class="st">"min"</span>: <span class="nm">32.0</span>, <span class="st">"max"</span>:  <span class="nm">40.0</span>, <span class="st">"unit"</span>: <span class="st">"mg/100g"</span> }
+      },
+      <span class="st">"delta"</span>: {
+        <span class="st">"CEC"</span>: <span class="nm">0.1</span>   <span class="cm">// 21.2 - 21.1 = +0.1（直前測定 2026-02-05 との差分）</span>
+      }
+    }
+  ]
+}</pre>
+
+<!-- ====== STEP 2: TimeseriesService ====== -->
+<section id="step1">
+  <h2><span class="n">02</span>ResultsTimeseriesService の実装 <span class="en">timeseries service</span></h2>
+
+  <div class="steps">
+    <div class="step" id="step1-make">
+      <div class="step-num">1</div>
+      <div class="step-body">
+        <h4>Services ディレクトリと空ファイルを準備</h4>
+        <span class="step-loc">ターミナル / ローカル</span>
+        <div class="shell">
+<span class="c"># Services ディレクトリが存在しない場合のみ作成</span>
+<span class="p">$ </span><span class="cmd">mkdir -p app/Services</span>
+<span class="p">$ </span><span class="cmd">touch app/Services/ResultsTimeseriesService.php</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="step" id="step1-logic">
+      <div class="step-num">2</div>
+      <div class="step-body">
+        <h4>ResultsTimeseriesService を実装</h4>
+        <span class="step-loc">app/Services/ResultsTimeseriesService.php</span>
+        <p>
+          SQL で測定日ごとに AVG/MIN/MAX/COUNT を集計し、
+          同じ圃場の <code>work_logs</code> も取得して 1 つの配列にまとめて返します。
+        </p>
+<pre><span class="fn">app/Services/ResultsTimeseriesService.php</span><span class="cl">&lt;?php</span>
+
+<span class="kw">namespace</span> App\Services;
+
+<span class="kw">use</span> Illuminate\Support\Facades\DB;
+
+<span class="kw">class</span> <span class="cl">ResultsTimeseriesService</span>
+{
+    <span class="cm">/**
+     * 指定圃場・パラメータの時系列データを返す。
+     *
+     * @param  int     $farmId
+     * @param  string  $parameter  UI切替4種のいずれか: 'CEC' | 'CaO' | 'K2O' | 'MgO'
+     * @return array{
+     *   parameter: string,
+     *   unit: string|null,
+     *   points: array&lt;array{date:string, avg:float, min:float, max:float, count:int}&gt;,
+     *   work_logs: array&lt;array{date:string, work_type:string, title:string|null}&gt;
+     * }
+     */</span>
+    <span class="kw">public function</span> <span class="nm">get</span>(<span class="kw">int</span> $farmId, <span class="kw">string</span> $parameter = <span class="st">'CEC'</span>): <span class="kw">array</span>
+    {
+        <span class="cm">// ── ① 測定日ごとの avg/min/max/count を集計 ──────────────────</span>
+        <span class="cm">// uploads.measurement_date 単位でグループ化。</span>
+        <span class="cm">// status='completed' のみを対象とし、</span>
+        <span class="cm">// count は upload 数ではなく analysis_results の行数（測定点数）を返す。</span>
+        $rows = DB::select(<span class="st">'
+            SELECT
+                u.measurement_date                          AS date,
+                ROUND(AVG(rv.parameter_value), 2)           AS avg,
+                ROUND(MIN(rv.parameter_value), 2)           AS min_val,
+                ROUND(MAX(rv.parameter_value), 2)           AS max_val,
+                COUNT(ar.id)                                AS count_points,
+                MAX(rv.unit)                                AS unit
+            FROM uploads u
+            INNER JOIN analysis_results ar ON ar.upload_id = u.id
+            INNER JOIN result_values rv
+                ON rv.analysis_result_id = ar.id
+                AND rv.parameter_name = ?
+            WHERE u.farm_id = ?
+              AND u.status  = ?
+            GROUP BY u.measurement_date
+            ORDER BY u.measurement_date ASC
+        '</span>, [$parameter, $farmId, <span class="st">'completed'</span>]);
+
+        <span class="cm">// ── ② unit を先頭行から取得（全行同じ unit の前提）──────────</span>
+        $unit = <span class="kw">count</span>($rows) > <span class="nm">0</span> ? $rows[<span class="nm">0</span>]->unit : <span class="kw">null</span>;
+
+        <span class="cm">// ── ③ 整形 ───────────────────────────────────────────────</span>
+        $points = <span class="kw">array_map</span>(<span class="kw">fn</span>($r) => [
+            <span class="st">'date'</span>  => $r->date,
+            <span class="st">'avg'</span>   => (<span class="kw">float</span>) $r->avg,
+            <span class="st">'min'</span>   => (<span class="kw">float</span>) $r->min_val,
+            <span class="st">'max'</span>   => (<span class="kw">float</span>) $r->max_val,
+            <span class="st">'count'</span> => (<span class="kw">int</span>)   $r->count_points,
+        ], $rows);
+
+        <span class="cm">// ── ④ 同圃場の作業ログ（グラフの縦線用）─────────────────────</span>
+        $workLogs = DB::select(<span class="st">'
+            SELECT
+                work_date   AS date,
+                work_type,
+                title
+            FROM work_logs
+            WHERE farm_id = ?
+            ORDER BY work_date ASC
+        '</span>, [$farmId]);
+
+        $workLogsFormatted = <span class="kw">array_map</span>(<span class="kw">fn</span>($w) => [
+            <span class="st">'date'</span>      => $w->date,
+            <span class="st">'work_type'</span> => $w->work_type,
+            <span class="st">'title'</span>     => $w->title,
+        ], $workLogs);
+
+        <span class="kw">return</span> [
+            <span class="st">'parameter'</span> => $parameter,
+            <span class="st">'unit'</span>      => $unit,
+            <span class="st">'points'</span>    => $points,
+            <span class="st">'work_logs'</span> => $workLogsFormatted,
+        ];
+    }
+}</pre>
+        <div class="callout">
+          <strong>なぜ ORM（Eloquent）ではなく生 SQL か。</strong>
+          この集計は複数テーブルを 3 段 JOIN した上で GROUP BY と集計関数を使います。
+          Eloquent で書けなくはないですが、SQL の方が意図が直接読み取れ、
+          実行計画のデバッグも容易です。シンプルさを優先して <code>DB::select</code> を使います。
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ====== STEP 3: TimelineService ====== -->
+<section id="step2">
+  <h2><span class="n">03</span>FarmTimelineService の実装 <span class="en">timeline service</span></h2>
+
+  <div class="steps">
+    <div class="step" id="step2-make">
+      <div class="step-num">3</div>
+      <div class="step-body">
+        <h4>空ファイルを作成</h4>
+        <span class="step-loc">ターミナル / ローカル</span>
+        <div class="shell">
+<span class="p">$ </span><span class="cmd">touch app/Services/FarmTimelineService.php</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="step" id="step2-logic">
+      <div class="step-num">4</div>
+      <div class="step-body">
+        <h4>FarmTimelineService を実装</h4>
+        <span class="step-loc">app/Services/FarmTimelineService.php</span>
+        <p>
+          測定結果と作業ログをそれぞれ取得し、日付でマージして降順に並べます。
+          測定結果には直前測定との delta を付与します。
+        </p>
+<pre><span class="fn">app/Services/FarmTimelineService.php</span><span class="cl">&lt;?php</span>
+
+<span class="kw">namespace</span> App\Services;
+
+<span class="kw">use</span> Illuminate\Support\Facades\DB;
+
+<span class="kw">class</span> <span class="cl">FarmTimelineService</span>
+{
+    <span class="cm">/**
+     * 指定圃場のタイムライン（測定結果 + 作業ログ）を返す。
+     * 日付降順（新しい順）で統合されたアイテム配列。
+     *
+     * 測定結果の values には CEC / CaO / K2O / MgO の4種を含める。
+     * delta は CEC のみ（直前測定の CEC avg との差分）。
+     *
+     * @param  int    $farmId
+     * @return array&lt;int, array&gt;
+     */</span>
+    <span class="kw">public function</span> <span class="nm">get</span>(<span class="kw">int</span> $farmId): <span class="kw">array</span>
+    {
+        <span class="cm">// ── ① 表示対象の4パラメータを定数で管理 ──────────────────────────
+        // 推定値は17種類あるが、タイムラインカードに表示するのは以下の4種のみ。
+        // 将来追加する場合はこの配列に追記する。</span>
+        $targetParams = [<span class="st">'CEC'</span>, <span class="st">'CaO'</span>, <span class="st">'K2O'</span>, <span class="st">'MgO'</span>];
+
+        <span class="cm">// ── ② 測定日ごとに4パラメータを一括集計 ─────────────────────────
+        // IN句でパラメータ名を絞り込み、CASE WHEN で列に展開する（PIVOT相当）。
+        // count_points は CEC の行数で代表させる（4種すべて同じ点数のため）。</span>
+        $measurements = DB::select(<span class="st">'
+            SELECT
+                u.measurement_date AS date,
+                COUNT(CASE WHEN rv.parameter_name = ? THEN ar.id END)              AS count_points,
+                ROUND(AVG(CASE WHEN rv.parameter_name = ? THEN rv.parameter_value END), 2) AS avg_cec,
+                ROUND(MIN(CASE WHEN rv.parameter_name = ? THEN rv.parameter_value END), 2) AS min_cec,
+                ROUND(MAX(CASE WHEN rv.parameter_name = ? THEN rv.parameter_value END), 2) AS max_cec,
+                MAX(CASE WHEN rv.parameter_name = ? THEN rv.unit END)              AS unit_cec,
+                ROUND(AVG(CASE WHEN rv.parameter_name = ? THEN rv.parameter_value END), 2) AS avg_cao,
+                ROUND(MIN(CASE WHEN rv.parameter_name = ? THEN rv.parameter_value END), 2) AS min_cao,
+                ROUND(MAX(CASE WHEN rv.parameter_name = ? THEN rv.parameter_value END), 2) AS max_cao,
+                MAX(CASE WHEN rv.parameter_name = ? THEN rv.unit END)              AS unit_cao,
+                ROUND(AVG(CASE WHEN rv.parameter_name = ? THEN rv.parameter_value END), 2) AS avg_k2o,
+                ROUND(MIN(CASE WHEN rv.parameter_name = ? THEN rv.parameter_value END), 2) AS min_k2o,
+                ROUND(MAX(CASE WHEN rv.parameter_name = ? THEN rv.parameter_value END), 2) AS max_k2o,
+                MAX(CASE WHEN rv.parameter_name = ? THEN rv.unit END)              AS unit_k2o,
+                ROUND(AVG(CASE WHEN rv.parameter_name = ? THEN rv.parameter_value END), 2) AS avg_mgo,
+                ROUND(MIN(CASE WHEN rv.parameter_name = ? THEN rv.parameter_value END), 2) AS min_mgo,
+                ROUND(MAX(CASE WHEN rv.parameter_name = ? THEN rv.parameter_value END), 2) AS max_mgo,
+                MAX(CASE WHEN rv.parameter_name = ? THEN rv.unit END)              AS unit_mgo
+            FROM uploads u
+            INNER JOIN analysis_results ar ON ar.upload_id = u.id
+            INNER JOIN result_values rv
+                ON rv.analysis_result_id = ar.id
+                AND rv.parameter_name IN (?, ?, ?, ?)
+            WHERE u.farm_id = ?
+              AND u.status  = ?
+            GROUP BY u.measurement_date
+            ORDER BY u.measurement_date ASC
+        '</span>, [
+            <span class="cm">// CASE WHEN のパラメータ（各種 4回ずつ: count, avg, min, max, unit）</span>
+            <span class="st">'CEC'</span>, <span class="st">'CEC'</span>, <span class="st">'CEC'</span>, <span class="st">'CEC'</span>, <span class="st">'CEC'</span>,
+            <span class="st">'CaO'</span>, <span class="st">'CaO'</span>, <span class="st">'CaO'</span>, <span class="st">'CaO'</span>,
+            <span class="st">'K2O'</span>, <span class="st">'K2O'</span>, <span class="st">'K2O'</span>, <span class="st">'K2O'</span>,
+            <span class="st">'MgO'</span>, <span class="st">'MgO'</span>, <span class="st">'MgO'</span>, <span class="st">'MgO'</span>,
+            <span class="cm">// IN句</span>
+            <span class="st">'CEC'</span>, <span class="st">'CaO'</span>, <span class="st">'K2O'</span>, <span class="st">'MgO'</span>,
+            <span class="cm">// WHERE</span>
+            $farmId, <span class="st">'completed'</span>,
+        ]);
+
+        <span class="cm">// ── ③ delta（直前測定との CEC avg 差分）を計算しながら整形 ──────
+        // 昇順で取得しているので、ループ内で prevAvgCec を持ち越すだけで O(n)。</span>
+        $measurementItems = [];
+        $prevAvgCec = <span class="kw">null</span>;
+
+        <span class="kw">foreach</span> ($measurements <span class="kw">as</span> $row) {
+            $avgCec = $row->avg_cec !== <span class="kw">null</span> ? (<span class="kw">float</span>) $row->avg_cec : <span class="kw">null</span>;
+            $delta  = ($prevAvgCec !== <span class="kw">null</span> && $avgCec !== <span class="kw">null</span>)
+                ? <span class="kw">round</span>($avgCec - $prevAvgCec, <span class="nm">2</span>)
+                : <span class="kw">null</span>;
+
+            <span class="cm">// values: 値が存在するパラメータだけ含める（モデル未実装で null の場合はスキップ）</span>
+            $values = [];
+            <span class="kw">if</span> ($row->avg_cec !== <span class="kw">null</span>) {
+                $values[<span class="st">'CEC'</span>] = [<span class="st">'avg'</span> => (<span class="kw">float</span>) $row->avg_cec, <span class="st">'min'</span> => (<span class="kw">float</span>) $row->min_cec, <span class="st">'max'</span> => (<span class="kw">float</span>) $row->max_cec, <span class="st">'unit'</span> => $row->unit_cec];
+            }
+            <span class="kw">if</span> ($row->avg_cao !== <span class="kw">null</span>) {
+                $values[<span class="st">'CaO'</span>] = [<span class="st">'avg'</span> => (<span class="kw">float</span>) $row->avg_cao, <span class="st">'min'</span> => (<span class="kw">float</span>) $row->min_cao, <span class="st">'max'</span> => (<span class="kw">float</span>) $row->max_cao, <span class="st">'unit'</span> => $row->unit_cao];
+            }
+            <span class="kw">if</span> ($row->avg_k2o !== <span class="kw">null</span>) {
+                $values[<span class="st">'K2O'</span>] = [<span class="st">'avg'</span> => (<span class="kw">float</span>) $row->avg_k2o, <span class="st">'min'</span> => (<span class="kw">float</span>) $row->min_k2o, <span class="st">'max'</span> => (<span class="kw">float</span>) $row->max_k2o, <span class="st">'unit'</span> => $row->unit_k2o];
+            }
+            <span class="kw">if</span> ($row->avg_mgo !== <span class="kw">null</span>) {
+                $values[<span class="st">'MgO'</span>] = [<span class="st">'avg'</span> => (<span class="kw">float</span>) $row->avg_mgo, <span class="st">'min'</span> => (<span class="kw">float</span>) $row->min_mgo, <span class="st">'max'</span> => (<span class="kw">float</span>) $row->max_mgo, <span class="st">'unit'</span> => $row->unit_mgo];
+            }
+
+            $measurementItems[] = [
+                <span class="st">'type'</span>         => <span class="st">'measurement'</span>,
+                <span class="st">'date'</span>         => $row->date,
+                <span class="st">'count_points'</span> => (<span class="kw">int</span>) $row->count_points,
+                <span class="st">'values'</span>       => $values,
+                <span class="st">'delta'</span>        => [<span class="st">'CEC'</span> => $delta],  <span class="cm">// delta は CEC のみ</span>
+            ];
+
+            <span class="kw">if</span> ($avgCec !== <span class="kw">null</span>) {
+                $prevAvgCec = $avgCec;
+            }
+        }
+
+        <span class="cm">// ── ③ 作業ログ取得 ───────────────────────────────────────────</span>
+        $workLogRows = DB::select(<span class="st">'
+            SELECT
+                work_date   AS date,
+                work_type,
+                title,
+                detail,
+                amount_value,
+                amount_unit
+            FROM work_logs
+            WHERE farm_id = ?
+            ORDER BY work_date ASC
+        '</span>, [$farmId]);
+
+        $workLogItems = <span class="kw">array_map</span>(<span class="kw">fn</span>($w) => [
+            <span class="st">'type'</span>         => <span class="st">'work_log'</span>,
+            <span class="st">'date'</span>         => $w->date,
+            <span class="st">'work_type'</span>    => $w->work_type,
+            <span class="st">'title'</span>        => $w->title,
+            <span class="st">'detail'</span>       => $w->detail,
+            <span class="st">'amount_value'</span> => $w->amount_value !== <span class="kw">null</span>
+                                 ? (<span class="kw">float</span>) $w->amount_value
+                                 : <span class="kw">null</span>,
+            <span class="st">'amount_unit'</span>  => $w->amount_unit,
+        ], $workLogRows);
+
+        <span class="cm">// ── ④ 測定結果 + 作業ログを日付降順にマージ ─────────────────────
+        // 同日の場合は measurement を先にする（施肥と測定が同日の場合の表示順制御）</span>
+        $all = <span class="kw">array_merge</span>($measurementItems, $workLogItems);
+
+        <span class="kw">usort</span>($all, <span class="kw">function</span> ($a, $b) {
+            <span class="kw">if</span> ($a[<span class="st">'date'</span>] === $b[<span class="st">'date'</span>]) {
+                <span class="cm">// 同日: measurement を先 (work_log を後) に並べる</span>
+                <span class="kw">return</span> $a[<span class="st">'type'</span>] === <span class="st">'measurement'</span> ? -<span class="nm">1</span> : <span class="nm">1</span>;
+            }
+            <span class="cm">// 日付降順</span>
+            <span class="kw">return</span> $b[<span class="st">'date'</span>] <=> $a[<span class="st">'date'</span>];
+        });
+
+        <span class="kw">return</span> [<span class="st">'items'</span> => $all];
+    }
+}</pre>
+        <div class="callout info">
+          <strong>delta の算出方針（Phase 設計の決定事項を反映）。</strong>
+          delta は CEC のみです。CaO/K2O/MgO の delta は返しません。
+          昇順ループで <code>$prevAvgCec</code> を持ち越す実装で O(n) で処理できます。
+        </div>
+        <div class="callout note">
+          <strong>CaO / K2O / MgO のモデルがまだ未実装の場合。</strong>
+          SQL の CASE WHEN で集計した結果が <code>null</code> になるため、
+          <code>if ($row->avg_cao !== null)</code> の条件分岐でスキップされます。
+          モデルが追加された時点で自動的に <code>values</code> に含まれるようになります。
+          Flutter 側は受け取った <code>values</code> キーの存在チェックをして表示を切り替えてください。
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ====== STEP 4: Controller ====== -->
+<section id="step3">
+  <h2><span class="n">04</span>Controller にメソッドを追記 <span class="en">controller</span></h2>
+
+  <div class="steps">
+    <div class="step">
+      <div class="step-num">5</div>
+      <div class="step-body">
+        <h4>既存の FarmResultsController に 2 メソッドを追記</h4>
+        <span class="step-loc">app/Http/Controllers/Api/FarmResultsController.php（既存ファイルを編集）</span>
+        <p>
+          ファイルを開き、既存メソッドの末尾に以下を追記します。
+          クラス冒頭の <code>use</code> 宣言にも 2 行追加が必要です。
+        </p>
+<pre><span class="fn">追加する use 宣言（クラス冒頭の use ブロックに追記）</span><span class="kw">use</span> App\Services\ResultsTimeseriesService;
+<span class="kw">use</span> App\Services\FarmTimelineService;
+<span class="kw">use</span> Illuminate\Http\Request;</pre>
+<pre><span class="fn">クラス内に追記するメソッド 2 本</span>    <span class="cm">/**
+     * GET /api/farms/{farmId}/results/timeseries
+     * 時系列タブ用: 測定日ごとの圃場平均/min/max + 作業ログ（グラフ縦線用）
+     * ?parameter=CEC|CaO|K2O|MgO （デフォルト: CEC）
+     */</span>
+    <span class="kw">public function</span> <span class="nm">timeseries</span>(
+        <span class="cl">Request</span> $request,
+        <span class="kw">int</span> $farmId
+    ): \Illuminate\Http\JsonResponse {
+        <span class="cm">// 許容するパラメータ名を明示的に制限する（SQL インジェクション対策 + 仕様の明確化）</span>
+        $allowed   = [<span class="st">'CEC'</span>, <span class="st">'CaO'</span>, <span class="st">'K2O'</span>, <span class="st">'MgO'</span>];
+        $parameter = $request->query(<span class="st">'parameter'</span>, <span class="st">'CEC'</span>);
+
+        <span class="kw">if</span> (!<span class="kw">in_array</span>($parameter, $allowed, <span class="kw">true</span>)) {
+            <span class="kw">return</span> response()->json(
+                [<span class="st">'message'</span> => <span class="st">'parameter must be one of: '</span> . <span class="kw">implode</span>(<span class="st">', '</span>, $allowed)],
+                <span class="nm">422</span>
+            );
+        }
+
+        $service = <span class="kw">new</span> <span class="cl">ResultsTimeseriesService</span>();
+        $data    = $service->get($farmId, $parameter);
+
+        <span class="kw">return</span> response()->json($data);
+    }
+
+    <span class="cm">/**
+     * GET /api/farms/{farmId}/timeline
+     * タイムラインタブ用: 測定結果と作業ログを日付降順でマージ
+     */</span>
+    <span class="kw">public function</span> <span class="nm">timeline</span>(<span class="kw">int</span> $farmId): \Illuminate\Http\JsonResponse
+    {
+        $service = <span class="kw">new</span> <span class="cl">FarmTimelineService</span>();
+        $data    = $service->get($farmId);
+
+        <span class="kw">return</span> response()->json($data);
+    }</pre>
+        <div class="callout note">
+          <strong>DI（依存性注入）について。</strong>
+          サービスを <code>new</code> で直接生成していますが、
+          コンストラクタ注入（<code>__construct(private ResultsTimeseriesService $svc)</code>）にしても OK です。
+          テストのしやすさは同等です（Service 自体が DB への副作用のみで外部依存がないため）。
+          プロジェクトの既存スタイルに合わせてください。
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ====== STEP 5: Routes ====== -->
+<section id="step4">
+  <h2><span class="n">05</span>Route 登録 <span class="en">routes</span></h2>
+
+  <div class="steps">
+    <div class="step">
+      <div class="step-num">6</div>
+      <div class="step-body">
+        <h4>routes/api.php に 2 本のルートを追加</h4>
+        <span class="step-loc">routes/api.php（既存ファイルを編集）</span>
+        <p>
+          既存の farms 系ルートが登録されているブロックを探し、その<strong>すぐ下</strong>に追記します。
+          Cognito JWT ミドルウェアが適用されているグループ内に書くことを確認してください。
+        </p>
+<pre><span class="fn">routes/api.php — 追記内容</span><span class="cm">// ファイル上部の use 宣言に追加（すでに Controller が import されていれば不要）</span>
+<span class="kw">use</span> App\Http\Controllers\Api\FarmResultsController;
+
+<span class="cm">// ─────────────────────────────────────────────────────
+// 既存の Cognito JWT ミドルウェアグループの中に以下を追加
+// ─────────────────────────────────────────────────────</span>
+
+<span class="cm">// 時系列タブ: 測定日ごとの圃場平均/min/max</span>
+Route::get(
+    <span class="st">'farms/{farmId}/results/timeseries'</span>,
+    [<span class="cl">FarmResultsController</span>::<span class="kw">class</span>, <span class="st">'timeseries'</span>]
+);
+
+<span class="cm">// タイムラインタブ: 測定結果 + 作業ログのマージ済み時系列</span>
+Route::get(
+    <span class="st">'farms/{farmId}/timeline'</span>,
+    [<span class="cl">FarmResultsController</span>::<span class="kw">class</span>, <span class="st">'timeline'</span>]
+);</pre>
+
+        <h4>ルートの確認</h4>
+        <div class="shell">
+<span class="p">$ </span><span class="cmd">docker compose exec php-fpm php artisan route:list --path=farms</span>
+<span class="c"># 以下の 2 行が追加されていることを確認</span>
+<span class="c"># GET   api/farms/{farmId}/results/timeseries  → FarmResultsController@timeseries</span>
+<span class="c"># GET   api/farms/{farmId}/timeline            → FarmResultsController@timeline</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ====== STEP 6: Tests ====== -->
+<section id="step5">
+  <h2><span class="n">06</span>Feature テストの実装・実行（ローカル） <span class="en">tests</span></h2>
+
+  <div class="callout info">
+    <strong>テストはローカルでのみ実行します。</strong>
+    EC2 本番 RDS での <code>RefreshDatabase</code> による誤消去を防ぐため、
+    テスト実行はローカル Docker 環境に限定します。
+  </div>
+
+  <!-- ── Timeseries Test ── -->
+  <div class="steps">
+    <div class="step" id="step5-ts">
+      <div class="step-num">7</div>
+      <div class="step-body">
+        <h4>ResultsTimeseriesApiTest を作成・実装</h4>
+        <span class="step-loc">ターミナル / ローカル → tests/Feature/ResultsTimeseriesApiTest.php</span>
+        <div class="shell">
+<span class="p">$ </span><span class="cmd">docker compose exec php-fpm php artisan make:test ResultsTimeseriesApiTest</span>
+        </div>
+<pre><span class="fn">tests/Feature/ResultsTimeseriesApiTest.php</span><span class="cl">&lt;?php</span>
+
+<span class="kw">namespace</span> Tests\Feature;
+
+<span class="kw">use</span> App\Models\AppUser;
+<span class="kw">use</span> App\Models\Farm;
+<span class="kw">use</span> Illuminate\Foundation\Testing\RefreshDatabase;
+<span class="kw">use</span> Illuminate\Support\Facades\DB;
+<span class="kw">use</span> Tests\TestCase;
+
+<span class="kw">class</span> <span class="cl">ResultsTimeseriesApiTest</span> <span class="kw">extends</span> <span class="cl">TestCase</span>
+{
+    <span class="kw">use</span> RefreshDatabase;
+
+    <span class="cm">// ─── ヘルパー ─────────────────────────────────────────────────</span>
+
+    <span class="kw">private function</span> <span class="nm">authAs</span>(<span class="cl">AppUser</span> $user): static
+    {
+        <span class="cm">// 既存テストの認証方式に合わせて変更すること</span>
+        <span class="kw">return</span> <span class="kw">$this</span>->actingAs($user, <span class="st">'api'</span>);
+    }
+
+    <span class="cm">/**
+     * テスト用に uploads → analysis_results → result_values を
+     * 指定日・指定値で一括挿入するヘルパー。
+     */</span>
+    <span class="kw">private function</span> <span class="nm">seedMeasurement</span>(
+        <span class="kw">int</span>    $farmId,
+        <span class="kw">string</span> $date,
+        <span class="kw">array</span>  $cecValues   <span class="cm">// 例: [21.0, 22.0, 23.0] — 測定点ごとの値</span>
+    ): <span class="kw">void</span> {
+        <span class="cm">// uploads を 1 件 INSERT</span>
+        $uploadId = DB::table(<span class="st">'uploads'</span>)->insertGetId([
+            <span class="st">'farm_id'</span>          => $farmId,
+            <span class="st">'measurement_date'</span> => $date,
+            <span class="st">'status'</span>           => <span class="st">'completed'</span>,
+            <span class="st">'file_path'</span>        => <span class="st">"s3://test/farm_{$farmId}/{$date}.csv"</span>,
+            <span class="st">'created_at'</span>       => <span class="kw">now</span>(),
+            <span class="st">'updated_at'</span>       => <span class="kw">now</span>(),
+        ]);
+
+        <span class="cm">// 測定点ごとに analysis_results + result_values を INSERT</span>
+        <span class="kw">foreach</span> ($cecValues <span class="kw">as</span> $i => $cec) {
+            $arId = DB::table(<span class="st">'analysis_results'</span>)->insertGetId([
+                <span class="st">'upload_id'</span>  => $uploadId,
+                <span class="st">'latitude'</span>   => <span class="nm">35.0</span> + $i * <span class="nm">0.001</span>,
+                <span class="st">'longitude'</span>  => <span class="nm">139.0</span>,
+                <span class="st">'sensor_info'</span>=> <span class="st">'null'</span>,
+                <span class="st">'created_at'</span> => <span class="kw">now</span>(),
+                <span class="st">'updated_at'</span> => <span class="kw">now</span>(),
+            ]);
+            DB::table(<span class="st">'result_values'</span>)->insert([
+                <span class="st">'analysis_result_id'</span> => $arId,
+                <span class="st">'parameter_name'</span>     => <span class="st">'CEC'</span>,
+                <span class="st">'parameter_value'</span>    => $cec,
+                <span class="st">'unit'</span>               => <span class="st">'me/100g'</span>,
+                <span class="st">'created_at'</span>         => <span class="kw">now</span>(),
+                <span class="st">'updated_at'</span>         => <span class="kw">now</span>(),
+            ]);
+        }
+    }
+
+    <span class="cm">// ─── テスト ───────────────────────────────────────────────────</span>
+
+    <span class="kw">public function</span> <span class="nm">test_unauthenticated_returns_401</span>(): <span class="kw">void</span>
+    {
+        $farm = <span class="cl">Farm</span>::factory()->create();
+        <span class="kw">$this</span>->getJson(<span class="st">"/api/farms/{$farm->id}/results/timeseries"</span>)
+             ->assertStatus(<span class="nm">401</span>);
+    }
+
+    <span class="kw">public function</span> <span class="nm">test_returns_empty_points_when_no_data</span>(): <span class="kw">void</span>
+    {
+        $user = <span class="cl">AppUser</span>::factory()->create();
+        $farm = <span class="cl">Farm</span>::factory()->create([<span class="st">'app_user_id'</span> => $user->id]);
+
+        <span class="kw">$this</span>->authAs($user)
+             ->getJson(<span class="st">"/api/farms/{$farm->id}/results/timeseries"</span>)
+             ->assertStatus(<span class="nm">200</span>)
+             ->assertJson([
+                 <span class="st">'parameter'</span> => <span class="st">'CEC'</span>,
+                 <span class="st">'points'</span>    => [],
+                 <span class="st">'work_logs'</span> => [],
+             ]);
+    }
+
+    <span class="kw">public function</span> <span class="nm">test_returns_correct_aggregation_for_multiple_dates</span>(): <span class="kw">void</span>
+    {
+        $user = <span class="cl">AppUser</span>::factory()->create();
+        $farm = <span class="cl">Farm</span>::factory()->create([<span class="st">'app_user_id'</span> => $user->id]);
+
+        <span class="cm">// 2 月 5 日: [20.0, 21.0, 22.0] → avg=21.0, min=20.0, max=22.0, count=3</span>
+        <span class="kw">$this</span>->seedMeasurement($farm->id, <span class="st">'2026-02-05'</span>, [<span class="nm">20.0</span>, <span class="nm">21.0</span>, <span class="nm">22.0</span>]);
+        <span class="cm">// 3 月 10 日: [24.0, 25.0] → avg=24.5, min=24.0, max=25.0, count=2</span>
+        <span class="kw">$this</span>->seedMeasurement($farm->id, <span class="st">'2026-03-10'</span>, [<span class="nm">24.0</span>, <span class="nm">25.0</span>]);
+
+        $res = <span class="kw">$this</span>->authAs($user)
+                    ->getJson(<span class="st">"/api/farms/{$farm->id}/results/timeseries"</span>)
+                    ->assertStatus(<span class="nm">200</span>);
+
+        $points = $res->json(<span class="st">'points'</span>);
+        <span class="kw">$this</span>->assertCount(<span class="nm">2</span>, $points);
+
+        <span class="cm">// 昇順で返ること</span>
+        <span class="kw">$this</span>->assertEquals(<span class="st">'2026-02-05'</span>, $points[<span class="nm">0</span>][<span class="st">'date'</span>]);
+        <span class="kw">$this</span>->assertEquals(<span class="nm">21.0</span>, $points[<span class="nm">0</span>][<span class="st">'avg'</span>]);
+        <span class="kw">$this</span>->assertEquals(<span class="nm">20.0</span>, $points[<span class="nm">0</span>][<span class="st">'min'</span>]);
+        <span class="kw">$this</span>->assertEquals(<span class="nm">22.0</span>, $points[<span class="nm">0</span>][<span class="st">'max'</span>]);
+        <span class="kw">$this</span>->assertEquals(<span class="nm">3</span>,    $points[<span class="nm">0</span>][<span class="st">'count'</span>]);
+
+        <span class="kw">$this</span>->assertEquals(<span class="st">'2026-03-10'</span>, $points[<span class="nm">1</span>][<span class="st">'date'</span>]);
+        <span class="kw">$this</span>->assertEquals(<span class="nm">24.5</span>, $points[<span class="nm">1</span>][<span class="st">'avg'</span>]);
+    }
+
+    <span class="kw">public function</span> <span class="nm">test_excludes_non_completed_uploads</span>(): <span class="kw">void</span>
+    {
+        $user = <span class="cl">AppUser</span>::factory()->create();
+        $farm = <span class="cl">Farm</span>::factory()->create([<span class="st">'app_user_id'</span> => $user->id]);
+
+        <span class="cm">// 'processing' ステータスは除外される</span>
+        DB::table(<span class="st">'uploads'</span>)->insert([
+            <span class="st">'farm_id'</span>          => $farm->id,
+            <span class="st">'measurement_date'</span> => <span class="st">'2026-04-01'</span>,
+            <span class="st">'status'</span>           => <span class="st">'processing'</span>,
+            <span class="st">'file_path'</span>        => <span class="st">'s3://test/x.csv'</span>,
+            <span class="st">'created_at'</span>       => <span class="kw">now</span>(), <span class="st">'updated_at'</span> => <span class="kw">now</span>(),
+        ]);
+
+        <span class="kw">$this</span>->authAs($user)
+             ->getJson(<span class="st">"/api/farms/{$farm->id}/results/timeseries"</span>)
+             ->assertStatus(<span class="nm">200</span>)
+             ->assertJson([<span class="st">'points'</span> => []]);
+    }
+
+    <span class="kw">public function</span> <span class="nm">test_invalid_parameter_returns_422</span>(): <span class="kw">void</span>
+    {
+        $user = <span class="cl">AppUser</span>::factory()->create();
+        $farm = <span class="cl">Farm</span>::factory()->create([<span class="st">'app_user_id'</span> => $user->id]);
+
+        <span class="cm">// 許容値（CEC/CaO/K2O/MgO）以外は 422 を返す</span>
+        <span class="kw">$this</span>->authAs($user)
+             ->getJson(<span class="st">"/api/farms/{$farm->id}/results/timeseries?parameter=invalid"</span>)
+             ->assertStatus(<span class="nm">422</span>);
+    }
+
+    <span class="kw">public function</span> <span class="nm">test_parameter_cao_is_accepted</span>(): <span class="kw">void</span>
+    {
+        $user = <span class="cl">AppUser</span>::factory()->create();
+        $farm = <span class="cl">Farm</span>::factory()->create([<span class="st">'app_user_id'</span> => $user->id]);
+
+        <span class="cm">// 4種のパラメータはいずれも 200 を返す（データなしでも points:[] で正常）</span>
+        <span class="kw">foreach</span> ([<span class="st">'CEC'</span>, <span class="st">'CaO'</span>, <span class="st">'K2O'</span>, <span class="st">'MgO'</span>] <span class="kw">as</span> $param) {
+            <span class="kw">$this</span>->authAs($user)
+                 ->getJson(<span class="st">"/api/farms/{$farm->id}/results/timeseries?parameter={$param}"</span>)
+                 ->assertStatus(<span class="nm">200</span>)
+                 ->assertJsonPath(<span class="st">'parameter'</span>, $param);
+        }
+    }
+    {
+        $user = <span class="cl">AppUser</span>::factory()->create();
+        $farm = <span class="cl">Farm</span>::factory()->create([<span class="st">'app_user_id'</span> => $user->id]);
+
+        DB::table(<span class="st">'work_logs'</span>)->insert([
+            <span class="st">'farm_id'</span>   => $farm->id,
+            <span class="st">'work_type'</span> => <span class="st">'fertilization'</span>,
+            <span class="st">'work_date'</span> => <span class="st">'2026-03-16'</span>,
+            <span class="st">'title'</span>     => <span class="st">'NK化成 20kg'</span>,
+            <span class="st">'scope'</span>     => <span class="st">'whole'</span>,
+            <span class="st">'created_at'</span>=> <span class="kw">now</span>(), <span class="st">'updated_at'</span> => <span class="kw">now</span>(),
+        ]);
+
+        $res = <span class="kw">$this</span>->authAs($user)
+                    ->getJson(<span class="st">"/api/farms/{$farm->id}/results/timeseries"</span>)
+                    ->assertStatus(<span class="nm">200</span>);
+
+        <span class="kw">$this</span>->assertCount(<span class="nm">1</span>, $res->json(<span class="st">'work_logs'</span>));
+        <span class="kw">$this</span>->assertEquals(<span class="st">'fertilization'</span>, $res->json(<span class="st">'work_logs.0.work_type'</span>));
+    }
+}</pre>
+      </div>
+    </div>
+
+    <!-- ── Timeline Test ── -->
+    <div class="step" id="step5-tl">
+      <div class="step-num">8</div>
+      <div class="step-body">
+        <h4>FarmTimelineApiTest を作成・実装</h4>
+        <span class="step-loc">ターミナル / ローカル → tests/Feature/FarmTimelineApiTest.php</span>
+        <div class="shell">
+<span class="p">$ </span><span class="cmd">docker compose exec php-fpm php artisan make:test FarmTimelineApiTest</span>
+        </div>
+<pre><span class="fn">tests/Feature/FarmTimelineApiTest.php</span><span class="cl">&lt;?php</span>
+
+<span class="kw">namespace</span> Tests\Feature;
+
+<span class="kw">use</span> App\Models\AppUser;
+<span class="kw">use</span> App\Models\Farm;
+<span class="kw">use</span> Illuminate\Foundation\Testing\RefreshDatabase;
+<span class="kw">use</span> Illuminate\Support\Facades\DB;
+<span class="kw">use</span> Tests\TestCase;
+
+<span class="kw">class</span> <span class="cl">FarmTimelineApiTest</span> <span class="kw">extends</span> <span class="cl">TestCase</span>
+{
+    <span class="kw">use</span> RefreshDatabase;
+
+    <span class="kw">private function</span> <span class="nm">authAs</span>(<span class="cl">AppUser</span> $user): static
+    {
+        <span class="kw">return</span> <span class="kw">$this</span>->actingAs($user, <span class="st">'api'</span>);
+    }
+
+    <span class="cm">/** ResultsTimeseriesApiTest と同じヘルパーを再利用 */</span>
+    <span class="kw">private function</span> <span class="nm">seedMeasurement</span>(<span class="kw">int</span> $farmId, <span class="kw">string</span> $date, <span class="kw">array</span> $cecValues): <span class="kw">void</span>
+    {
+        $uploadId = DB::table(<span class="st">'uploads'</span>)->insertGetId([
+            <span class="st">'farm_id'</span>          => $farmId,
+            <span class="st">'measurement_date'</span> => $date,
+            <span class="st">'status'</span>           => <span class="st">'completed'</span>,
+            <span class="st">'file_path'</span>        => <span class="st">"s3://test/farm_{$farmId}/{$date}.csv"</span>,
+            <span class="st">'created_at'</span>       => <span class="kw">now</span>(), <span class="st">'updated_at'</span> => <span class="kw">now</span>(),
+        ]);
+        <span class="kw">foreach</span> ($cecValues <span class="kw">as</span> $i => $cec) {
+            $arId = DB::table(<span class="st">'analysis_results'</span>)->insertGetId([
+                <span class="st">'upload_id'</span>   => $uploadId,
+                <span class="st">'latitude'</span>    => <span class="nm">35.0</span> + $i * <span class="nm">0.001</span>,
+                <span class="st">'longitude'</span>   => <span class="nm">139.0</span>,
+                <span class="st">'sensor_info'</span> => <span class="st">'null'</span>,
+                <span class="st">'created_at'</span>  => <span class="kw">now</span>(), <span class="st">'updated_at'</span> => <span class="kw">now</span>(),
+            ]);
+            DB::table(<span class="st">'result_values'</span>)->insert([
+                <span class="st">'analysis_result_id'</span> => $arId,
+                <span class="st">'parameter_name'</span>     => <span class="st">'CEC'</span>,
+                <span class="st">'parameter_value'</span>    => $cec,
+                <span class="st">'unit'</span>               => <span class="st">'me/100g'</span>,
+                <span class="st">'created_at'</span>         => <span class="kw">now</span>(), <span class="st">'updated_at'</span> => <span class="kw">now</span>(),
+            ]);
+        }
+    }
+
+    <span class="kw">public function</span> <span class="nm">test_unauthenticated_returns_401</span>(): <span class="kw">void</span>
+    {
+        $farm = <span class="cl">Farm</span>::factory()->create();
+        <span class="kw">$this</span>->getJson(<span class="st">"/api/farms/{$farm->id}/timeline"</span>)
+             ->assertStatus(<span class="nm">401</span>);
+    }
+
+    <span class="kw">public function</span> <span class="nm">test_returns_empty_items_when_no_data</span>(): <span class="kw">void</span>
+    {
+        $user = <span class="cl">AppUser</span>::factory()->create();
+        $farm = <span class="cl">Farm</span>::factory()->create([<span class="st">'app_user_id'</span> => $user->id]);
+
+        <span class="kw">$this</span>->authAs($user)
+             ->getJson(<span class="st">"/api/farms/{$farm->id}/timeline"</span>)
+             ->assertStatus(<span class="nm">200</span>)
+             ->assertJson([<span class="st">'items'</span> => []]);
+    }
+
+    <span class="kw">public function</span> <span class="nm">test_items_are_sorted_newest_first</span>(): <span class="kw">void</span>
+    {
+        $user = <span class="cl">AppUser</span>::factory()->create();
+        $farm = <span class="cl">Farm</span>::factory()->create([<span class="st">'app_user_id'</span> => $user->id]);
+
+        <span class="kw">$this</span>->seedMeasurement($farm->id, <span class="st">'2026-02-05'</span>, [<span class="nm">21.0</span>]);
+        <span class="kw">$this</span>->seedMeasurement($farm->id, <span class="st">'2026-03-28'</span>, [<span class="nm">24.3</span>]);
+
+        $res   = <span class="kw">$this</span>->authAs($user)
+                      ->getJson(<span class="st">"/api/farms/{$farm->id}/timeline"</span>)
+                      ->assertStatus(<span class="nm">200</span>);
+        $items = $res->json(<span class="st">'items'</span>);
+
+        <span class="cm">// 新しい順になっていること</span>
+        <span class="kw">$this</span>->assertEquals(<span class="st">'2026-03-28'</span>, $items[<span class="nm">0</span>][<span class="st">'date'</span>]);
+        <span class="kw">$this</span>->assertEquals(<span class="st">'2026-02-05'</span>, $items[<span class="nm">1</span>][<span class="st">'date'</span>]);
+    }
+
+    <span class="kw">public function</span> <span class="nm">test_delta_is_null_for_first_measurement</span>(): <span class="kw">void</span>
+    {
+        $user = <span class="cl">AppUser</span>::factory()->create();
+        $farm = <span class="cl">Farm</span>::factory()->create([<span class="st">'app_user_id'</span> => $user->id]);
+
+        <span class="kw">$this</span>->seedMeasurement($farm->id, <span class="st">'2026-02-05'</span>, [<span class="nm">21.0</span>]);
+
+        $res   = <span class="kw">$this</span>->authAs($user)
+                      ->getJson(<span class="st">"/api/farms/{$farm->id}/timeline"</span>)
+                      ->assertStatus(<span class="nm">200</span>);
+        $items = $res->json(<span class="st">'items'</span>);
+
+        <span class="cm">// 最初の測定は delta が null</span>
+        <span class="kw">$this</span>->assertNull($items[<span class="nm">0</span>][<span class="st">'delta'</span>][<span class="st">'CEC'</span>]);
+    }
+
+    <span class="kw">public function</span> <span class="nm">test_delta_is_calculated_from_previous_measurement</span>(): <span class="kw">void</span>
+    {
+        $user = <span class="cl">AppUser</span>::factory()->create();
+        $farm = <span class="cl">Farm</span>::factory()->create([<span class="st">'app_user_id'</span> => $user->id]);
+
+        <span class="cm">// 2/5: avg=21.0 / 3/10: avg=24.3 → delta = 24.3 - 21.0 = 3.3</span>
+        <span class="kw">$this</span>->seedMeasurement($farm->id, <span class="st">'2026-02-05'</span>, [<span class="nm">21.0</span>]);
+        <span class="kw">$this</span>->seedMeasurement($farm->id, <span class="st">'2026-03-10'</span>, [<span class="nm">24.3</span>]);
+
+        $res   = <span class="kw">$this</span>->authAs($user)
+                      ->getJson(<span class="st">"/api/farms/{$farm->id}/timeline"</span>)
+                      ->assertStatus(<span class="nm">200</span>);
+        $items = $res->json(<span class="st">'items'</span>);
+
+        <span class="cm">// items は降順なので items[0] が 3/10</span>
+        <span class="kw">$this</span>->assertEquals(<span class="nm">3.3</span>, $items[<span class="nm">0</span>][<span class="st">'delta'</span>][<span class="st">'CEC'</span>]);
+        <span class="cm">// items[1] が 2/5（最初の測定なので null）</span>
+        <span class="kw">$this</span>->assertNull($items[<span class="nm">1</span>][<span class="st">'delta'</span>][<span class="st">'CEC'</span>]);
+    }
+
+    <span class="kw">public function</span> <span class="nm">test_work_logs_appear_in_timeline</span>(): <span class="kw">void</span>
+    {
+        $user = <span class="cl">AppUser</span>::factory()->create();
+        $farm = <span class="cl">Farm</span>::factory()->create([<span class="st">'app_user_id'</span> => $user->id]);
+
+        <span class="kw">$this</span>->seedMeasurement($farm->id, <span class="st">'2026-03-28'</span>, [<span class="nm">24.3</span>]);
+        DB::table(<span class="st">'work_logs'</span>)->insert([
+            <span class="st">'farm_id'</span>   => $farm->id,
+            <span class="st">'work_type'</span> => <span class="st">'fertilization'</span>,
+            <span class="st">'work_date'</span> => <span class="st">'2026-03-16'</span>,
+            <span class="st">'title'</span>     => <span class="st">'NK化成 20kg'</span>,
+            <span class="st">'scope'</span>     => <span class="st">'whole'</span>,
+            <span class="st">'created_at'</span>=> <span class="kw">now</span>(), <span class="st">'updated_at'</span> => <span class="kw">now</span>(),
+        ]);
+
+        $res   = <span class="kw">$this</span>->authAs($user)
+                      ->getJson(<span class="st">"/api/farms/{$farm->id}/timeline"</span>)
+                      ->assertStatus(<span class="nm">200</span>);
+        $items = $res->json(<span class="st">'items'</span>);
+
+        <span class="kw">$this</span>->assertCount(<span class="nm">2</span>, $items);
+        <span class="kw">$this</span>->assertEquals(<span class="st">'measurement'</span>, $items[<span class="nm">0</span>][<span class="st">'type'</span>]);
+        <span class="kw">$this</span>->assertEquals(<span class="st">'work_log'</span>,    $items[<span class="nm">1</span>][<span class="st">'type'</span>]);
+        <span class="kw">$this</span>->assertEquals(<span class="st">'fertilization'</span>, $items[<span class="nm">1</span>][<span class="st">'work_type'</span>]);
+    }
+
+    <span class="kw">public function</span> <span class="nm">test_measurement_values_contains_cec_key</span>(): <span class="kw">void</span>
+    {
+        $user = <span class="cl">AppUser</span>::factory()->create();
+        $farm = <span class="cl">Farm</span>::factory()->create([<span class="st">'app_user_id'</span> => $user->id]);
+
+        <span class="cm">// seedMeasurement は CEC のみ登録するので values['CEC'] が存在し</span>
+        <span class="cm">// CaO/K2O/MgO は未実装のため null → values に含まれない</span>
+        <span class="kw">$this</span>->seedMeasurement($farm->id, <span class="st">'2026-03-28'</span>, [<span class="nm">24.3</span>]);
+
+        $res   = <span class="kw">$this</span>->authAs($user)
+                      ->getJson(<span class="st">"/api/farms/{$farm->id}/timeline"</span>)
+                      ->assertStatus(<span class="nm">200</span>);
+        $values = $res->json(<span class="st">'items.0.values'</span>);
+
+        <span class="cm">// CEC キーが存在し avg/min/max/unit を持つことを確認</span>
+        <span class="kw">$this</span>->assertArrayHasKey(<span class="st">'CEC'</span>, $values);
+        <span class="kw">$this</span>->assertArrayHasKey(<span class="st">'avg'</span>,  $values[<span class="st">'CEC'</span>]);
+        <span class="kw">$this</span>->assertArrayHasKey(<span class="st">'min'</span>,  $values[<span class="st">'CEC'</span>]);
+        <span class="kw">$this</span>->assertArrayHasKey(<span class="st">'max'</span>,  $values[<span class="st">'CEC'</span>]);
+        <span class="kw">$this</span>->assertArrayHasKey(<span class="st">'unit'</span>, $values[<span class="st">'CEC'</span>]);
+        <span class="cm">// CaO/K2O/MgO は CEC のみの seedMeasurement では存在しない</span>
+        <span class="kw">$this</span>->assertArrayNotHasKey(<span class="st">'CaO'</span>, $values);
+    }
+
+    <span class="kw">public function</span> <span class="nm">test_delta_key_exists_in_measurement_item</span>(): <span class="kw">void</span>
+    {
+        $user = <span class="cl">AppUser</span>::factory()->create();
+        $farm = <span class="cl">Farm</span>::factory()->create([<span class="st">'app_user_id'</span> => $user->id]);
+
+        <span class="kw">$this</span>->seedMeasurement($farm->id, <span class="st">'2026-03-28'</span>, [<span class="nm">24.3</span>]);
+
+        $res   = <span class="kw">$this</span>->authAs($user)
+                      ->getJson(<span class="st">"/api/farms/{$farm->id}/timeline"</span>)
+                      ->assertStatus(<span class="nm">200</span>);
+        $delta = $res->json(<span class="st">'items.0.delta'</span>);
+
+        <span class="cm">// delta は CEC キーのみ存在する（CaO/K2O/MgO の delta は返さない）</span>
+        <span class="kw">$this</span>->assertArrayHasKey(<span class="st">'CEC'</span>, $delta);
+        <span class="kw">$this</span>->assertArrayNotHasKey(<span class="st">'CaO'</span>, $delta);
+        <span class="kw">$this</span>->assertArrayNotHasKey(<span class="st">'K2O'</span>, $delta);
+        <span class="kw">$this</span>->assertArrayNotHasKey(<span class="st">'MgO'</span>, $delta);
+    }
+}</pre>
+      </div>
+    </div>
+
+    <div class="step" id="step5-run">
+      <div class="step-num">9</div>
+      <div class="step-body">
+        <h4>テストをローカルで実行して全 PASS を確認</h4>
+        <span class="step-loc">ターミナル / ローカル Docker</span>
+        <div class="shell">
+<span class="c"># Phase 2 の新規テストのみ先に実行</span>
+<span class="p">$ </span><span class="cmd">docker compose exec php-fpm php artisan test --filter=ResultsTimeseriesApiTest</span>
+<span class="p">$ </span><span class="cmd">docker compose exec php-fpm php artisan test --filter=FarmTimelineApiTest</span>
+
+<span class="c"># 全テストを実行してリグレッションがないことを確認</span>
+<span class="p">$ </span><span class="cmd">docker compose exec php-fpm php artisan test</span>
+<span class="c"># 全件 PASS を確認してから PR 作成へ</span>
+        </div>
+        <div class="callout warn">
+          <strong>FAIL した場合の確認ポイント。</strong>
+          <ul>
+            <li><code>Route not found</code> → <code>route:list</code> でルート登録を確認</li>
+            <li><code>Class not found</code> → <code>php artisan optimize:clear</code> でキャッシュをクリア</li>
+            <li>集計値がずれる → <code>seedMeasurement</code> のデータと SQL の JOIN 条件を確認</li>
+            <li>delta の値がずれる → 昇順ループで <code>$prevAvg</code> が正しく引き継がれているか確認</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ====== STEP 7: PR & CI/CD ====== -->
+<section id="step6">
+  <h2><span class="n">07</span>commit → PR → main マージ → CI/CD デプロイ <span class="en">deploy</span></h2>
+
+  <div class="steps">
+    <div class="step">
+      <div class="step-num">10</div>
+      <div class="step-body">
+        <h4>変更をコミットして feature ブランチを push</h4>
+        <span class="step-loc">ターミナル / ローカル</span>
+        <div class="shell">
+<span class="p">$ </span><span class="cmd">git add -A</span>
+<span class="p">$ </span><span class="cmd">git diff --cached --stat</span>
+<span class="c"># 変更ファイルが意図通りであることを確認（Service 2本 / Controller 1本 / Route 1本 / Test 2本）</span>
+
+<span class="p">$ </span><span class="cmd">git commit -m "feat: add timeseries and timeline APIs (Phase 2)"</span>
+<span class="p">$ </span><span class="cmd">git push origin feature/phase2-timeseries-timeline</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">11</div>
+      <div class="step-body">
+        <h4>GitHub でプルリクエストを作成してマージ</h4>
+        <span class="step-loc">GitHub Web UI</span>
+        <ol>
+          <li>「Compare &amp; pull request」をクリック</li>
+          <li>PR タイトル: <code>feat: add timeseries and timeline APIs (Phase 2)</code></li>
+          <li>PR 本文に記載：作成・変更ファイル一覧 + ローカルテスト PASS のスクリーンショット</li>
+          <li><strong>Squash and merge</strong> で main にマージ</li>
+          <li>マージ後、feature ブランチを GitHub 上で削除（"Delete branch"）</li>
+        </ol>
+        <div class="callout">
+          <strong>Phase 2 では migration がないため CI/CD でのテーブル変更はありません。</strong>
+          コードのデプロイ（docker compose down/up）のみが実行されます。
+          GitHub Actions のログで <strong>success（緑）</strong> を確認してください。
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ====== STEP 8: EC2 確認 ====== -->
+<section id="step7">
+  <h2><span class="n">08</span>EC2 デプロイ後の動作確認 <span class="en">smoke test</span></h2>
+
+  <div class="callout danger">
+    <strong>EC2 上で <code>php artisan test</code> は実行しません。</strong>
+    本番 RDS への RefreshDatabase による誤消去リスクのため、
+    EC2 での確認はルート確認と curl スモークテストのみです。
+  </div>
+
+  <div class="steps">
+    <div class="step">
+      <div class="step-num">12</div>
+      <div class="step-body">
+        <h4>EC2 に SSH してルートを確認</h4>
+        <span class="step-loc">ターミナル → EC2 SSH</span>
+        <div class="shell">
+<span class="p">$ </span><span class="cmd">ssh -i ~/.ssh/your-key.pem ec2-user@&lt;EC2のIPアドレス&gt;</span>
+<span class="p">$ </span><span class="cmd">cd /path/to/laravel-project</span>
+
+<span class="c"># 2 本の新規ルートが存在することを確認</span>
+<span class="p">$ </span><span class="cmd">docker compose exec php-fpm php artisan route:list --path=farms | grep -E "timeseries|timeline"</span>
+<span class="c"># GET  api/farms/{farmId}/results/timeseries  と</span>
+<span class="c"># GET  api/farms/{farmId}/timeline  の 2 行が表示されること</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">13</div>
+      <div class="step-body">
+        <h4>curl スモークテスト</h4>
+        <span class="step-loc">ターミナル / ローカル端末（SSH から抜けて実施）</span>
+        <div class="shell">
+<span class="c"># 環境変数をセット</span>
+<span class="p">$ </span><span class="cmd">export BASE="https://api.hm-admin.com"</span>
+<span class="p">$ </span><span class="cmd">export TOKEN="eyJhbGciOi..."   # Cognito access_token</span>
+<span class="p">$ </span><span class="cmd">export FARM_ID=12               # 実データが存在する圃場 ID</span>
+        </div>
+        <div class="shell">
+<span class="c"># ① 認証なし → 401</span>
+<span class="p">$ </span><span class="cmd">curl -s -o /dev/null -w "%{http_code}\n" \
+  "$BASE/api/farms/$FARM_ID/results/timeseries"</span>
+<span class="c"># 401 と表示されること</span>
+        </div>
+        <div class="shell">
+<span class="c"># ② 時系列 API → 200 + points/work_logs キーが存在すること</span>
+<span class="p">$ </span><span class="cmd">curl -s "$BASE/api/farms/$FARM_ID/results/timeseries" \
+  -H "Authorization: Bearer $TOKEN" | jq '{parameter, point_count: (.points | length), wl_count: (.work_logs | length)}'</span>
+<span class="c"># {"parameter": "CEC", "point_count": N, "wl_count": M} が返ること</span>
+<span class="c"># N が 0 でも OK（圃場に completed データがない場合）</span>
+        </div>
+        <div class="shell">
+<span class="c"># ③ 時系列 API: 4種のパラメータが全て受け付けられることを確認</span>
+<span class="p">$ </span><span class="cmd">for param in CEC CaO K2O MgO; do
+  echo -n "parameter=$param → "
+  curl -s "$BASE/api/farms/$FARM_ID/results/timeseries?parameter=$param" \
+    -H "Authorization: Bearer $TOKEN" | jq -r '"\(.parameter): \(.points | length) points"'
+done</span>
+<span class="c"># CEC: N points / CaO: M points / K2O: L points / MgO: K points と表示されること</span>
+<span class="c"># （モデル未実装の場合は 0 points でも正常）</span>
+        </div>
+        <div class="shell">
+<span class="c"># ④ タイムライン API → 200 + items キーが存在すること</span>
+<span class="p">$ </span><span class="cmd">curl -s "$BASE/api/farms/$FARM_ID/timeline" \
+  -H "Authorization: Bearer $TOKEN" | jq '{item_count: (.items | length), first_type: (.items[0].type // "empty")}'</span>
+<span class="c"># {"item_count": N, "first_type": "measurement" or "work_log" or "empty"} が返ること</span>
+        </div>
+        <div class="shell">
+<span class="c"># ⑤ タイムラインが降順になっていることを確認</span>
+<span class="p">$ </span><span class="cmd">curl -s "$BASE/api/farms/$FARM_ID/timeline" \
+  -H "Authorization: Bearer $TOKEN" | jq '[.items[].date] | .[0:3]'</span>
+<span class="c"># 先頭 3 件が日付降順になっていること</span>
+        </div>
+        <div class="callout">
+          <strong>実データがない場合。</strong>
+          本番環境に <code>completed</code> 状態のデータがない圃場を選ぶと
+          <code>points: []</code> / <code>items: []</code> が返りますが、
+          それ自体は正常です。ステータスコード 200 と JSON 構造が正しければ OK です。
+          Phase 1 で登録した作業ログがある圃場を選ぶと <code>work_logs</code> / <code>items</code> に
+          データが入ることを確認できます。
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ====== DoD ====== -->
+<section id="dod">
+  <h2><span class="n">✓</span>完了条件チェックリスト <span class="en">definition of done</span></h2>
+
+  <p style="font-size:13px; color: var(--ink-3); margin-bottom: 16px;">
+    <span class="tag l">L</span> ローカル確認 &nbsp;
+    <span class="tag ci">CI</span> PR &amp; CI/CD 確認 &nbsp;
+    <span class="tag e">E</span> EC2 デプロイ後確認
+  </p>
+
+  <ul class="dod-list">
+    <li>
+      <span class="tag l">L</span> ローカルで <code>route:list --path=farms</code> に <code>timeseries</code> と <code>timeline</code> の 2 ルートが表示される
+      <span class="dc">確認: docker compose exec php-fpm php artisan route:list --path=farms</span>
+    </li>
+    <li>
+      <span class="tag l">L</span> <code>ResultsTimeseriesApiTest</code> の全テストが PASS する
+      <span class="dc">確認: docker compose exec php-fpm php artisan test --filter=ResultsTimeseriesApiTest</span>
+    </li>
+    <li>
+      <span class="tag l">L</span> <code>FarmTimelineApiTest</code> の全テストが PASS する
+      <span class="dc">確認: docker compose exec php-fpm php artisan test --filter=FarmTimelineApiTest</span>
+    </li>
+    <li>
+      <span class="tag l">L</span> 既存の全テストが PASS し続けている（リグレッションなし）
+      <span class="dc">確認: docker compose exec php-fpm php artisan test</span>
+    </li>
+    <li>
+      <span class="tag ci">CI</span> feature ブランチが push されており、PR が作成されている
+    </li>
+    <li>
+      <span class="tag ci">CI</span> main へ squash merge され、GitHub Actions が <strong>success（緑）</strong> で完了している
+    </li>
+    <li>
+      <span class="tag e">E</span> EC2 上のルートリストに 2 本の新規ルートが表示される
+      <span class="dc">確認（EC2 SSH後）: docker compose exec php-fpm php artisan route:list --path=farms | grep -E "timeseries|timeline"</span>
+    </li>
+    <li>
+      <span class="tag e">E</span> curl スモークテスト 5 項目（401 / 時系列200 / parameterクエリ / タイムライン200 / 降順確認）が全件 OK
+    </li>
+    <li>
+      <span class="tag ci">CI</span> feature ブランチが GitHub 上で削除されている
+    </li>
+  </ul>
+
+  <div class="callout info" style="margin-top: 24px;">
+    <strong>Phase 3（Flutter ナビゲーション刷新）への引き継ぎ。</strong>
+    Phase 2 完了後、バックエンドの 2 本の API が本番で動作していることを前提に、
+    Phase 3 の Flutter 側で <code>FarmResultsApiClient</code> に <code>fetchTimeseries</code> / <code>fetchTimeline</code> メソッドを追加し、
+    圃場詳細の 3 タブ Scaffold を構築します。
+    EC2 スモークテストまで全 OK を確認してから Phase 3 の Cursor セッションを開始してください。
+  </div>
+</section>
+
+</main>
+</div>
+</body>
+</html>

@@ -1,0 +1,1108 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1.0" />
+<title>HenryMonitor モバイルアプリ大幅修正計画書 v1.0 (Cursor向け実装指示書)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@400;600;700&family=Noto+Sans+JP:wght@400;500;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:#fbfaf6;
+  --paper:#ffffff;
+  --ink:#1d2a1f;
+  --ink-soft:#4a5a4d;
+  --line:#d8d4c4;
+  --line-soft:#e8e4d4;
+  --soil:#7a4b2a;
+  --leaf:#2f5d3a;
+  --leaf-light:#5a8a63;
+  --accent:#c9622a;
+  --warn:#b6361c;
+  --warn-soft:#fde2d8;
+  --info:#3a6b8a;
+  --info-soft:#dfeaf2;
+  --ok-soft:#dfe9d8;
+  --shadow: 0 2px 0 rgba(0,0,0,0.04), 0 8px 24px -16px rgba(29,42,31,0.18);
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin:0; padding:0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: "Noto Sans JP", system-ui, sans-serif;
+  font-size: 15px;
+  line-height: 1.75;
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  background-image:
+    radial-gradient(circle at 20% 10%, rgba(122,75,42,0.04) 0, transparent 40%),
+    radial-gradient(circle at 80% 80%, rgba(47,93,58,0.04) 0, transparent 40%);
+  background-attachment: fixed;
+}
+
+.wrap {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 48px 32px 96px;
+}
+
+/* ===== Cover ===== */
+.cover {
+  border: 1px solid var(--line);
+  background: var(--paper);
+  padding: 56px 56px 48px;
+  position: relative;
+  overflow: hidden;
+  box-shadow: var(--shadow);
+}
+.cover::before {
+  content: "";
+  position: absolute; top:0; left:0; right:0; height:6px;
+  background: linear-gradient(90deg, var(--soil) 0%, var(--leaf) 50%, var(--accent) 100%);
+}
+.cover .eyebrow {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 11px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--soil);
+  margin: 0 0 18px;
+}
+.cover h1 {
+  font-family: "Noto Serif JP", serif;
+  font-weight: 700;
+  font-size: 38px;
+  line-height: 1.3;
+  margin: 0 0 18px;
+  letter-spacing: -0.01em;
+}
+.cover h1 .sub {
+  display: block;
+  font-size: 18px;
+  color: var(--ink-soft);
+  font-weight: 400;
+  margin-top: 8px;
+}
+.meta-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0;
+  margin-top: 36px;
+  border-top: 1px solid var(--line-soft);
+}
+.meta-grid > div {
+  padding: 16px 16px 16px 0;
+  border-right: 1px solid var(--line-soft);
+}
+.meta-grid > div:last-child { border-right: none; }
+.meta-grid dt {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 10px;
+  letter-spacing: 0.15em;
+  color: var(--ink-soft);
+  text-transform: uppercase;
+  margin: 0 0 6px;
+}
+.meta-grid dd {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+/* ===== Sections ===== */
+section {
+  margin-top: 64px;
+}
+h2 {
+  font-family: "Noto Serif JP", serif;
+  font-size: 26px;
+  font-weight: 700;
+  margin: 0 0 8px;
+  padding-bottom: 14px;
+  border-bottom: 2px solid var(--ink);
+  display: flex;
+  align-items: baseline;
+  gap: 16px;
+}
+h2 .num {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--soil);
+  letter-spacing: 0.05em;
+}
+h2 .en {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--ink-soft);
+  letter-spacing: 0.18em;
+  margin-left: auto;
+  text-transform: uppercase;
+}
+
+h3 {
+  font-family: "Noto Serif JP", serif;
+  font-size: 19px;
+  font-weight: 600;
+  margin: 36px 0 12px;
+  color: var(--ink);
+}
+h3::before {
+  content: "▍";
+  color: var(--leaf);
+  margin-right: 8px;
+}
+
+h4 {
+  font-size: 15px;
+  font-weight: 700;
+  margin: 24px 0 8px;
+  color: var(--leaf);
+}
+
+p { margin: 0 0 14px; }
+ul, ol { margin: 0 0 16px; padding-left: 22px; }
+li { margin-bottom: 6px; }
+
+code, kbd, .mono {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 13px;
+  background: #f1eedd;
+  padding: 1px 6px;
+  border-radius: 3px;
+  color: var(--soil);
+}
+
+pre {
+  background: #232826;
+  color: #e8e4d4;
+  padding: 18px 20px;
+  border-radius: 4px;
+  overflow-x: auto;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 12.5px;
+  line-height: 1.7;
+  margin: 12px 0 20px;
+}
+pre code {
+  background: none;
+  color: inherit;
+  padding: 0;
+}
+
+/* ===== Callouts ===== */
+.callout {
+  border-left: 4px solid var(--leaf);
+  background: #f4f1e3;
+  padding: 14px 18px;
+  margin: 16px 0;
+  font-size: 14px;
+}
+.callout.warn { border-color: var(--warn); background: var(--warn-soft); }
+.callout.info { border-color: var(--info); background: var(--info-soft); }
+.callout.note { border-color: var(--soil); background: #f4ede1; }
+.callout strong { color: var(--ink); }
+
+/* ===== Tables ===== */
+table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 14px 0 20px;
+  font-size: 13.5px;
+}
+th, td {
+  text-align: left;
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--line-soft);
+  vertical-align: top;
+}
+th {
+  background: #efeadb;
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: 0.05em;
+  border-bottom: 2px solid var(--ink);
+}
+tr:hover td { background: #f8f5e8; }
+
+.tag {
+  display: inline-block;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  padding: 2px 8px;
+  border-radius: 2px;
+  vertical-align: middle;
+  margin: 0 2px;
+  text-transform: uppercase;
+}
+.tag.new { background: var(--ok-soft); color: var(--leaf); }
+.tag.mod { background: var(--info-soft); color: var(--info); }
+.tag.del { background: var(--warn-soft); color: var(--warn); }
+.tag.kept { background: #ede9d8; color: var(--ink-soft); }
+.tag.api { background: #f1eedd; color: var(--soil); }
+
+/* ===== Phase cards ===== */
+.phase-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 14px;
+  margin: 18px 0 8px;
+}
+.phase-card {
+  border: 1px solid var(--line);
+  background: var(--paper);
+  padding: 18px 20px;
+  position: relative;
+}
+.phase-card .phase-num {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  color: var(--soil);
+  margin-bottom: 4px;
+}
+.phase-card .phase-title {
+  font-family: "Noto Serif JP", serif;
+  font-size: 17px;
+  font-weight: 700;
+  margin: 0 0 6px;
+}
+.phase-card .phase-meta {
+  font-size: 12px;
+  color: var(--ink-soft);
+  margin-bottom: 10px;
+}
+.phase-card ul {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 13px;
+}
+.phase-card ul li { margin-bottom: 3px; }
+
+/* ===== Checklist ===== */
+.checklist {
+  list-style: none;
+  padding-left: 0;
+}
+.checklist li {
+  padding-left: 26px;
+  position: relative;
+  margin-bottom: 4px;
+}
+.checklist li::before {
+  content: "☐";
+  position: absolute;
+  left: 0;
+  color: var(--leaf);
+  font-weight: 700;
+}
+
+/* ===== Screen-by-screen ===== */
+.screen-block {
+  border: 1px solid var(--line);
+  background: var(--paper);
+  padding: 22px 26px;
+  margin: 16px 0;
+}
+.screen-block h4 {
+  margin-top: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+.screen-block h4 .label {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 10px;
+  letter-spacing: 0.15em;
+  color: var(--soil);
+  text-transform: uppercase;
+}
+
+/* ===== Footer ===== */
+footer {
+  margin-top: 80px;
+  padding-top: 24px;
+  border-top: 1px solid var(--line);
+  font-size: 12px;
+  color: var(--ink-soft);
+  display: flex;
+  justify-content: space-between;
+}
+
+@media (max-width: 720px) {
+  .wrap { padding: 24px 16px 64px; }
+  .cover { padding: 32px 24px; }
+  .cover h1 { font-size: 26px; }
+  .meta-grid { grid-template-columns: repeat(2, 1fr); }
+  .phase-grid { grid-template-columns: 1fr; }
+}
+
+/* print */
+@media print {
+  body { background: white; }
+  .wrap { max-width: none; padding: 0; }
+  pre, .callout, .phase-card, .screen-block { break-inside: avoid; }
+  section { break-inside: avoid-page; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<!-- ========== COVER ========== -->
+<div class="cover">
+  <p class="eyebrow">HenryMonitor / Mobile App Refactor Plan</p>
+  <h1>
+    モバイルアプリ大幅修正計画書
+    <span class="sub">画面遷移図 v0 に基づくUI刷新 / 作業ログ・タイムライン機能の追加 / 関連バックエンド改修</span>
+  </h1>
+  <dl class="meta-grid">
+    <div>
+      <dt>Version</dt>
+      <dd>v1.0 (2026-05-14)</dd>
+    </div>
+    <div>
+      <dt>Target</dt>
+      <dd>Flutter App / Laravel API / RDS</dd>
+    </div>
+    <div>
+      <dt>For</dt>
+      <dd>Cursor 実装指示書</dd>
+    </div>
+    <div>
+      <dt>Owner</dt>
+      <dd>Kanato</dd>
+    </div>
+  </dl>
+</div>
+
+<!-- ========== 0. SCOPE ========== -->
+<section>
+  <h2><span class="num">0</span>本書の目的とスコープ <span class="en">scope</span></h2>
+
+  <p>
+    本書は、HenryMonitor モバイルアプリ（Flutter / Android）のUI大幅刷新および機能追加を、
+    Cursor を用いて段階的に実装させるための作業指示書である。
+    現状の3タブ構成（ホーム / 測定 / 圃場管理）から、
+    新画面遷移図 v0 に従う <strong>5系統メニュー構成（測定 / 圃場 / 同期 / 設定 / ヘルプ）</strong> へ刷新する。
+  </p>
+
+  <h3>方針サマリー</h3>
+  <ul>
+    <li><strong>UI刷新</strong>: ホーム画面を主要4ボタン構成に変更。測定画面を地図中心1画面化。圃場詳細を 3 タブ（マップ / 時系列 / タイムライン）化。</li>
+    <li><strong>機能追加</strong>: 作業ログ記録、タイムライン表示、未同期データ管理画面の独立化、ヘルプ画面の新設。</li>
+    <li><strong>時系列方針の変更</strong>: 過去議論では <em>固定地点</em> の時系列追跡を計画していたが、<strong>本改修では固定地点機能は導入しない</strong>。時系列タブで追う数値は <strong>「その圃場における各測定点の平均値」</strong> とする。</li>
+    <li><strong>システム改修</strong>: 作業ログ用テーブル <code>work_logs</code> 新設。Laravel に作業ログCRUD APIおよび時系列/タイムライン取得APIを追加。</li>
+    <li><strong>非スコープ</strong>: Lambda推論パイプライン本体は無変更（Ca/K/Mg対応は別タスク）。iOS対応は対象外。</li>
+  </ul>
+
+  <div class="callout note">
+    <strong>固定地点導入の見送り理由（記録）。</strong>
+    固定地点の同一性判定は GPS 精度（3m スレッショルド）に大きく依存し、UX 上の混乱が発生しやすい。
+    一方、圃場平均値の推移であっても、施肥・耕うん作業との相関分析という当初目的（ケース3：融合型）は十分に達成可能と判断した。
+    将来、固定地点機能を再導入する場合は、本書で構築する <code>work_logs</code> と <code>analysis_results</code> のスキーマを拡張する形で対応する。
+  </div>
+</section>
+
+<!-- ========== 1. CURRENT vs NEW ========== -->
+<section>
+  <h2><span class="num">1</span>現行構成と新構成の差分 <span class="en">delta</span></h2>
+
+  <h3>画面構成の比較</h3>
+  <table>
+    <thead>
+      <tr><th>領域</th><th>現行 (3タブBottomNav)</th><th>新構成 (ホーム集約型)</th><th>状態</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>ホーム</td>
+        <td>結果閲覧タブ（最新3件 + 圃場別測定日リスト）</td>
+        <td><strong>主要4ボタン（測定 / 圃場 / 同期 / 設定）+ ヘルプ</strong></td>
+        <td><span class="tag mod">改修</span></td>
+      </tr>
+      <tr>
+        <td>測定</td>
+        <td>Step1接続 → Step2 BG → Step3圃場選択 → 本測定（4画面遷移）</td>
+        <td><strong>地図中心1画面化</strong> + 上部に接続/BG/圃場の3ステータスチップ + 測定リスト画面（サブ）</td>
+        <td><span class="tag mod">改修</span></td>
+      </tr>
+      <tr>
+        <td>圃場管理</td>
+        <td>圃場一覧 + 登録（圃場詳細は未実装 / TODO）</td>
+        <td>圃場一覧（カード3行レイアウト）+ <strong>圃場詳細3タブ（マップ/時系列/タイムライン）</strong> + 作業記録入力</td>
+        <td><span class="tag new">大幅追加</span></td>
+      </tr>
+      <tr>
+        <td>同期</td>
+        <td>結果画面の上部バナーから未アップロード一覧へ</td>
+        <td><strong>独立メニュー化</strong>。未同期件数バッジ表示・チェック選択・一括同期/削除</td>
+        <td><span class="tag new">独立化</span></td>
+      </tr>
+      <tr>
+        <td>設定</td>
+        <td>測定画面右上の歯車（測定パラメータ・センサ・ログ）</td>
+        <td><strong>独立メニュー化</strong>。アカウント / 通信 / システムの3グループ</td>
+        <td><span class="tag new">独立化</span></td>
+      </tr>
+      <tr>
+        <td>ヘルプ</td>
+        <td>なし</td>
+        <td><strong>新規追加</strong>。使い方ガイド / FAQ / 問い合わせ / アプリ情報</td>
+        <td><span class="tag new">新規</span></td>
+      </tr>
+      <tr>
+        <td>結果閲覧</td>
+        <td>独立タブ・最新3件+圃場別測定日リスト・前回比較トグル</td>
+        <td>圃場詳細マップタブに統合。前回比較機能は当面非搭載（マップタブ + タイムラインで代替）</td>
+        <td><span class="tag del">統合廃止</span></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3>機能の追加・削除</h3>
+  <ul>
+    <li><span class="tag new">新規</span> 作業ログ記録機能（施肥 / 耕うん / 農薬 / 収穫など）。圃場詳細から「+作業記録」で入力。</li>
+    <li><span class="tag new">新規</span> 時系列タブ（圃場平均値推移と作業タイミングの重ね表示）。</li>
+    <li><span class="tag new">新規</span> タイムラインタブ（測定結果と作業ログを時系列に統合した縦長リスト）。</li>
+    <li><span class="tag new">新規</span> ヘルプ画面と問い合わせフォーム（フォーム送信先は別途決定）。</li>
+    <li><span class="tag mod">改修</span> 測定画面の単一画面化（地図中心 + 上部ステータスチップ + 測定リスト画面）。</li>
+    <li><span class="tag del">廃止</span> 結果閲覧タブ（圃場詳細マップタブに統合）。</li>
+    <li><span class="tag del">非導入</span> 固定地点機能（前回設計から削除）。</li>
+  </ul>
+</section>
+
+<!-- ========== 2. DB SCHEMA ========== -->
+<section>
+  <h2><span class="num">2</span>データベース改修 <span class="en">schema</span></h2>
+
+  <h3>2.1 新規テーブル <code>work_logs</code></h3>
+  <p>作業ログ（施肥・耕うん等）を保存するテーブルを新設する。圃場（farms）に紐づく。</p>
+
+<pre><code>CREATE TABLE work_logs (
+  id              BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  farm_id         BIGINT UNSIGNED NOT NULL,
+  work_type       VARCHAR(32) NOT NULL,
+                  -- 'fertilization' | 'tillage' | 'pesticide' | 'harvest' | 'other'
+  work_date       DATE NOT NULL,
+  title           VARCHAR(128) NULL,
+                  -- 例: 'NK化成 20kg', '深さ15cm トラクター'
+  detail          TEXT NULL,
+                  -- 自由記述
+  amount_value    DECIMAL(10,2) NULL,
+                  -- 例: 20.0
+  amount_unit     VARCHAR(16) NULL,
+                  -- 'kg', 'L', 'cm' など
+  scope           VARCHAR(16) NOT NULL DEFAULT 'whole',
+                  -- 'whole' | 'partial'（将来用）
+  created_at      TIMESTAMP NULL,
+  updated_at      TIMESTAMP NULL,
+  INDEX idx_work_logs_farm_date (farm_id, work_date),
+  CONSTRAINT fk_work_logs_farm
+    FOREIGN KEY (farm_id) REFERENCES farms(id) ON DELETE CASCADE
+);</code></pre>
+
+  <div class="callout">
+    <strong>命名・enum 方針。</strong>
+    <code>work_type</code> は文字列カラムとし、Laravel 側で <code>App\Enums\WorkType</code> を定義して制御する。
+    DB レベル ENUM は将来の値追加で migration が面倒になるため避ける。
+  </div>
+
+  <h3>2.2 既存テーブルの変更点</h3>
+  <p>基本的に既存スキーマは無変更。ただし以下を明記する。</p>
+  <ul>
+    <li><code>analysis_results</code> に <strong>カラム追加は行わない</strong>（固定地点フラグなどは導入しない）。</li>
+    <li><code>result_values</code> の <code>(analysis_result_id, parameter_name)</code> UNIQUE 制約は既に存在する前提で進める。</li>
+    <li><code>uploads.status</code> の遷移仕様（<code>uploaded → processing → completed / exec_error</code>）は変更しない。</li>
+  </ul>
+
+  <h3>2.3 migration 作成手順</h3>
+  <ol>
+    <li><code>php artisan make:migration create_work_logs_table</code> を実行し、上記 DDL を反映。</li>
+    <li><code>App\Models\WorkLog</code> を作成。<code>$fillable</code> と <code>casts</code>（<code>work_date</code> → date, <code>amount_value</code> → decimal）を設定。</li>
+    <li><code>App\Models\Farm</code> に <code>workLogs(): HasMany</code> を追加。</li>
+    <li>本番投入前にステージング DB で <code>php artisan migrate --pretend</code> で SQL を確認。</li>
+  </ol>
+</section>
+
+<!-- ========== 3. API DESIGN ========== -->
+<section>
+  <h2><span class="num">3</span>Laravel API 追加・改修 <span class="en">api</span></h2>
+
+  <h3>3.1 新規エンドポイント一覧</h3>
+  <table>
+    <thead>
+      <tr><th>Method</th><th>Path</th><th>用途</th><th>状態</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><code>GET</code></td><td><code>/api/v1/farms/{farmId}/work-logs</code></td><td>作業ログ一覧取得</td><td><span class="tag new">新規</span></td></tr>
+      <tr><td><code>POST</code></td><td><code>/api/v1/farms/{farmId}/work-logs</code></td><td>作業ログ作成</td><td><span class="tag new">新規</span></td></tr>
+      <tr><td><code>PATCH</code></td><td><code>/api/v1/work-logs/{workLogId}</code></td><td>作業ログ更新</td><td><span class="tag new">新規</span></td></tr>
+      <tr><td><code>DELETE</code></td><td><code>/api/v1/work-logs/{workLogId}</code></td><td>作業ログ削除</td><td><span class="tag new">新規</span></td></tr>
+      <tr><td><code>GET</code></td><td><code>/api/farms/{farmId}/results/timeseries?parameter=CEC</code></td><td>時系列タブ用：測定日ごとの圃場平均/min/max</td><td><span class="tag new">新規</span></td></tr>
+      <tr><td><code>GET</code></td><td><code>/api/farms/{farmId}/timeline</code></td><td>タイムラインタブ用：測定結果と作業ログのマージ済み時系列</td><td><span class="tag new">新規</span></td></tr>
+      <tr><td><code>GET</code></td><td><code>/api/farms/{farmId}/results/map</code></td><td>マップタブ用（既存）。パラメータ <code>parameter=CEC|Ca|K|Mg</code> 受付に拡張</td><td><span class="tag mod">改修</span></td></tr>
+    </tbody>
+  </table>
+
+  <div class="callout warn">
+    <strong>認可。</strong> 作業ログ系は対象 <code>farm</code> の所有者（<code>app_user_id == auth.app_user.id</code>）のみ許可。
+    <code>FarmPolicy</code> を作成して <code>workLogs.*</code> 系を集約。Cognito JWT ミドルウェアと組み合わせる。
+  </div>
+
+  <h3>3.2 レスポンス仕様</h3>
+
+  <h4>GET /api/v1/farms/{farmId}/work-logs</h4>
+<pre><code>{
+  "data": [
+    {
+      "id": 12,
+      "work_type": "fertilization",
+      "work_date": "2026-03-16",
+      "title": "NK化成 20kg",
+      "detail": "圃場全体に均一散布",
+      "amount_value": 20.0,
+      "amount_unit": "kg",
+      "scope": "whole",
+      "created_at": "2026-03-16T10:00:00+09:00"
+    }
+  ]
+}</code></pre>
+
+  <h4>POST /api/v1/farms/{farmId}/work-logs (request)</h4>
+<pre><code>{
+  "work_type": "fertilization",
+  "work_date": "2026-03-16",
+  "title": "NK化成 20kg",
+  "detail": "圃場全体に均一散布",
+  "amount_value": 20.0,
+  "amount_unit": "kg",
+  "scope": "whole"
+}</code></pre>
+
+  <h4>GET /api/farms/{farmId}/results/timeseries?parameter=CEC</h4>
+  <p>時系列タブ向け。指定パラメータについて、各測定日（<code>uploads.measurement_date</code> ベース）の平均/最小/最大を返す。</p>
+<pre><code>{
+  "parameter": "CEC",
+  "unit": "me/100g",
+  "points": [
+    { "date": "2026-02-05", "avg": 21.1, "min": 19.8, "max": 22.6, "count": 5 },
+    { "date": "2026-03-10", "avg": 21.2, "min": 20.0, "max": 22.5, "count": 4 },
+    { "date": "2026-03-28", "avg": 24.3, "min": 22.4, "max": 25.6, "count": 6 }
+  ]
+}</code></pre>
+
+  <div class="callout info">
+    <strong>集計仕様（厳密）。</strong>
+    <code>uploads.status='completed'</code> のみを対象とする。同日に複数 upload がある場合は
+    <code>analysis_results</code> 単位ですべての測定点を統合して avg/min/max を出す。
+    <code>count</code> は <em>upload数ではなく測定点数（analysis_results 行数）</em> を返す。
+  </div>
+
+  <h4>GET /api/farms/{farmId}/timeline</h4>
+  <p>タイムラインタブ向け。測定結果と作業ログを時系列降順（新しい順）でマージ。</p>
+<pre><code>{
+  "items": [
+    {
+      "type": "measurement",
+      "date": "2026-03-28",
+      "summary": {
+        "count_points": 6,
+        "values": {
+          "CEC": { "avg": 24.3, "min": 22.4, "max": 25.6, "unit": "me/100g" }
+        },
+        "effect_delta_cec": 3.1
+      }
+    },
+    {
+      "type": "work_log",
+      "date": "2026-03-16",
+      "work_type": "fertilization",
+      "title": "NK化成 20kg",
+      "detail": "圃場全体"
+    }
+  ]
+}</code></pre>
+
+  <div class="callout note">
+    <strong>「効果（effect_delta_cec）」の算出ルール。</strong>
+    各測定結果アイテムについて、当該測定の直前の同パラメータ測定値との <code>avg</code> 差分を返す。
+    直前測定がない場合は <code>null</code>。
+    UI 表示時はプラス値を緑、マイナス値を赤で表示。
+  </div>
+</section>
+
+<!-- ========== 4. FLUTTER SCREENS ========== -->
+<section>
+  <h2><span class="num">4</span>Flutter モバイルアプリ画面実装 <span class="en">screens</span></h2>
+
+  <p>画面遷移図 v0（添付PDF）の構成に従い、以下の画面を再設計・実装する。</p>
+
+  <h3>4.1 全体ナビゲーション構造</h3>
+<pre><code>App
+└─ AuthGate
+   ├─ LoginScreen  (未認証時のみ)
+   └─ HomeScreen   (主要4ボタン + ヘルプ)
+       ├─ MeasurementScreen          (測定: 地図中心1画面)
+       │   └─ MeasurementListScreen  (測定リスト・サブ画面)
+       ├─ FarmListScreen             (圃場一覧)
+       │   ├─ FarmRegisterScreen     (圃場登録: 地図描画)
+       │   └─ FarmDetailScreen       (圃場詳細・3タブ)
+       │       ├─ FarmMapTab
+       │       ├─ FarmTimeseriesTab
+       │       └─ FarmTimelineTab
+       │           └─ WorkLogEditScreen  (作業記録入力)
+       ├─ SyncScreen                 (未同期一覧)
+       ├─ SettingsScreen             (設定)
+       └─ HelpScreen                 (ヘルプ)
+           ├─ GuideScreen
+           └─ ContactFormScreen</code></pre>
+
+  <div class="callout">
+    <strong>BottomNav は廃止。</strong>
+    現行の <code>MainScaffold (IndexedStack)</code> ベースのボトムナビゲーションは廃止し、
+    <code>Navigator</code> によるスタック遷移ベースとする。
+    バックキーで <code>HomeScreen</code> に戻れる動線を保証する。
+  </div>
+
+  <h3>4.2 画面別実装指針</h3>
+
+  <div class="screen-block">
+    <h4><span class="label">screen / home</span>ホーム画面</h4>
+    <ul>
+      <li>上部に Cognito ユーザーの名前を表示（タップで <code>SettingsScreen</code> へ）。</li>
+      <li>「測定を始める」「圃場」を縦に並んだ大ボタンで配置。背景色は赤系（測定）と緑系（圃場）で視覚的に区別。</li>
+      <li>下段に「同期」「設定」の 2 分割ボタン。同期ボタンには <strong>未同期件数バッジ</strong>と<strong>赤い注目アイコン</strong>を重ねる。0件時はバッジ非表示。</li>
+      <li>最下部に細いバーで「ヘルプ」へのリンク。</li>
+      <li>未同期件数は <code>PendingUploadsService</code>（既存）から <code>StreamProvider</code> 経由で監視。</li>
+    </ul>
+  </div>
+
+  <div class="screen-block">
+    <h4><span class="label">screen / measurement</span>測定画面（地図中心1画面）</h4>
+    <ul>
+      <li>画面上部に3つのステータスチップ：<code>圃場選択 / 接続 / BG</code>。すべて完了で下部の「測定開始」ボタンが有効化。</li>
+      <li>圃場選択は <strong>現在地から候補をプルダウン</strong>で表示（GPS から最寄り N 件）。</li>
+      <li>接続・BG は内部状態（USBシリアル接続結果・BG測定完了フラグ）と連動して色で表示。</li>
+      <li>地図は航空写真ベース、選択中圃場の boundary を赤枠で描画。圃場外で測定開始しようとした場合は警告ダイアログを出す。</li>
+      <li>測定済みピンは番号付き丸（赤 = 測定中/エラー、黄 = 測定完了、緑 = 推定完了）。<strong>地図上ではタップしても何もしない（誤操作防止）</strong>。</li>
+      <li>右上「リスト」ボタンで <code>MeasurementListScreen</code> を開く。右下「現在地」ボタンで GPS にセンタリング。</li>
+    </ul>
+    <div class="callout warn">
+      <strong>ピン状態遷移の仕様。</strong>
+      <code>local_save → uploaded(measure済) → completed(推定済)</code> の3段階を、ローカルDB(SQLite/JSON)の状態と
+      Laravel API <code>/api/farms/{id}/results/map</code> の照合で判定する。
+      タイムアウト時は赤（エラー）に落とす。
+    </div>
+  </div>
+
+  <div class="screen-block">
+    <h4><span class="label">screen / measurement-list</span>測定リスト画面（サブ）</h4>
+    <ul>
+      <li>画面タイトル「測定リスト」と圃場名。件数表示。「未確定のみ」フィルタチップ。</li>
+      <li>各行に番号付き丸（地図ピンと同色）、CEC/CaO/MgO/K₂O の値、ステータスラベル（測定中 / 測定完了 / 推定完了 / エラー）。</li>
+      <li>未実装パラメータ（Ca/K/Mg）は当面 <code>-</code> 表示（プレースホルダー）。</li>
+      <li>下部に「選択を削除」「位置を修正」ボタン。チェックボックスで複数選択。</li>
+      <li>「位置を修正」では再度マップ上のタップで補正させ、ローカル状態のみ更新（既にアップロード済の場合は補正不可、UIで disable）。</li>
+    </ul>
+  </div>
+
+  <div class="screen-block">
+    <h4><span class="label">screen / farm-list</span>圃場一覧</h4>
+    <ul>
+      <li>カードレイアウト（3行構成）：圃場名・作物・面積 / 最終測定日・点数 / CEC・CaO・MgO・K₂O 平均値。</li>
+      <li>サムネイル左カラムに boundary 領域の航空写真スナップ（Static Map API、もしくはローカルキャッシュ）。</li>
+      <li>上部に検索バー（圃場名・作物名 で前方一致フィルタ、クライアントサイド）。</li>
+      <li>下部に「+ 新規圃場を登録」ボタン → <code>FarmRegisterScreen</code>。</li>
+      <li>カード長押しで編集/削除メニュー。</li>
+    </ul>
+  </div>
+
+  <div class="screen-block">
+    <h4><span class="label">screen / farm-detail</span>圃場詳細（3タブ）</h4>
+    <p>共通ヘッダ：圃場名 / 作物・面積。下部に「+作業記録」ボタン（時系列・タイムラインタブのみ表示）。</p>
+
+    <h4>① マップタブ</h4>
+    <ul>
+      <li>パラメータ切替タブ（CEC / Ca / K / Mg）。未実装は disable（グレーアウト）。</li>
+      <li>測定日のプルダウンセレクタ（既存の <code>/api/farms/{id}/results/dates</code> を利用）。</li>
+      <li>選択日の測定点を地図上に円で表示（値は数値ラベル、色は値域でグラデーション）。</li>
+      <li>下部にカラースケール凡例とその日の平均値。</li>
+    </ul>
+
+    <h4>② 時系列タブ <span class="tag new">新規</span></h4>
+    <ul>
+      <li>パラメータ切替タブ（CEC / Ca / K / Mg）。</li>
+      <li>大きな数値で「圃場平均」を表示（最新測定日の値）。</li>
+      <li>下に折れ線グラフ：横軸＝測定日、縦軸＝平均値。<strong>min/max を半透明バンドで表示</strong>。</li>
+      <li>作業ログのタイミングを縦点線で重畳表示（凡例：「耕うん」「施肥」など色分け）。</li>
+      <li><strong>固定地点機能は搭載しない。</strong> 単純に各測定日の圃場全体平均を折れ線で結ぶ。</li>
+      <li>データソース：<code>GET /api/farms/{id}/results/timeseries</code> + <code>GET /api/v1/farms/{id}/work-logs</code>。</li>
+    </ul>
+    <div class="callout note">
+      <strong>「圃場平均」の定義。</strong>
+      ある測定日の圃場平均値 = その日に <code>completed</code> 状態となった全 <code>analysis_results</code> の指定パラメータ値の単純平均。
+      測定点数が変動しても気にせず平均を取る。これがケース3（融合型）の主要可視化となる。
+    </div>
+
+    <h4>③ タイムラインタブ <span class="tag new">新規</span></h4>
+    <ul>
+      <li>「作業と測定の記録」ヘッダ。</li>
+      <li>カードを時系列降順（新しい順）に並べる。</li>
+      <li>測定結果カード：日付・点数・CEC平均値・「効果 +X.X」（直前測定との差分）・タグチップ（A1/A2/F1/F2 等の地点ラベル）・「固定地点の前回比を見る」リンク（将来用、当面非活性）。</li>
+      <li>作業ログカード：日付・作業種別・タイトル・詳細・量と単位。</li>
+      <li>カラーチップで作業種別を色分け（施肥=オレンジ、耕うん=茶、農薬=紫、収穫=黄など）。</li>
+      <li>下部「+作業記録」で <code>WorkLogEditScreen</code> を <code>showModalBottomSheet</code> で開く。</li>
+    </ul>
+  </div>
+
+  <div class="screen-block">
+    <h4><span class="label">screen / work-log-edit</span>作業記録入力</h4>
+    <ul>
+      <li>3タップ以内で完了するテンプレ選択フローを目標とする。</li>
+      <li>Step1: 作業種別の選択（施肥 / 耕うん / 農薬 / 収穫 / その他）— 大ボタングリッド。</li>
+      <li>Step2: 日付 + 量 + 単位 + タイトル（プリセット候補）の入力。</li>
+      <li>Step3: 確認 → 保存（<code>POST /api/v1/farms/{id}/work-logs</code>）。</li>
+      <li>オフライン時はローカル DB（SQLite または既存JSON保存機構）にキューイングし、復帰時に同期。</li>
+    </ul>
+  </div>
+
+  <div class="screen-block">
+    <h4><span class="label">screen / sync</span>同期画面</h4>
+    <ul>
+      <li>上部に未同期件数・最終同期日時。</li>
+      <li>「全選択」トグル（ツールバー）。</li>
+      <li>カード：圃場名・点数・日時・状態ラベル（準備完了 / データ欠損 など）。エラーは赤背景で強調。</li>
+      <li>下部に「選択を削除」「同期」の 2 ボタン。</li>
+      <li>同期中は進捗バーとリトライボタン。タイムアウト時は自動リトライ（最大3回）。</li>
+      <li>既存の <code>PendingUploadItem</code> 機構を流用。</li>
+    </ul>
+  </div>
+
+  <div class="screen-block">
+    <h4><span class="label">screen / settings</span>設定画面</h4>
+    <ul>
+      <li>セクション①「アカウント」：ユーザー名・メール・ログアウト。</li>
+      <li>セクション②「通信」：測定機器名・シリアル番号・自動同期条件（Wi-Fi のみ / 常時 / 手動）。<span class="tag kept">優先度低</span></li>
+      <li>セクション③「システム」：測定条件の設定（既存の詳細設定画面を移植）・バージョン・利用規約。利用規約はダミーボタンでOK。<span class="tag kept">優先度低</span></li>
+      <li>従来 <code>BgScreen</code> や測定パラメータ詳細設定の機能は <strong>「測定条件の設定」サブ画面に集約</strong>する。</li>
+    </ul>
+  </div>
+
+  <div class="screen-block">
+    <h4><span class="label">screen / help</span>ヘルプ画面</h4>
+    <ul>
+      <li>4項目構成：使い方ガイド / FAQ / 問い合わせフォーム / アプリ情報。</li>
+      <li>使い方ガイドは 5 ステップ（圃場登録 → 機器接続 → BG → 測定 → 同期）を 1 画面で見せる。</li>
+      <li>問い合わせフォームはアプリ内で完結。送信時に端末情報・アプリバージョンを自動付与（フォーム上は非表示）。送信先 API は別途決定（暫定: <code>POST /api/v1/inquiries</code>）。</li>
+      <li>FAQ・アプリ情報・利用規約は当面ダミーで OK。<span class="tag kept">優先度低</span></li>
+    </ul>
+  </div>
+</section>
+
+<!-- ========== 5. STATE / DATA LAYER ========== -->
+<section>
+  <h2><span class="num">5</span>状態管理・データ層の改修 <span class="en">state</span></h2>
+
+  <h3>5.1 Provider 構成（新規・改修）</h3>
+  <table>
+    <thead><tr><th>Provider</th><th>役割</th><th>状態</th></tr></thead>
+    <tbody>
+      <tr><td><code>UserProvider</code></td><td>Cognito ユーザー情報</td><td><span class="tag kept">維持</span></td></tr>
+      <tr><td><code>FarmListProvider</code></td><td>圃場一覧の取得・キャッシュ</td><td><span class="tag mod">改修</span> 最新結果サマリーも合わせて持つ</td></tr>
+      <tr><td><code>FarmDetailProvider</code></td><td>圃場詳細（3タブ分のデータ）</td><td><span class="tag new">新規</span></td></tr>
+      <tr><td><code>WorkLogProvider</code></td><td>作業ログ CRUD・オフラインキュー</td><td><span class="tag new">新規</span></td></tr>
+      <tr><td><code>MeasurementSessionProvider</code></td><td>測定セッション状態（接続/BG/測定中ピン群）</td><td><span class="tag mod">改修</span> 単一画面化に対応</td></tr>
+      <tr><td><code>PendingUploadsProvider</code></td><td>未同期一覧・件数バッジ用</td><td><span class="tag mod">改修</span> 同期画面に Stream 公開</td></tr>
+    </tbody>
+  </table>
+
+  <h3>5.2 API クライアント追加</h3>
+  <ul>
+    <li><code>WorkLogApiClient</code>（新規）: <code>list / create / update / delete</code> の4メソッド。</li>
+    <li><code>FarmResultsApiClient</code>（改修）: <code>fetchTimeseries(farmId, parameter)</code>, <code>fetchTimeline(farmId)</code> を追加。</li>
+    <li>既存 <code>fetchMapData</code> は <code>parameter</code> 引数を受け取れるよう拡張（デフォルト CEC）。</li>
+  </ul>
+
+  <h3>5.3 ローカル DB（オフライン対応）</h3>
+  <p>作業ログのオフライン入力対応のため、<code>sqflite</code> 導入を検討する。導入を躊躇する場合は、既存の <code>pending_uploads.json</code> と同様の JSON キューファイル方式でも可。<strong>本改修では暫定として JSON キュー方式で進め、運用負荷を見ながら sqflite 化を判断する。</strong></p>
+
+<pre><code>// pending_work_logs.json (例)
+[
+  {
+    "local_id": "uuid-xxxx",
+    "farm_id": 12,
+    "payload": { /* POST body */ },
+    "created_at": "2026-04-01T10:00:00+09:00",
+    "synced": false
+  }
+]</code></pre>
+</section>
+
+<!-- ========== 6. PHASES ========== -->
+<section>
+  <h2><span class="num">6</span>実装フェーズ（Cursor作業単位） <span class="en">phases</span></h2>
+
+  <p>1フェーズ＝1〜2セッションで完結する粒度に分割する。各フェーズの完了条件（DoD）を厳守すること。</p>
+
+  <div class="phase-grid">
+    <div class="phase-card">
+      <p class="phase-num">PHASE 1</p>
+      <p class="phase-title">DB & API 基盤（バックエンド先行）</p>
+      <p class="phase-meta">対象: Laravel / RDS</p>
+      <ul>
+        <li>migration: <code>work_logs</code> テーブル作成</li>
+        <li>Model: <code>WorkLog</code> + <code>Farm::workLogs()</code></li>
+        <li>Controller: <code>WorkLogController</code> (CRUD)</li>
+        <li>Policy: <code>FarmPolicy</code> で所有者チェック</li>
+        <li>FormRequest: 入力バリデーション</li>
+        <li>ルート登録: <code>api.php</code></li>
+      </ul>
+    </div>
+
+    <div class="phase-card">
+      <p class="phase-num">PHASE 2</p>
+      <p class="phase-title">時系列 / タイムライン API</p>
+      <p class="phase-meta">対象: Laravel / Service</p>
+      <ul>
+        <li><code>ResultsTimeseriesService</code> 新規実装</li>
+        <li><code>FarmTimelineService</code> 新規実装（測定×作業ログのマージ）</li>
+        <li><code>GET /results/timeseries</code> 実装</li>
+        <li><code>GET /timeline</code> 実装</li>
+        <li>Feature テスト: 4本以上</li>
+      </ul>
+    </div>
+
+    <div class="phase-card">
+      <p class="phase-num">PHASE 3</p>
+      <p class="phase-title">Flutter ナビゲーション刷新</p>
+      <p class="phase-meta">対象: Flutter</p>
+      <ul>
+        <li><code>MainScaffold</code> から <code>HomeScreen</code> ベースへ移行</li>
+        <li>新 <code>HomeScreen</code> 実装（4ボタン+ヘルプ）</li>
+        <li>各画面のルーティング骨組み</li>
+        <li>BottomNav 関連コード削除</li>
+        <li>既存機能が壊れていないかの動作確認</li>
+      </ul>
+    </div>
+
+    <div class="phase-card">
+      <p class="phase-num">PHASE 4</p>
+      <p class="phase-title">圃場一覧 / 圃場詳細マップタブ</p>
+      <p class="phase-meta">対象: Flutter / API連携</p>
+      <ul>
+        <li><code>FarmListScreen</code> カードレイアウト</li>
+        <li><code>FarmDetailScreen</code> 3タブ Scaffold</li>
+        <li>マップタブの実装（既存の <code>results/map</code> API 利用）</li>
+        <li>パラメータ切替（CEC のみ実データ、他は disable）</li>
+        <li>測定日プルダウン</li>
+      </ul>
+    </div>
+
+    <div class="phase-card">
+      <p class="phase-num">PHASE 5</p>
+      <p class="phase-title">時系列タブ / タイムラインタブ</p>
+      <p class="phase-meta">対象: Flutter / 新API連携</p>
+      <ul>
+        <li><code>fl_chart</code> 等で折れ線グラフ実装</li>
+        <li>min/max バンド表示</li>
+        <li>作業ログ縦線オーバーレイ</li>
+        <li>タイムラインタブ（測定/作業ログカード）</li>
+      </ul>
+    </div>
+
+    <div class="phase-card">
+      <p class="phase-num">PHASE 6</p>
+      <p class="phase-title">作業記録入力</p>
+      <p class="phase-meta">対象: Flutter / オフラインキュー</p>
+      <ul>
+        <li><code>WorkLogEditScreen</code> 3ステップフロー</li>
+        <li><code>WorkLogProvider</code> 実装</li>
+        <li>JSON キュー方式のオフライン保存</li>
+        <li>復帰時の自動同期</li>
+      </ul>
+    </div>
+
+    <div class="phase-card">
+      <p class="phase-num">PHASE 7</p>
+      <p class="phase-title">測定画面の単一画面化</p>
+      <p class="phase-meta">対象: Flutter</p>
+      <ul>
+        <li>地図中心1画面の <code>MeasurementScreen</code> 実装</li>
+        <li>ステータスチップ3つ</li>
+        <li><code>MeasurementListScreen</code> 実装</li>
+        <li>ピン状態遷移（赤→黄→緑）</li>
+        <li>従来の Step1〜3 フローを廃止</li>
+      </ul>
+    </div>
+
+    <div class="phase-card">
+      <p class="phase-num">PHASE 8</p>
+      <p class="phase-title">同期 / 設定 / ヘルプ画面</p>
+      <p class="phase-meta">対象: Flutter</p>
+      <ul>
+        <li><code>SyncScreen</code> 独立化</li>
+        <li><code>SettingsScreen</code> 3グループ構成</li>
+        <li><code>HelpScreen</code> 4項目構成（FAQ等はダミーOK）</li>
+        <li>使い方ガイド静的画面</li>
+        <li>問い合わせフォーム（送信先決定後に実装）</li>
+      </ul>
+    </div>
+  </div>
+
+  <h3>フェーズ依存関係</h3>
+<pre><code>P1 ─→ P2 ─┐
+           ├─→ P5 ─→ P6
+P3 ─→ P4 ─┤
+P3 ─→ P7
+P3 ─→ P8</code></pre>
+</section>
+
+<!-- ========== 7. CURSOR INSTRUCTIONS ========== -->
+<section>
+  <h2><span class="num">7</span>Cursor への指示テンプレート <span class="en">prompts</span></h2>
+
+  <p>各フェーズを Cursor に投入する際の標準テンプレート。本書のフェーズ番号と紐づけて使用する。</p>
+
+  <h3>PHASE 1 投入時テンプレ</h3>
+<pre><code>HenryMonitor の Laravel バックエンドに work_logs テーブルと作業ログ CRUD API を追加してください。
+
+【参照】本計画書セクション 2.1 / 3.1 / 3.2 に従う。
+
+【作業範囲】
+1. migration: database/migrations/xxxx_create_work_logs_table.php
+2. Model: app/Models/WorkLog.php (fillable, casts, farm() リレーション)
+3. app/Models/Farm.php に workLogs() HasMany を追加
+4. app/Policies/FarmPolicy.php を新規作成（所有者チェック）
+5. app/Http/Controllers/Api/WorkLogController.php (index/store/update/destroy)
+6. app/Http/Requests/StoreWorkLogRequest.php / UpdateWorkLogRequest.php
+7. routes/api.php に以下を追加（Cognito JWT ミドルウェア配下）:
+   - GET    /api/v1/farms/{farm}/work-logs
+   - POST   /api/v1/farms/{farm}/work-logs
+   - PATCH  /api/v1/work-logs/{workLog}
+   - DELETE /api/v1/work-logs/{workLog}
+8. Feature テスト: tests/Feature/WorkLogApiTest.php
+   - 認証なしで 401
+   - 他人の圃場に対する操作で 403
+   - 正常系: 作成・更新・削除・一覧
+   - バリデーションエラー: work_type が enum 外、work_date が未来日など
+
+【DoD（完了条件）】
+- php artisan test がすべて通る
+- php artisan migrate:fresh --seed が成功する
+- 既存の他テストが壊れていない</code></pre>
+
+  <h3>PHASE 5 投入時テンプレ</h3>
+<pre><code>Flutter モバイルアプリの圃場詳細画面に「時系列タブ」と「タイムラインタブ」を実装してください。
+
+【参照】本計画書セクション 4.2 (farm-detail) / 3.2
+
+【前提】PHASE 1〜4 は完了済。
+- /api/farms/{id}/results/timeseries エンドポイントが利用可能
+- /api/farms/{id}/timeline エンドポイントが利用可能
+- FarmDetailScreen の3タブ Scaffold が存在し、マップタブは実装済
+
+【作業範囲】
+1. lib/api/farm_results_api_client.dart に fetchTimeseries / fetchTimeline メソッド追加
+2. lib/providers/farm_detail_provider.dart に時系列・タイムライン用の状態追加
+3. lib/screens/farm_detail/tabs/farm_timeseries_tab.dart 実装
+   - パラメータ切替（CECのみアクティブ、他は disable）
+   - 折れ線グラフ（fl_chart 使用、min/max バンド付き）
+   - 作業ログ縦線オーバーレイ
+4. lib/screens/farm_detail/tabs/farm_timeline_tab.dart 実装
+   - 時系列降順カードリスト
+   - 測定結果カード / 作業ログカード の2種類
+   - 「+作業記録」ボタン（PHASE 6 で WorkLogEditScreen に接続）
+
+【重要】
+- 固定地点機能は実装しない。
+- 時系列タブで追う数値は「圃場の各測定点の平均値」のみ。
+
+【DoD】
+- 圃場詳細から両タブを開いて、API のモック/実データが表示される
+- パラメータ切替で disable 状態が正しく反映される
+- flutter analyze に warning がない</code></pre>
+
+  <div class="callout">
+    <strong>Cursor 操作の汎用ルール。</strong>
+    各 PHASE 投入前に「git status がクリーンであること」「<code>main</code> から派生した feature ブランチ上にいること」を確認する。
+    PHASE 完了ごとに 1 PR を作成し、レビュー後に main へ squash merge する。
+  </div>
+</section>
+
+<!-- ========== 8. RISKS ========== -->
+<section>
+  <h2><span class="num">8</span>リスクと懸念事項 <span class="en">risks</span></h2>
+
+  <table>
+    <thead><tr><th>リスク</th><th>影響度</th><th>緩和策</th></tr></thead>
+    <tbody>
+      <tr>
+        <td>既存 BottomNav 廃止により、現行ユーザーが導線を失う</td>
+        <td>中</td>
+        <td>ホーム画面の主要4ボタンを大きく配置。アップデート初回起動時に変更点ダイアログを表示（PHASE 8 で実装）。</td>
+      </tr>
+      <tr>
+        <td>時系列タブの「平均値」が、測定点数の少ない日では信頼性が低い</td>
+        <td>中</td>
+        <td>UI 上で <code>count</code> も併記し、点数が少ない日はマーカーを薄く描画。</td>
+      </tr>
+      <tr>
+        <td>作業ログのオフラインキューが復帰時に重複登録される</td>
+        <td>高</td>
+        <td>クライアント側で <code>local_id (UUID)</code> を発行し、サーバー側で同一 <code>local_id</code> の重複登録を抑止する <code>Idempotency-Key</code> ヘッダ対応を追加（PHASE 6 内）。</td>
+      </tr>
+      <tr>
+        <td>Ca/K/Mg モデル未実装のためタブが空転する</td>
+        <td>低</td>
+        <td>UI で disable 表示。データ未取得時は「準備中」と明示。</td>
+      </tr>
+      <tr>
+        <td>圃場詳細マップタブの統合により、現行の「結果閲覧」フローを使っていたユーザーが戸惑う</td>
+        <td>中</td>
+        <td>初回起動時の変更案内ダイアログで「結果閲覧は圃場 > 圃場詳細 > マップ から見られます」を明示。</td>
+      </tr>
+      <tr>
+        <td>固定地点機能を後から導入したくなった場合の互換性</td>
+        <td>低</td>
+        <td>本書スキーマで <code>analysis_results</code> にカラム追加なしで導入可能。将来 <code>anchor_points</code> テーブルを別途設計する余地を残してある。</td>
+      </tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ========== 9. DEFINITION OF DONE ========== -->
+<section>
+  <h2><span class="num">9</span>本計画全体の完了条件 <span class="en">done</span></h2>
+
+  <ul class="checklist">
+    <li>新ホーム画面から主要4機能（測定 / 圃場 / 同期 / 設定）すべてに遷移できる</li>
+    <li>圃場詳細の3タブがいずれも実データを表示できる（マップ / 時系列 / タイムライン）</li>
+    <li>作業ログを記録でき、タイムラインタブと時系列タブに反映される</li>
+    <li>未同期一覧画面から一括同期・削除ができる</li>
+    <li>設定画面から測定パラメータ・センサー番号を変更でき、設定値が次回測定に反映される</li>
+    <li>ヘルプ画面の使い方ガイド5ステップが表示される（FAQ・問い合わせはダミーで可）</li>
+    <li><code>work_logs</code> テーブルが本番 RDS に存在する</li>
+    <li>新規 API 4本（CRUD）+ 時系列 + タイムライン の合計 6 本が動作確認済み</li>
+    <li><code>flutter analyze</code> に warning がない</li>
+    <li><code>php artisan test</code> がすべて通る</li>
+    <li>本書の各 PHASE が PR としてマージされ、変更ログに残る</li>
+  </ul>
+</section>
+
+<footer>
+  <span>HenryMonitor / Mobile App Refactor Plan v1.0</span>
+  <span>Prepared for Cursor execution · 2026-05-14</span>
+</footer>
+
+</div>
+</body>
+</html>

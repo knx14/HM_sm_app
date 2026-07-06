@@ -6,7 +6,8 @@ import '../../../app/routes.dart';
 import '../../../providers/user_provider.dart';
 import '../../auth/data/amplify_auth_service.dart';
 import '../../auth/domain/auth_repository.dart';
-import '../../measure/domain/measure_settings_store.dart';
+import '../../measure/presentation/measurement_session_screen.dart'
+    show MeasurementStateProvider;
 import 'measurement_params_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -17,10 +18,8 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
-  final MeasureSettingsStore _measureSettingsStore = MeasureSettingsStore();
   String _version = '-';
   String _buildNumber = '-';
-  String _selectedSensor = '0';
 
   @override
   void initState() {
@@ -29,17 +28,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _loadInfo() async {
-    final results = await Future.wait([
-      PackageInfo.fromPlatform(),
-      _measureSettingsStore.load(),
-    ]);
+    final packageInfo = await PackageInfo.fromPlatform();
     if (!mounted) return;
-    final packageInfo = results[0] as PackageInfo;
-    final measureSettings = results[1] as StoredMeasureSettings;
     setState(() {
       _version = packageInfo.version;
       _buildNumber = packageInfo.buildNumber;
-      _selectedSensor = measureSettings.selectedSensor;
     });
   }
 
@@ -83,7 +76,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   Widget build(BuildContext context) {
     final user = context.watch<UserProvider>();
+    final measurementState = context.watch<MeasurementStateProvider>();
     final colorScheme = Theme.of(context).colorScheme;
+    final sensorSerialNo = measurementState.sensorSerialNo;
+    final measurementDeviceLabel = measurementState.isConnected
+        ? 'TypeD 測定センサー / ${sensorSerialNo?.isNotEmpty == true ? sensorSerialNo : 'シリアルNo.取得中'}'
+        : '未接続';
 
     return Scaffold(
       appBar: AppBar(
@@ -110,7 +108,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const _SectionHeader('通信'),
           ListTile(
             title: const Text('測定機器'),
-            subtitle: Text('TypeD 測定センサー / Sensor $_selectedSensor'),
+            subtitle: Text(measurementDeviceLabel),
             leading: const Icon(Icons.usb_outlined),
           ),
           const ListTile(
