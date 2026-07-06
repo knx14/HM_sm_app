@@ -8,6 +8,7 @@ import '../../auth/data/amplify_auth_service.dart';
 import '../../auth/domain/auth_repository.dart';
 import '../../measure/presentation/measurement_session_screen.dart'
     show MeasurementStateProvider;
+import '../../sync/domain/sync_settings_store.dart';
 import 'measurement_params_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -18,13 +19,72 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
+  final SyncSettingsStore _syncSettingsStore = SyncSettingsStore();
   String _version = '-';
   String _buildNumber = '-';
+  SyncMode _syncMode = SyncMode.auto;
 
   @override
   void initState() {
     super.initState();
     _loadInfo();
+    _loadSyncMode();
+  }
+
+  Future<void> _loadSyncMode() async {
+    final mode = await _syncSettingsStore.loadSyncMode();
+    if (!mounted) return;
+    setState(() => _syncMode = mode);
+  }
+
+  String _syncModeLabel(SyncMode mode) {
+    switch (mode) {
+      case SyncMode.auto:
+        return '自動同期';
+      case SyncMode.manual:
+        return '手動同期';
+    }
+  }
+
+  String _syncModeDescription(SyncMode mode) {
+    switch (mode) {
+      case SyncMode.auto:
+        return '測定後すぐにクラウドへ送信し、推定結果を取得します';
+      case SyncMode.manual:
+        return '測定データは端末に保存し、同期画面から手動で送信します';
+    }
+  }
+
+  Future<void> _selectSyncMode() async {
+    final selected = await showDialog<SyncMode>(
+      context: context,
+      builder: (dialogContext) => SimpleDialog(
+        title: const Text('同期方式'),
+        children: [
+          for (final mode in SyncMode.values)
+            SimpleDialogOption(
+              onPressed: () => Navigator.pop(dialogContext, mode),
+              padding: EdgeInsets.zero,
+              child: ListTile(
+                leading: Icon(
+                  _syncMode == mode
+                      ? Icons.radio_button_checked
+                      : Icons.radio_button_unchecked,
+                  color: _syncMode == mode
+                      ? Theme.of(dialogContext).colorScheme.primary
+                      : null,
+                ),
+                title: Text(_syncModeLabel(mode)),
+                subtitle: Text(_syncModeDescription(mode)),
+              ),
+            ),
+        ],
+      ),
+    );
+    if (selected == null || selected == _syncMode) return;
+    await _syncSettingsStore.saveSyncMode(selected);
+    if (!mounted) return;
+    setState(() => _syncMode = selected);
   }
 
   Future<void> _loadInfo() async {
@@ -111,10 +171,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
             subtitle: Text(measurementDeviceLabel),
             leading: const Icon(Icons.usb_outlined),
           ),
-          const ListTile(
-            title: Text('同期方式'),
-            subtitle: Text('手動同期'),
-            leading: Icon(Icons.cloud_sync_outlined),
+          ListTile(
+            title: const Text('同期方式'),
+            subtitle: Text(
+              '${_syncModeLabel(_syncMode)} / ${_syncModeDescription(_syncMode)}',
+            ),
+            leading: const Icon(Icons.cloud_sync_outlined),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: _selectSyncMode,
           ),
           const Divider(height: 1),
           const _SectionHeader('システム'),
