@@ -81,6 +81,28 @@ class PendingUploadItem {
     };
   }
 
+  /// 測定順（古い順）で比較する。手動同期ではこの順でアップロードし、
+  /// マップ上の測定番号が測定時の番号と一致するようにする。
+  static int compareByMeasurementOrder(
+    PendingUploadItem a,
+    PendingUploadItem b,
+  ) {
+    final pointCompare = _compareNullableInt(a.pointNumber, b.pointNumber);
+    if (pointCompare != 0) return pointCompare;
+    final aTime = DateTime.tryParse(a.measurementDate) ?? a.createdAt;
+    final bTime = DateTime.tryParse(b.measurementDate) ?? b.createdAt;
+    final timeCompare = aTime.compareTo(bTime);
+    if (timeCompare != 0) return timeCompare;
+    return a.createdAt.compareTo(b.createdAt);
+  }
+
+  static int _compareNullableInt(int? a, int? b) {
+    if (a != null && b != null) return a.compareTo(b);
+    if (a != null) return -1;
+    if (b != null) return 1;
+    return 0;
+  }
+
   factory PendingUploadItem.fromJson(Map<String, dynamic> json) {
     return PendingUploadItem(
       fileBase: json['fileBase'] as String,
@@ -132,6 +154,13 @@ class PendingUploadStore {
     } catch (_) {
       return <PendingUploadItem>[];
     }
+  }
+
+  /// 測定順（古い順）の未同期一覧。同期画面の表示・アップロードに使用する。
+  Future<List<PendingUploadItem>> listItemsInMeasurementOrder() async {
+    final items = await listItems();
+    items.sort(PendingUploadItem.compareByMeasurementOrder);
+    return items;
   }
 
   Future<int> count() async {
