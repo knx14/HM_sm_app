@@ -128,6 +128,12 @@ class _HomeScreenState extends State<HomeScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              Image.asset(
+                'assets/images/companyLogoTransparentBackground.png',
+                height: 34,
+                fit: BoxFit.contain,
+              ),
+              const SizedBox(height: 14),
               _AccountTile(
                 label: userLabel,
                 isLoading: user.userId == null,
@@ -190,14 +196,10 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
               const SizedBox(height: 12),
-              TextButton.icon(
-                onPressed: () => _pushNamed(AppRoutes.help),
-                icon: const Icon(Icons.help_outline, size: 18),
-                label: const Text('ヘルプ'),
-                style: TextButton.styleFrom(
-                  foregroundColor: colorScheme.onSurface.withValues(
-                    alpha: 0.65,
-                  ),
+              SizedBox(
+                height: 56,
+                child: _HelpActionButton(
+                  onTap: () => _pushNamed(AppRoutes.help),
                 ),
               ),
             ],
@@ -326,6 +328,39 @@ class _HomeActionButton extends StatelessWidget {
               ],
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _HelpActionButton extends StatelessWidget {
+  const _HelpActionButton({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: const Color(0xFF4E6F8F),
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: const Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.help_outline, color: Colors.white, size: 24),
+            SizedBox(width: 10),
+            Text(
+              'ヘルプ',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 16,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ],
         ),
       ),
     );

@@ -1,0 +1,1097 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>HenryMonitor Phase 8 実装手順書 — 同期 / 設定 / ヘルプ画面の充実</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&family=Noto+Serif+JP:wght@700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#f8f7f1;--paper:#fff;--ink:#1a2318;--ink2:#3d4f3a;--ink3:#6b7e68;
+  --line:#dbd6c4;--lines:#eae6d6;
+  --leaf:#2e5c39;--leafl:#4a8459;--leafp:#e2ede4;
+  --soil:#7a4525;--soilp:#f2e8e0;
+  --amber:#b85c00;--amberp:#fef0d8;
+  --red:#b02020;--redp:#fce4e4;
+  --blue:#1a4f7a;--bluep:#ddeaf5;
+  --teal:#1a6a6a;--tealp:#d8efef;
+  --purple:#5a2d82;--purplep:#ede5f5;
+  --code-bg:#181f16;--code-fg:#d4e8cc;
+  --ccm:#5a8f58;--ckw:#7dd3a8;--cst:#f7c07a;--cnm:#7ec8e3;--ccl:#e8d07a;--cwg:#f0b060;
+  --sl:#b0c8b0;
+}
+*{box-sizing:border-box;}html{scroll-behavior:smooth;}
+body{margin:0;padding:0;background:var(--bg);color:var(--ink);font-family:"Noto Sans JP",sans-serif;font-size:14.5px;line-height:1.8;-webkit-font-smoothing:antialiased;}
+.layout{display:flex;min-height:100vh;}
+
+.toc{width:256px;flex-shrink:0;background:#0f1a0e;color:#c8d8c4;padding:28px 0 60px;position:sticky;top:0;height:100vh;overflow-y:auto;}
+.toc-logo{padding:0 20px 18px;border-bottom:1px solid rgba(255,255,255,.08);margin-bottom:14px;}
+.toc-logo .proj{font-size:11px;letter-spacing:.18em;color:#5a9a56;text-transform:uppercase;}
+.toc-logo .phase{font-family:"Noto Serif JP",serif;font-size:18px;color:#e8f0e4;font-weight:700;margin-top:4px;}
+.toc-logo .sub{font-size:11px;color:#5a9a56;margin-top:2px;line-height:1.5;}
+.toc ul{list-style:none;margin:0;padding:0;}
+.toc li a{display:block;padding:6px 20px;font-size:12px;color:#8ab88a;text-decoration:none;border-left:3px solid transparent;transition:all .15s;}
+.toc li a:hover{background:rgba(255,255,255,.06);color:#e8f0e4;border-left-color:var(--leafl);}
+.toc li a.sec{font-weight:700;color:#c4dcc0;font-size:12px;margin-top:8px;}
+.toc li a.sub{padding-left:32px;font-size:11.5px;color:#6a9a66;}
+.toc hr{border:none;border-top:1px solid rgba(255,255,255,.06);margin:8px 20px;}
+
+.main{flex:1;padding:48px 56px 100px;max-width:920px;}
+
+.cover{background:var(--paper);border:1px solid var(--line);padding:40px 44px;position:relative;overflow:hidden;margin-bottom:52px;}
+.cover::after{content:"";position:absolute;top:0;left:0;right:0;height:5px;background:linear-gradient(90deg,var(--blue) 0%,var(--leaf) 50%,var(--teal) 100%);}
+.badge{font-family:"JetBrains Mono",monospace;font-size:11px;letter-spacing:.2em;background:var(--bluep);color:var(--blue);padding:3px 10px;border-radius:2px;display:inline-block;margin-bottom:14px;text-transform:uppercase;}
+.cover h1{font-family:"Noto Serif JP",serif;font-size:28px;font-weight:700;margin:0 0 8px;line-height:1.35;}
+.cover .desc{color:var(--ink2);font-size:14px;margin:0 0 24px;}
+.cmeta{display:flex;gap:24px;flex-wrap:wrap;border-top:1px solid var(--lines);padding-top:18px;}
+.cmeta dl{margin:0;}.cmeta dt{font-family:"JetBrains Mono",monospace;font-size:10px;letter-spacing:.15em;text-transform:uppercase;color:var(--ink3);margin:0 0 3px;}.cmeta dd{margin:0;font-size:13px;font-weight:500;}
+
+section{margin-bottom:60px;}
+h2{font-family:"Noto Serif JP",serif;font-size:21px;font-weight:700;margin:0 0 20px;padding:13px 18px;background:var(--ink);color:#e8f0e4;display:flex;align-items:center;gap:14px;}
+h2 .n{font-family:"JetBrains Mono",monospace;font-size:12px;color:var(--leafl);letter-spacing:.1em;}
+h2 .en{font-family:"JetBrains Mono",monospace;font-size:10px;color:#6a9a66;letter-spacing:.2em;text-transform:uppercase;margin-left:auto;}
+h3{font-size:16px;font-weight:700;margin:32px 0 10px;padding-bottom:7px;border-bottom:2px solid var(--leafp);color:var(--leaf);}
+h4{font-size:14px;font-weight:700;margin:20px 0 8px;color:var(--ink2);}
+p{margin:0 0 12px;}ul,ol{margin:0 0 12px;padding-left:20px;}li{margin-bottom:5px;}strong{color:var(--ink);}
+
+.steps{position:relative;}
+.step{display:grid;grid-template-columns:52px 1fr;gap:0 18px;margin-bottom:8px;position:relative;}
+.step::before{content:"";position:absolute;left:25px;top:52px;bottom:-8px;width:2px;background:var(--sl);}
+.step:last-child::before{display:none;}
+.snum{width:52px;height:52px;border-radius:50%;background:var(--leaf);color:#fff;display:flex;align-items:center;justify-content:center;font-family:"JetBrains Mono",monospace;font-size:14px;font-weight:700;flex-shrink:0;position:relative;z-index:1;align-self:start;margin-top:12px;}
+.snum.chk{background:var(--blue);}.snum.wrn{background:var(--amber);}
+.sbody{background:var(--paper);border:1px solid var(--line);padding:18px 22px 16px;}
+.sbody h4{margin-top:0;font-size:15px;color:var(--ink);}
+.sbody p:last-child,.sbody ul:last-child{margin-bottom:0;}
+.sloc{font-family:"JetBrains Mono",monospace;font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink3);background:var(--bg);border:1px solid var(--lines);padding:2px 8px;border-radius:2px;display:inline-block;margin-bottom:8px;}
+
+pre{background:var(--code-bg);color:var(--code-fg);padding:16px 18px;border-radius:3px;overflow-x:auto;font-family:"JetBrains Mono",monospace;font-size:12.5px;line-height:1.7;margin:10px 0 12px;}
+pre .fn{display:block;font-size:10px;letter-spacing:.1em;color:#486a46;margin-bottom:10px;border-bottom:1px solid rgba(255,255,255,.06);padding-bottom:8px;}
+pre .cm{color:var(--ccm);}pre .kw{color:var(--ckw);}pre .st{color:var(--cst);}
+pre .nm{color:var(--cnm);}pre .cl{color:var(--ccl);}pre .wg{color:var(--cwg);}
+code{font-family:"JetBrains Mono",monospace;font-size:12.5px;background:#edeadc;color:var(--soil);padding:1px 5px;border-radius:2px;}
+.shell{background:#090f08;color:#a8d8a0;padding:14px 18px;border-radius:3px;font-family:"JetBrains Mono",monospace;font-size:12.5px;line-height:1.7;margin:10px 0 12px;border-left:3px solid var(--leafl);overflow-x:auto;}
+.shell .p{color:#4a8a48;user-select:none;}.shell .c{color:#326030;}.shell .cmd{color:#c0e0b8;}
+
+.callout{padding:12px 16px;margin:12px 0;font-size:13.5px;border-left:4px solid var(--leaf);background:var(--leafp);}
+.callout.warn{border-color:var(--amber);background:var(--amberp);}
+.callout.danger{border-color:var(--red);background:var(--redp);}
+.callout.info{border-color:var(--blue);background:var(--bluep);}
+.callout.note{border-color:var(--soil);background:var(--soilp);}
+.callout.teal{border-color:var(--teal);background:var(--tealp);}
+.callout.purple{border-color:var(--purple);background:var(--purplep);}
+.callout strong{display:block;margin-bottom:3px;}
+
+table{border-collapse:collapse;width:100%;margin:10px 0 14px;font-size:13px;}
+th,td{padding:8px 12px;border-bottom:1px solid var(--lines);text-align:left;vertical-align:top;}
+th{background:var(--leafp);font-weight:700;font-size:11.5px;letter-spacing:.04em;border-bottom:2px solid var(--leaf);color:var(--leaf);}
+tr:hover td{background:#f5f2e8;}
+
+.tag{display:inline-block;font-family:"JetBrains Mono",monospace;font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:2px 7px;border-radius:2px;vertical-align:middle;margin:0 2px;}
+.tag.new{background:var(--leafp);color:var(--leaf);}
+.tag.mod{background:var(--bluep);color:var(--blue);}
+.tag.done{background:#ede9d8;color:var(--ink3);}
+.tag.l{background:var(--leafp);color:var(--leaf);}
+.tag.ci{background:var(--bluep);color:var(--blue);}
+.tag.e{background:var(--soilp);color:var(--soil);}
+
+.filetree{background:var(--paper);border:1px solid var(--line);padding:16px 20px;font-family:"JetBrains Mono",monospace;font-size:12.5px;line-height:1.9;margin:10px 0 14px;}
+.filetree .d{color:var(--leaf);font-weight:700;}
+.filetree .nf{color:var(--amber);}
+.filetree .nf::after{content:" ← NEW";font-size:10px;opacity:.7;}
+.filetree .mf{color:var(--blue);}
+.filetree .mf::after{content:" ← EDIT（スタブ → 実装）";font-size:10px;opacity:.7;}
+.filetree .rf{color:var(--ink3);}
+.filetree .rf::after{content:" ← 既存・変更なし";font-size:10px;opacity:.7;}
+
+/* scope grid */
+.scope-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:14px 0;}
+.scope-card{border:1px solid var(--line);background:var(--paper);padding:14px 16px;}
+.scope-card .sc-title{font-weight:700;font-size:14px;margin-bottom:6px;}
+.scope-card .sc-now{font-size:12px;color:var(--ink3);margin-bottom:8px;}
+.scope-card ul{margin:0;padding-left:16px;font-size:12.5px;}
+.scope-card ul li{margin-bottom:3px;}
+
+/* 測定条件テーブル */
+.settings-group{border:1px solid var(--line);background:var(--paper);margin:14px 0;}
+.settings-group-label{background:var(--leafp);padding:8px 14px;font-size:12px;font-weight:700;color:var(--leaf);letter-spacing:.04em;}
+
+.dod-list{list-style:none;padding-left:0;}
+.dod-list li{padding:10px 14px 10px 40px;position:relative;border-bottom:1px solid var(--lines);font-size:13.5px;}
+.dod-list li::before{content:"☐";position:absolute;left:12px;color:var(--leaf);font-size:16px;line-height:1;top:12px;}
+.dod-list li:last-child{border-bottom:none;}
+.dod-list li .dc{display:block;margin-top:3px;font-size:12px;color:var(--ink3);}
+
+@media(max-width:900px){.layout{display:block;}.toc{width:100%;height:auto;position:static;}.main{padding:28px 20px 64px;}.scope-grid{grid-template-columns:1fr;}}
+</style>
+</head>
+<body>
+<div class="layout">
+
+<!-- ======== TOC ======== -->
+<nav class="toc">
+  <div class="toc-logo">
+    <div class="proj">HenryMonitor</div>
+    <div class="phase">Phase 8</div>
+    <div class="sub">同期 / 設定 / ヘルプ<br>画面の充実（最終フェーズ）</div>
+  </div>
+  <ul>
+    <li><a class="sec" href="#overview">0. Phase 8 の全体像</a></li>
+    <li><a class="sub" href="#scope">スコープと優先度</a></li>
+    <li><a class="sub" href="#arch">累積アーキテクチャ確認</a></li>
+    <li><a class="sub" href="#prereq">前提確認</a></li>
+    <li><a class="sub" href="#files">作成・編集ファイル一覧</a></li>
+    <hr>
+    <li><a class="sec" href="#step1">1. SyncScreen の充実</a></li>
+    <li><a class="sub" href="#step1-state">状態管理の整理</a></li>
+    <li><a class="sub" href="#step1-ui">UI の充実</a></li>
+    <li><a class="sub" href="#step1-badge">HomeScreen バッジ連動</a></li>
+    <hr>
+    <li><a class="sec" href="#step2">2. SettingsScreen の充実</a></li>
+    <li><a class="sub" href="#step2-params">測定条件の設定サブ画面</a></li>
+    <li><a class="sub" href="#step2-device">通信 / 機器情報</a></li>
+    <hr>
+    <li><a class="sec" href="#step3">3. HelpScreen の充実</a></li>
+    <li><a class="sub" href="#step3-faq">FAQ</a></li>
+    <li><a class="sub" href="#step3-appinfo">アプリ情報</a></li>
+    <hr>
+    <li><a class="sec" href="#step4">4. 全画面統合テスト</a></li>
+    <li><a class="sec" href="#step5">5. lint / analyze 最終クリーンアップ</a></li>
+    <li><a class="sec" href="#step6">6. commit → PR → CI/CD</a></li>
+    <li><a class="sec" href="#step7">7. 実機最終確認</a></li>
+    <li><a class="sec" href="#dod">✓ 完了条件（全フェーズ総括）</a></li>
+  </ul>
+</nav>
+
+<!-- ======== Main ======== -->
+<main class="main">
+
+<div class="cover">
+  <span class="badge">Phase 8 / sync · settings · help</span>
+  <h1>同期 / 設定 / ヘルプ画面の充実 — 実装手順書</h1>
+  <p class="desc">
+    Phase 3 で骨格のみ実装してスタブとして残していた
+    <strong>SyncScreen・SettingsScreen・HelpScreen</strong> の内部を充実させます。
+    これが UI リファクタリング計画（Phase 1〜8）の<strong>最終フェーズ</strong>です。
+    バックエンドの変更はありません。
+  </p>
+  <div class="cmeta">
+    <dl><dt>STEP 1〜5</dt><dd>ローカル Flutter 環境で実施</dd></dl>
+    <dl><dt>STEP 6</dt><dd>commit → PR → main マージ → CI/CD</dd></dl>
+    <dl><dt>STEP 7</dt><dd>実機（Android）での最終確認</dd></dl>
+    <dl><dt>ブランチ</dt><dd><code>feature/phase8-sync-settings-help</code></dd></dl>
+  </div>
+</div>
+
+<!-- ====== 0. OVERVIEW ====== -->
+<section id="overview">
+  <h2><span class="n">00</span>Phase 8 の全体像 <span class="en">overview</span></h2>
+
+  <h3 id="scope">各画面のスコープと優先度</h3>
+
+  <div class="scope-grid">
+    <div class="scope-card">
+      <div class="sc-title">SyncScreen</div>
+      <div class="sc-now">現状: Phase 3 の骨格実装。測定データの未同期リストとチェック選択・同期ボタンはある。作業ログキューのセクションは Phase 6 で追加済み。</div>
+      <ul>
+        <li>同期進捗バー（実行中の視覚フィードバック）</li>
+        <li>エラー行の警告色強調とリトライボタン</li>
+        <li>最終同期日時の表示</li>
+        <li>同期完了後の自動バッジ更新</li>
+      </ul>
+    </div>
+    <div class="scope-card">
+      <div class="sc-title">SettingsScreen</div>
+      <div class="sc-now">現状: Phase 3 のスタブ。アカウント・通信・システムの3グループ骨格あり。測定条件へのリンクが未接続。</div>
+      <ul>
+        <li>「測定条件の設定」サブ画面を既存 BgScreen から独立させてここに統合</li>
+        <li>測定パラメータの表示と変更 UI を正式に配置</li>
+        <li>センサー番号・機器名の表示（通信セクション）</li>
+        <li>アプリバージョンの動的取得</li>
+      </ul>
+    </div>
+    <div class="scope-card">
+      <div class="sc-title">HelpScreen</div>
+      <div class="sc-now">現状: Phase 3 のスタブ。4項目リストのみ。使い方ガイドは BottomSheet で表示済み。FAQ・アプリ情報はダミー。</div>
+      <ul>
+        <li>FAQ（よくある質問）を静的コンテンツで充実</li>
+        <li>アプリ情報（バージョン・ライセンス）を実データで表示</li>
+        <li>お問い合わせは Phase 計画通り優先度低のままダミー維持</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="callout info">
+    <strong>Phase 8 の性格。</strong>
+    Phase 1〜7 で中核機能（測定・圃場詳細・作業記録・時系列・タイムライン）はすべて完成しています。
+    Phase 8 は「残ったスタブを実際に使えるレベルに仕上げる」仕上げ工程です。
+    完璧を目指すより<strong>「使える状態にする」</strong>を優先してください。
+    画面遷移図 v0 で優先度低とマークされた機能（お問い合わせフォームの送信・利用規約・自動同期切替）は
+    引き続きダミーまたは TODO のままで構いません。
+  </div>
+
+  <h3 id="arch">累積アーキテクチャ確認（Cursor に渡す前に実行）</h3>
+
+  <div class="callout teal">
+    <strong>Phase 3〜7 で確定した実態を Cursor セッション冒頭に伝えてください。</strong>
+    <div class="shell" style="margin-top:8px;">
+<span class="c"># sync / settings / help の現在のファイルを確認</span>
+<span class="p">$ </span><span class="cmd">find lib/screens/sync lib/screens/settings lib/screens/help \
+  -name "*.dart" 2>/dev/null | sort</span>
+<span class="c"># または</span>
+<span class="p">$ </span><span class="cmd">find lib -name "sync_screen*" -o -name "settings_screen*" \
+  -o -name "help_screen*" | grep -v ".dart_tool"</span>
+
+<span class="c"># PendingUploadStore の公開メソッドを確認（SyncScreen が使う）</span>
+<span class="p">$ </span><span class="cmd">grep -n "Future\|void \|Stream\|List\|int " \
+  $(find lib -name "*pending_upload*store*" | head -1) | head -20</span>
+
+<span class="c"># WorkLogRepository の公開メソッドを確認（Phase 6 実装）</span>
+<span class="p">$ </span><span class="cmd">grep -n "Future\|void " \
+  lib/features/work_logs/data/work_log_repository.dart</span>
+
+<span class="c"># 測定パラメータの設定が現在どのクラスで管理されているか確認</span>
+<span class="p">$ </span><span class="cmd">grep -rn "fstart\|fdelta\|null 1.0\|BgParam\|MeasureParam\|measureParam" \
+  lib/ --include="*.dart" | head -15</span>
+
+<span class="c"># package_info_plus が pubspec.yaml にあるか確認</span>
+<span class="p">$ </span><span class="cmd">grep "package_info_plus\|package_info" pubspec.yaml</span>
+    </div>
+  </div>
+
+  <h3 id="prereq">前提確認</h3>
+  <div class="steps">
+    <div class="step">
+      <div class="snum chk">✓</div>
+      <div class="sbody">
+        <h4>Phase 7 完了・main マージ済みを確認してブランチ作成</h4>
+        <span class="sloc">ターミナル / ローカル</span>
+        <div class="shell">
+<span class="p">$ </span><span class="cmd">git checkout main && git pull origin main</span>
+<span class="p">$ </span><span class="cmd">git log --oneline -3</span>
+<span class="c"># Phase 7 のコミット（measurement screen）が含まれること</span>
+<span class="p">$ </span><span class="cmd">git checkout -b feature/phase8-sync-settings-help</span>
+        </div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="snum chk">✓</div>
+      <div class="sbody">
+        <h4>package_info_plus の追加（アプリバージョン取得用）</h4>
+        <span class="sloc">ターミナル / ローカル</span>
+        <div class="shell">
+<span class="c"># 既に入っているか確認</span>
+<span class="p">$ </span><span class="cmd">grep "package_info_plus" pubspec.yaml</span>
+
+<span class="c"># なければ追加</span>
+<span class="p">$ </span><span class="cmd">flutter pub add package_info_plus</span>
+<span class="p">$ </span><span class="cmd">flutter pub get</span>
+        </div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="snum chk">✓</div>
+      <div class="sbody">
+        <h4>analyze baseline を確認</h4>
+        <span class="sloc">ターミナル / ローカル</span>
+        <div class="shell">
+<span class="p">$ </span><span class="cmd">flutter analyze 2>&1 | tail -3</span>
+<span class="c"># "117 issues found"（またはそれ以下）を確認</span>
+<span class="c"># Phase 8 の実装で今回追加したファイルの lint は 0 を目指す</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <h3 id="files">作成・編集ファイル一覧</h3>
+  <div class="filetree">
+lib/
+├── <span class="d">screens/sync/</span>
+│   └── <span class="mf">sync_screen.dart               （進捗バー・リトライ・最終同期日時を追加）</span>
+├── <span class="d">screens/settings/</span>
+│   ├── <span class="mf">settings_screen.dart           （測定条件リンクを正式接続・バージョン動的取得）</span>
+│   └── <span class="nf">measurement_params_screen.dart （測定パラメータのサブ画面を新設）</span>
+└── <span class="d">screens/help/</span>
+    ├── <span class="mf">help_screen.dart               （FAQとアプリ情報を実コンテンツで充実）</span>
+    └── <span class="nf">faq_screen.dart               （FAQ静的コンテンツ）</span>
+  </div>
+
+  <div class="callout note">
+    <strong>既存ファイルのパスについて。</strong>
+    Phase 3 の実装では <code>lib/screens/</code> 配下に各画面を置いたことを前提にしています。
+    実際のパスが異なる場合は <code>find lib -name "sync_screen.dart"</code> で確認してください。
+  </div>
+</section>
+
+<!-- ====== STEP 1: SyncScreen ====== -->
+<section id="step1">
+  <h2><span class="n">01</span>SyncScreen の充実 <span class="en">sync screen</span></h2>
+
+  <h3>現状と追加する機能</h3>
+  <table>
+    <thead><tr><th>機能</th><th>現状（Phase 3 + Phase 6）</th><th>Phase 8 で追加</th></tr></thead>
+    <tbody>
+      <tr><td>未同期測定データリスト</td><td>✅ チェック選択・同期・削除ボタンあり</td><td>エラー行を赤背景で強調</td></tr>
+      <tr><td>未送信作業ログセクション</td><td>✅ Phase 6 で追加済み</td><td>変更なし</td></tr>
+      <tr><td>同期進捗</td><td>❌ 進捗フィードバックなし（ボタン押しっぱなし）</td><td>LinearProgressIndicator + 件数カウンター</td></tr>
+      <tr><td>リトライボタン</td><td>❌ なし</td><td>エラー行ごとにリトライアイコン</td></tr>
+      <tr><td>最終同期日時</td><td>❌ なし</td><td>SharedPreferences から表示</td></tr>
+      <tr><td>HomeScreen バッジとの連動</td><td>✅ PendingUploadStore 経由で件数取得済み</td><td>同期完了後に件数が更新されることを確認</td></tr>
+    </tbody>
+  </table>
+
+  <div class="steps">
+    <div class="step" id="step1-state">
+      <div class="snum">1</div>
+      <div class="sbody">
+        <h4>SyncScreen の状態管理を整理（StatefulWidget の State に追加）</h4>
+        <span class="sloc">lib/screens/sync/sync_screen.dart（既存ファイルを編集）</span>
+        <p>
+          現行の <code>SyncScreen</code> は <code>StatefulWidget</code> です。
+          State クラスに以下のフィールドを追加してください。
+        </p>
+<pre><span class="fn">SyncScreen の State に追加するフィールドとメソッド</span><span class="cm">// 追加するフィールド</span>
+<span class="kw">bool</span>   _isSyncing     = <span class="kw">false</span>;
+<span class="kw">int</span>    _syncedCount   = <span class="nm">0</span>;
+<span class="kw">int</span>    _totalToSync   = <span class="nm">0</span>;
+<span class="cl">String</span> _lastSyncedAt  = <span class="st">''</span>;
+
+<span class="kw">@override</span>
+<span class="kw">void</span> initState() {
+  <span class="kw">super</span>.initState();
+  _loadLastSyncedAt();
+}
+
+<span class="cm">// 最終同期日時を SharedPreferences から読み込む</span>
+<span class="kw">Future</span>&lt;<span class="kw">void</span>&gt; _loadLastSyncedAt() <span class="kw">async</span> {
+  <span class="kw">final</span> prefs = <span class="kw">await</span> <span class="cl">SharedPreferences</span>.getInstance();
+  setState(() {
+    _lastSyncedAt = prefs.getString(<span class="st">'last_synced_at'</span>) ?? <span class="st">'未同期'</span>;
+  });
+}
+
+<span class="cm">// 最終同期日時を保存する（同期完了時に呼ぶ）</span>
+<span class="kw">Future</span>&lt;<span class="kw">void</span>&gt; _saveLastSyncedAt() <span class="kw">async</span> {
+  <span class="kw">final</span> prefs = <span class="kw">await</span> <span class="cl">SharedPreferences</span>.getInstance();
+  <span class="kw">final</span> now   = <span class="cl">DateTime</span>.now();
+  <span class="kw">final</span> label = <span class="st">'${now.month}/${now.day} ${now.hour.toString().padLeft(2,"0")}:${now.minute.toString().padLeft(2,"0")}'</span>;
+  <span class="kw">await</span> prefs.setString(<span class="st">'last_synced_at'</span>, label);
+  setState(() =&gt; _lastSyncedAt = label);
+}
+
+<span class="cm">// 選択した測定データを同期する（既存の同期処理を拡張）</span>
+<span class="kw">Future</span>&lt;<span class="kw">void</span>&gt; _syncSelected(<span class="cl">PendingUploadStore</span> store) <span class="kw">async</span> {
+  <span class="kw">if</span> (_selected.isEmpty) <span class="kw">return</span>;
+  setState(() {
+    _isSyncing   = <span class="kw">true</span>;
+    _syncedCount = <span class="nm">0</span>;
+    _totalToSync = _selected.length;
+  });
+
+  <span class="kw">for</span> (<span class="kw">final</span> idx <span class="kw">in</span> _selected.toList()) {
+    <span class="kw">try</span> {
+      <span class="cm">// 既存の同期処理メソッドを1件ずつ呼ぶ</span>
+      <span class="cm">// store.syncItem(idx) または相当メソッドに合わせること</span>
+      <span class="kw">await</span> store.syncSelected([idx]);
+      setState(() =&gt; _syncedCount++);
+    } <span class="kw">catch</span> (_) {
+      <span class="cm">// エラーが出ても次のアイテムに進む</span>
+    }
+  }
+
+  setState(() =&gt; _isSyncing = <span class="kw">false</span>);
+  _selected.clear();
+  <span class="kw">await</span> _saveLastSyncedAt();
+}</pre>
+
+        <div class="callout warn">
+          <strong><code>PendingUploadStore</code> の <code>syncSelected</code> メソッド名について。</strong>
+          Phase 3 の実装では <code>syncSelected(List&lt;int&gt;)</code> の形で1件ずつ呼ぶ想定でしたが、
+          実際の <code>PendingUploadStore</code> のメソッドシグネチャを確認して合わせてください。
+          <code>grep -n "Future.*sync\|void.*sync" $(find lib -name "*pending_upload*store*")</code>
+          で確認できます。
+        </div>
+      </div>
+    </div>
+
+    <div class="step" id="step1-ui">
+      <div class="snum">2</div>
+      <div class="sbody">
+        <h4>SyncScreen の UI を充実させる</h4>
+        <span class="sloc">同ファイル続き</span>
+        <p>既存の build メソッドを以下の方針で更新します。</p>
+<pre><span class="fn">SyncScreen の build メソッド — 更新方針</span><span class="cm">// ① ヘッダ部分に最終同期日時を追加</span>
+<span class="wg">Container</span>(
+  padding: <span class="kw">const</span> <span class="wg">EdgeInsets</span>.all(<span class="nm">16</span>),
+  color: <span class="kw">const</span> <span class="wg">Color</span>(<span class="nm">0xFFFEF0D8</span>),
+  child: <span class="wg">Column</span>(children: [
+    <span class="wg">Row</span>(children: [
+      <span class="wg">Text</span>(<span class="st">'未同期 ${items.length} 件'</span>,
+          style: <span class="kw">const</span> <span class="wg">TextStyle</span>(fontWeight: <span class="wg">FontWeight</span>.bold)),
+      <span class="kw">const</span> <span class="wg">Spacer</span>(),
+      <span class="wg">Text</span>(<span class="st">'最終同期: $_lastSyncedAt'</span>,
+          style: <span class="wg">TextStyle</span>(fontSize: <span class="nm">12</span>, color: <span class="wg">Colors</span>.grey[<span class="nm">600</span>])),
+    ]),
+    <span class="cm">// ② 同期中は進捗バーを表示</span>
+    <span class="kw">if</span> (_isSyncing) ...[
+      <span class="kw">const</span> <span class="wg">SizedBox</span>(height: <span class="nm">8</span>),
+      <span class="wg">LinearProgressIndicator</span>(
+        value: _totalToSync > <span class="nm">0</span>
+            ? _syncedCount / _totalToSync : <span class="kw">null</span>,
+        backgroundColor: <span class="wg">Colors</span>.orange[<span class="nm">100</span>],
+        color: <span class="wg">Colors</span>.orange,
+      ),
+      <span class="kw">const</span> <span class="wg">SizedBox</span>(height: <span class="nm">4</span>),
+      <span class="wg">Text</span>(<span class="st">'$_syncedCount / $_totalToSync 件 同期中...'</span>,
+          style: <span class="kw">const</span> <span class="wg">TextStyle</span>(fontSize: <span class="nm">12</span>)),
+    ],
+  ]),
+),
+
+<span class="cm">// ③ 各アイテム行でエラーを赤背景で強調 + リトライアイコン</span>
+<span class="cm">// 既存の _buildItem メソッドを更新して以下を追加:</span>
+<span class="wg">ListTile</span>(
+  tileColor: item.hasError ? <span class="kw">const</span> <span class="wg">Color</span>(<span class="nm">0xFFFCE4E4</span>) : <span class="kw">null</span>,
+  <span class="cm">// ...既存の title / subtitle...</span>
+  trailing: item.hasError
+      ? <span class="wg">IconButton</span>(
+          icon: <span class="kw">const</span> <span class="wg">Icon</span>(<span class="wg">Icons</span>.refresh, color: <span class="wg">Colors</span>.red),
+          tooltip: <span class="st">'リトライ'</span>,
+          onPressed: () <span class="kw">async</span> {
+            <span class="cm">// 1件だけ選択してリトライ</span>
+            setState(() =&gt; _selected
+              ..clear()
+              ..add(i));
+            <span class="kw">await</span> _syncSelected(prov);
+          },
+        )
+      : <span class="kw">null</span>,
+),</pre>
+      </div>
+    </div>
+
+    <div class="step" id="step1-badge">
+      <div class="snum">3</div>
+      <div class="sbody">
+        <h4>HomeScreen バッジ更新の動作確認</h4>
+        <span class="sloc">確認作業（コード変更なし）</span>
+        <p>
+          HomeScreen の同期ボタンバッジは <code>PendingUploadStore</code> の件数を監視しています。
+          <code>_syncSelected</code> 実行後に <code>PendingUploadStore</code> の件数が減れば
+          自動的にバッジが更新されるはずです。
+        </p>
+        <div class="shell">
+<span class="c"># HomeScreen が PendingUploadStore をどう監視しているか確認</span>
+<span class="p">$ </span><span class="cmd">grep -n "PendingUploadStore\|pendingCount\|watch\|listen" \
+  lib/screens/home/home_screen.dart | head -10</span>
+        </div>
+        <div class="callout">
+          <strong>バッジが更新されない場合。</strong>
+          <code>PendingUploadStore</code> が <code>ChangeNotifier</code> であり、
+          同期後に <code>notifyListeners()</code> が呼ばれていることを確認してください。
+          呼ばれていない場合は <code>syncSelected</code> の完了後に <code>notifyListeners()</code> を追加します。
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ====== STEP 2: SettingsScreen ====== -->
+<section id="step2">
+  <h2><span class="n">02</span>SettingsScreen の充実 <span class="en">settings screen</span></h2>
+
+  <div class="steps">
+    <div class="step">
+      <div class="snum">4</div>
+      <div class="sbody">
+        <h4>アプリバージョンを動的取得して表示</h4>
+        <span class="sloc">lib/screens/settings/settings_screen.dart（既存ファイルを編集）</span>
+<pre><span class="fn">SettingsScreen に追加するバージョン取得ロジック</span><span class="kw">import</span> <span class="st">'package:package_info_plus/package_info_plus.dart'</span>;
+
+<span class="cm">// StatefulWidget に変更して initState で取得（StatelessWidget の場合）</span>
+<span class="kw">class</span> <span class="cl">_SettingsScreenState</span> <span class="kw">extends</span> <span class="cl">State</span>&lt;<span class="cl">SettingsScreen</span>&gt; {
+  <span class="cl">String</span> _version = <span class="st">'—'</span>;
+  <span class="cl">String</span> _build   = <span class="st">'—'</span>;
+
+  <span class="kw">@override</span>
+  <span class="kw">void</span> initState() {
+    <span class="kw">super</span>.initState();
+    _loadVersion();
+  }
+
+  <span class="kw">Future</span>&lt;<span class="kw">void</span>&gt; _loadVersion() <span class="kw">async</span> {
+    <span class="kw">final</span> info = <span class="kw">await</span> <span class="cl">PackageInfo</span>.fromPlatform();
+    setState(() {
+      _version = info.version;        <span class="cm">// 例: "0.4.0"</span>
+      _build   = info.buildNumber;    <span class="cm">// 例: "42"</span>
+    });
+  }
+
+  <span class="kw">@override</span>
+  <span class="cl">Widget</span> build(<span class="cl">BuildContext</span> context) {
+    <span class="cm">// ... 既存の build ロジック ...</span>
+    <span class="cm">// バージョン表示箇所を以下に変更:</span>
+    <span class="kw">return</span> <span class="wg">ListTile</span>(
+      title: <span class="kw">const</span> <span class="wg">Text</span>(<span class="st">'バージョン'</span>),
+      trailing: <span class="wg">Text</span>(<span class="st">'v$_version ($_build)'</span>,
+          style: <span class="wg">TextStyle</span>(color: <span class="wg">Colors</span>.grey[<span class="nm">600</span>])),
+    );
+  }
+}</pre>
+      </div>
+    </div>
+
+    <div class="step" id="step2-params">
+      <div class="snum">5</div>
+      <div class="sbody">
+        <h4>「測定条件の設定」サブ画面を新設して SettingsScreen から接続</h4>
+        <span class="sloc">lib/screens/settings/measurement_params_screen.dart（新規作成）</span>
+        <p>
+          現行の <code>MeasurementSessionScreen</code>（旧 BgScreen）には
+          測定パラメータ（励磁電圧・レンジ・積分時間・平均回数・fstart/fdelta/points）の
+          設定 UI があります。これを独立した画面として切り出し、
+          SettingsScreen の「測定条件の設定」からアクセスできるようにします。
+        </p>
+        <div class="shell">
+<span class="c"># 測定パラメータの現在の管理クラスを確認</span>
+<span class="p">$ </span><span class="cmd">grep -rn "励磁\|fstart\|fdelta\|excVolt\|integTime\|MeasParam\|MeasureSettings" \
+  lib/ --include="*.dart" | head -15</span>
+<span class="c"># パラメータを保存している SharedPreferences のキーを確認</span>
+<span class="p">$ </span><span class="cmd">grep -rn "SharedPreferences\|prefs\.set\|prefs\.get" \
+  lib/features/measure/ --include="*.dart" | head -15</span>
+        </div>
+
+        <div class="callout teal">
+          <strong>実装方針。</strong>
+          確認結果に応じて以下のどちらかで実装してください。
+          <ul>
+            <li><strong>パターン A</strong>: 既存の設定 UI Widget がある場合 → その Widget を
+            <code>MeasurementParamsScreen</code> に <code>wrap</code> するだけで OK</li>
+            <li><strong>パターン B</strong>: UI が <code>MeasurementSessionScreen</code> 内に
+            インラインで書かれている場合 → 該当部分を抽出して新ファイルに移植</li>
+          </ul>
+        </div>
+
+<pre><span class="fn">lib/screens/settings/measurement_params_screen.dart — 骨格</span><span class="kw">import</span> <span class="st">'package:flutter/material.dart'</span>;
+<span class="cm">// 既存の測定パラメータ Provider / SharedPreferences のインポートを追加</span>
+
+<span class="kw">class</span> <span class="cl">MeasurementParamsScreen</span> <span class="kw">extends</span> <span class="cl">StatefulWidget</span> {
+  <span class="kw">const</span> <span class="cl">MeasurementParamsScreen</span>({<span class="kw">super</span>.key});
+  <span class="kw">@override</span>
+  <span class="cl">State</span>&lt;<span class="cl">MeasurementParamsScreen</span>&gt; createState() =&gt;
+      _MeasurementParamsScreenState();
+}
+
+<span class="kw">class</span> <span class="cl">_MeasurementParamsScreenState</span> <span class="kw">extends</span> <span class="cl">State</span>&lt;<span class="cl">MeasurementParamsScreen</span>&gt; {
+  <span class="cm">// 既存の測定パラメータフィールドをここに宣言
+  // 例: double _excVolt = 1.0;  double _range = 0.5;  double _intTime = 0.1; etc.</span>
+
+  <span class="kw">@override</span>
+  <span class="kw">void</span> initState() {
+    <span class="kw">super</span>.initState();
+    <span class="cm">// 既存の SharedPreferences から値を読み込む処理を移植</span>
+  }
+
+  <span class="kw">@override</span>
+  <span class="cl">Widget</span> build(<span class="cl">BuildContext</span> context) {
+    <span class="kw">return</span> <span class="wg">Scaffold</span>(
+      appBar: <span class="wg">AppBar</span>(
+        title: <span class="kw">const</span> <span class="wg">Text</span>(<span class="st">'測定条件の設定'</span>),
+        backgroundColor: <span class="kw">const</span> <span class="wg">Color</span>(<span class="nm">0xFF6B5C44</span>),
+        foregroundColor: <span class="wg">Colors</span>.white,
+      ),
+      body: <span class="wg">ListView</span>(
+        padding: <span class="kw">const</span> <span class="wg">EdgeInsets</span>.all(<span class="nm">16</span>),
+        children: [
+          <span class="cm">// ── 励磁電圧 / レンジ / 積分時間 / 平均回数 ─────────────</span>
+          _sectionLabel(<span class="st">'測定パラメータ'</span>),
+          <span class="cm">// 既存の TextField / NumberTextField 等を移植</span>
+          <span class="cm">// 各フィールドの onChanged で setState + SharedPreferences.setDouble</span>
+
+          <span class="cm">// ── fstart / fdelta / points ─────────────────────────</span>
+          _sectionLabel(<span class="st">'周波数パラメータ'</span>),
+          <span class="cm">// 同様に移植</span>
+
+          <span class="cm">// ── センサー番号 ──────────────────────────────────────</span>
+          _sectionLabel(<span class="st">'センサー'</span>),
+          <span class="cm">// センサー選択 Dropdown を移植</span>
+        ],
+      ),
+    );
+  }
+
+  <span class="cl">Widget</span> _sectionLabel(<span class="cl">String</span> label) =&gt; <span class="wg">Padding</span>(
+    padding: <span class="kw">const</span> <span class="wg">EdgeInsets</span>.fromLTRB(<span class="nm">0</span>, <span class="nm">16</span>, <span class="nm">0</span>, <span class="nm">4</span>),
+    child: <span class="wg">Text</span>(label,
+        style: <span class="kw">const</span> <span class="wg">TextStyle</span>(
+            fontWeight: <span class="wg">FontWeight</span>.bold,
+            color: <span class="wg">Color</span>(<span class="nm">0xFF6B5C44</span>))),
+  );
+}</pre>
+      </div>
+    </div>
+
+    <div class="step" id="step2-device">
+      <div class="snum">6</div>
+      <div class="sbody">
+        <h4>SettingsScreen の「測定条件の設定」ListTile に遷移を接続</h4>
+        <span class="sloc">lib/screens/settings/settings_screen.dart（編集）</span>
+<pre><span class="fn">settings_screen.dart の「測定条件の設定」ListTile を更新</span><span class="kw">import</span> <span class="st">'measurement_params_screen.dart'</span>;
+
+<span class="cm">// 変更前（Phase 3 のスタブ）</span>
+<span class="wg">ListTile</span>(
+  title: <span class="kw">const</span> <span class="wg">Text</span>(<span class="st">'測定条件の設定'</span>),
+  trailing: <span class="kw">const</span> <span class="wg">Icon</span>(<span class="wg">Icons</span>.chevron_right),
+  onTap: () {},  <span class="cm">// ← スタブ</span>
+),
+
+<span class="cm">// 変更後（MeasurementParamsScreen に正式接続）</span>
+<span class="wg">ListTile</span>(
+  title: <span class="kw">const</span> <span class="wg">Text</span>(<span class="st">'測定条件の設定'</span>),
+  trailing: <span class="kw">const</span> <span class="wg">Icon</span>(<span class="wg">Icons</span>.chevron_right),
+  onTap: () =&gt; <span class="wg">Navigator</span>.push(
+    context,
+    <span class="wg">MaterialPageRoute</span>(
+      builder: (_) =&gt; <span class="kw">const</span> <span class="cl">MeasurementParamsScreen</span>()),
+  ),
+),</pre>
+
+        <div class="callout">
+          <strong>Phase 3 の SettingsScreen には既に BgScreen への遷移が書かれている場合があります。</strong>
+          <code>grep -n "BgScreen\|bgScreen\|onTap" lib/screens/settings/settings_screen.dart</code>
+          で確認し、既に別の画面に繋がっているならその遷移先を
+          <code>MeasurementParamsScreen</code> に差し替えてください。
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ====== STEP 3: HelpScreen ====== -->
+<section id="step3">
+  <h2><span class="n">03</span>HelpScreen の充実 <span class="en">help screen</span></h2>
+
+  <div class="steps">
+    <div class="step" id="step3-faq">
+      <div class="snum">7</div>
+      <div class="sbody">
+        <h4>FAQ 画面を静的コンテンツで新設</h4>
+        <span class="sloc">lib/screens/help/faq_screen.dart（新規作成）</span>
+<pre><span class="fn">lib/screens/help/faq_screen.dart</span><span class="kw">import</span> <span class="st">'package:flutter/material.dart'</span>;
+
+<span class="kw">class</span> <span class="cl">FaqScreen</span> <span class="kw">extends</span> <span class="cl">StatelessWidget</span> {
+  <span class="kw">const</span> <span class="cl">FaqScreen</span>({<span class="kw">super</span>.key});
+
+  <span class="kw">static const</span> _faqs = [
+    (
+      q: <span class="st">'センサーが接続できません'</span>,
+      a: <span class="st">'USBケーブルが正しく接続されているか確認してください。\n'</span>
+         <span class="st">'接続後、測定画面の「接続 センサ」チップをタップしてください。\n'</span>
+         <span class="st">'改善しない場合はアプリを再起動して再度お試しください。'</span>,
+    ),
+    (
+      q: <span class="st">'BG測定が終わらない / 失敗する'</span>,
+      a: <span class="st">'センサーが安定した場所に置かれているか確認してください。\n'</span>
+         <span class="st">'BG測定は圃場から離れた場所（金属や強い磁場のない場所）で行ってください。'</span>,
+    ),
+    (
+      q: <span class="st">'測定開始ボタンが押せません'</span>,
+      a: <span class="st">'「接続 センサ」「BG 基準」「圃場を選択」の3チップがすべて緑になると\n'</span>
+         <span class="st">'測定開始ボタンが有効化されます。いずれかが未完了の場合は再度設定してください。'</span>,
+    ),
+    (
+      q: <span class="st">'圃場の外で測定しようとするとエラーになります'</span>,
+      a: <span class="st">'登録した圃場の境界内でのみ測定できます。\n'</span>
+         <span class="st">'GPS位置がずれる場合は地図をタップして位置を手動補正してください。'</span>,
+    ),
+    (
+      q: <span class="st">'アップロードが失敗しました'</span>,
+      a: <span class="st">'測定データはローカルに保存されています。\n'</span>
+         <span class="st">'ネットワークに接続した後、同期画面からアップロードしてください。'</span>,
+    ),
+    (
+      q: <span class="st">'作業記録を誤って登録しました'</span>,
+      a: <span class="st">'現在のバージョンでは作業記録の削除・編集機能は準備中です。\n'</span>
+         <span class="st">'お問い合わせから連絡いただければ管理側で対応します。'</span>,
+    ),
+    (
+      q: <span class="st">'CEC 以外の値（CaO、K₂O、MgO）が表示されません'</span>,
+      a: <span class="st">'Ca・K・Mg の推定モデルは現在開発中です。\n'</span>
+         <span class="st">'完成次第アプリのアップデートで反映されます。'</span>,
+    ),
+  ];
+
+  <span class="kw">@override</span>
+  <span class="cl">Widget</span> build(<span class="cl">BuildContext</span> context) {
+    <span class="kw">return</span> <span class="wg">Scaffold</span>(
+      appBar: <span class="wg">AppBar</span>(
+        title: <span class="kw">const</span> <span class="wg">Text</span>(<span class="st">'よくある質問'</span>),
+        backgroundColor: <span class="kw">const</span> <span class="wg">Color</span>(<span class="nm">0xFF4A6A80</span>),
+        foregroundColor: <span class="wg">Colors</span>.white,
+      ),
+      body: <span class="wg">ListView</span>.separated(
+        padding: <span class="kw">const</span> <span class="wg">EdgeInsets</span>.all(<span class="nm">12</span>),
+        itemCount: _faqs.length,
+        separatorBuilder: (_, __) =&gt; <span class="kw">const</span> <span class="wg">SizedBox</span>(height: <span class="nm">8</span>),
+        itemBuilder: (_, i) {
+          <span class="kw">final</span> faq = _faqs[i];
+          <span class="kw">return</span> <span class="wg">ExpansionTile</span>(
+            tilePadding: <span class="kw">const</span> <span class="wg">EdgeInsets</span>.symmetric(horizontal: <span class="nm">16</span>, vertical: <span class="nm">4</span>),
+            shape: <span class="wg">RoundedRectangleBorder</span>(
+              borderRadius: <span class="wg">BorderRadius</span>.circular(<span class="nm">8</span>),
+              side: <span class="wg">BorderSide</span>(color: <span class="wg">Colors</span>.grey[<span class="nm">300</span>]!),
+            ),
+            backgroundColor: <span class="wg">Colors</span>.white,
+            collapsedBackgroundColor: <span class="wg">Colors</span>.white,
+            leading: <span class="kw">const</span> <span class="wg">Icon</span>(<span class="wg">Icons</span>.help_outline,
+                color: <span class="wg">Color</span>(<span class="nm">0xFF4A6A80</span>)),
+            title: <span class="wg">Text</span>(faq.q,
+                style: <span class="kw">const</span> <span class="wg">TextStyle</span>(
+                    fontWeight: <span class="wg">FontWeight</span>.w600, fontSize: <span class="nm">14</span>)),
+            children: [
+              <span class="wg">Padding</span>(
+                padding: <span class="kw">const</span> <span class="wg">EdgeInsets</span>.fromLTRB(<span class="nm">16</span>, <span class="nm">0</span>, <span class="nm">16</span>, <span class="nm">16</span>),
+                child: <span class="wg">Text</span>(faq.a,
+                    style: <span class="wg">TextStyle</span>(
+                        color: <span class="wg">Colors</span>.grey[<span class="nm">700</span>], fontSize: <span class="nm">13</span>, height: <span class="nm">1.6</span>)),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}</pre>
+      </div>
+    </div>
+
+    <div class="step" id="step3-appinfo">
+      <div class="snum">8</div>
+      <div class="sbody">
+        <h4>HelpScreen の「FAQ」と「アプリ情報」を実装へ切り替え</h4>
+        <span class="sloc">lib/screens/help/help_screen.dart（既存ファイルを編集）</span>
+<pre><span class="fn">help_screen.dart — FAQとアプリ情報の onTap を実装</span><span class="kw">import</span> <span class="st">'package:flutter/material.dart'</span>;
+<span class="kw">import</span> <span class="st">'package:package_info_plus/package_info_plus.dart'</span>;
+<span class="kw">import</span> <span class="st">'faq_screen.dart'</span>;
+
+<span class="cm">// HelpScreen の build 内の ListTile を更新</span>
+
+<span class="cm">// FAQ: ダミーから FaqScreen への遷移に変更</span>
+_helpCard(context, <span class="wg">Icons</span>.help_outline, <span class="st">'よくある質問（FAQ）'</span>,
+    <span class="st">'測定失敗・同期エラーなど'</span>, () {
+  <span class="wg">Navigator</span>.push(context,
+      <span class="wg">MaterialPageRoute</span>(builder: (_) =&gt; <span class="kw">const</span> <span class="cl">FaqScreen</span>()));  <span class="cm">// ← 実装済み</span>
+}),
+
+<span class="cm">// アプリ情報: aboutDialog を表示</span>
+_helpCard(context, <span class="wg">Icons</span>.info_outline, <span class="st">'アプリ情報'</span>,
+    <span class="st">'利用規約・ライセンス'</span>, () <span class="kw">async</span> {
+  <span class="kw">final</span> info = <span class="kw">await</span> <span class="cl">PackageInfo</span>.fromPlatform();
+  <span class="kw">if</span> (context.mounted) {
+    showAboutDialog(
+      context: context,
+      applicationName:    <span class="st">'HenryMonitor'</span>,
+      applicationVersion: <span class="st">'v${info.version} (${info.buildNumber})'</span>,
+      applicationIcon: <span class="wg">Image</span>.asset(
+        <span class="st">'assets/icon/icon.png'</span>,  <span class="cm">// 実際のアイコンパスに合わせること</span>
+        width: <span class="nm">48</span>, height: <span class="nm">48</span>,
+      ),
+      children: <span class="kw">const</span> [
+        <span class="wg">SizedBox</span>(height: <span class="nm">8</span>),
+        <span class="wg">Text</span>(<span class="st">'磁界式センサーと機械学習による土壌成分分析アプリ'</span>),
+      ],
+    );
+  }
+}),
+
+<span class="cm">// お問い合わせ: 引き続きダミー（優先度低のまま）</span>
+_helpCard(context, <span class="wg">Icons</span>.mail_outline, <span class="st">'お問い合わせ'</span>,
+    <span class="st">'サポートに連絡する'</span>, () {
+  <span class="wg">ScaffoldMessenger</span>.of(context).showSnackBar(
+    <span class="kw">const</span> <span class="wg">SnackBar</span>(content: <span class="wg">Text</span>(<span class="st">'お問い合わせ機能は準備中です'</span>)),
+  );
+}),</pre>
+        <div class="callout note">
+          <strong>アイコン画像のパスについて。</strong>
+          <code>assets/icon/icon.png</code> は実際のプロジェクトのアイコンパスに合わせてください。
+          <code>grep -n "assets" pubspec.yaml | head -10</code> で確認できます。
+          アイコンがない場合は <code>applicationIcon</code> を省略してください。
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ====== STEP 4: 統合テスト ====== -->
+<section id="step4">
+  <h2><span class="n">04</span>全画面統合テスト <span class="en">integration check</span></h2>
+
+  <div class="steps">
+    <div class="step">
+      <div class="snum">9</div>
+      <div class="sbody">
+        <h4>エミュレーターで全導線をチェック</h4>
+        <span class="sloc">Android エミュレーター</span>
+        <div class="shell">
+<span class="p">$ </span><span class="cmd">flutter run</span>
+        </div>
+        <table>
+          <thead><tr><th>確認項目</th><th>期待動作</th></tr></thead>
+          <tbody>
+            <tr><td colspan="2" style="background:var(--bluep);font-weight:700;color:var(--blue);">SyncScreen</td></tr>
+            <tr><td>同期実行中</td><td>進捗バーと「X / N件 同期中...」テキストが表示される</td></tr>
+            <tr><td>エラーのある行</td><td>赤背景で強調され、右端にリトライアイコンが表示される</td></tr>
+            <tr><td>同期完了後</td><td>最終同期日時が更新される。HomeScreen のバッジ件数が減る</td></tr>
+            <tr><td>作業ログの未送信セクション</td><td>オフライン保存データがある場合に表示される（Phase 6 動作確認）</td></tr>
+            <tr><td colspan="2" style="background:var(--soilp);font-weight:700;color:var(--soil);">SettingsScreen</td></tr>
+            <tr><td>バージョン表示</td><td>「v0.x.x (ビルド番号)」が動的に表示される（ハードコードの "v0.4.0" ではない）</td></tr>
+            <tr><td>「測定条件の設定」タップ</td><td>MeasurementParamsScreen が開く（スタブのままでなくなっている）</td></tr>
+            <tr><td>測定パラメータの変更</td><td>値を変更して保存後、再度開いたときに値が保持されている</td></tr>
+            <tr><td>ログアウト</td><td>確認ダイアログが出て、ログアウト後にログイン画面に遷移する</td></tr>
+            <tr><td colspan="2" style="background:var(--tealp);font-weight:700;color:var(--teal);">HelpScreen</td></tr>
+            <tr><td>「よくある質問」タップ</td><td>FaqScreen が開き、7件の FAQ が ExpansionTile で表示される</td></tr>
+            <tr><td>FAQ タップ</td><td>回答テキストが展開される</td></tr>
+            <tr><td>「アプリ情報」タップ</td><td>バージョン情報ダイアログが表示される</td></tr>
+            <tr><td>「お問い合わせ」タップ</td><td>「準備中」スナックバーが表示される</td></tr>
+            <tr><td>「使い方ガイド」タップ</td><td>Phase 3 実装の5ステップボトムシートが表示される（変更なし）</td></tr>
+            <tr><td colspan="2" style="background:var(--leafp);font-weight:700;color:var(--leaf);">既存機能への影響確認</td></tr>
+            <tr><td>測定画面</td><td>Phase 7 時点と変わらず動作する</td></tr>
+            <tr><td>圃場詳細（マップ/時系列/タイムライン）</td><td>Phase 5 時点と変わらず動作する</td></tr>
+            <tr><td>作業記録入力</td><td>Phase 6 時点と変わらず動作する</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ====== STEP 5: lint cleanup ====== -->
+<section id="step5">
+  <h2><span class="n">05</span>lint / analyze 最終クリーンアップ <span class="en">lint cleanup</span></h2>
+
+  <p>
+    Phase 8 は最終フェーズのため、プロジェクト全体の lint をできる限りクリーンにします。
+    ただし<strong>既存の 117件 info（avoid_print / deprecated 等）を完全にゼロにすることは目標としません</strong>。
+    今回追加したファイルの lint が 0件であることを確認します。
+  </p>
+
+  <div class="steps">
+    <div class="step">
+      <div class="snum">10</div>
+      <div class="sbody">
+        <h4>今回追加したファイルの lint を確認</h4>
+        <span class="sloc">ターミナル / ローカル</span>
+        <div class="shell">
+<span class="c"># 今回追加・編集したファイルのみ analyze</span>
+<span class="p">$ </span><span class="cmd">dart analyze lib/screens/sync/sync_screen.dart \
+  lib/screens/settings/settings_screen.dart \
+  lib/screens/settings/measurement_params_screen.dart \
+  lib/screens/help/help_screen.dart \
+  lib/screens/help/faq_screen.dart</span>
+<span class="c"># これらのファイルに error / warning がないことを確認</span>
+
+<span class="c"># プロジェクト全体の issue 数が前より増えていないことを確認</span>
+<span class="p">$ </span><span class="cmd">flutter analyze 2>&1 | tail -3</span>
+<span class="c"># "117 issues found" 以下であれば OK</span>
+        </div>
+        <div class="callout">
+          <strong>よくある lint エラーと対処。</strong>
+          <ul>
+            <li><code>deprecated_member_use</code>: <code>withOpacity()</code> → <code>withValues(alpha:)</code> に変更</li>
+            <li><code>avoid_print</code>: <code>print()</code> → <code>debugPrint()</code> に変更（または削除）</li>
+            <li><code>unnecessary_brace_in_string_interps</code>: <code>'${x}'</code> → <code>'$x'</code> に変更</li>
+            <li><code>prefer_const_constructors</code>: <code>const</code> を追加</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="snum">11</div>
+      <div class="sbody">
+        <h4>dart format を実行</h4>
+        <span class="sloc">ターミナル / ローカル</span>
+        <div class="shell">
+<span class="p">$ </span><span class="cmd">dart format lib/screens/sync/sync_screen.dart \
+  lib/screens/settings/settings_screen.dart \
+  lib/screens/settings/measurement_params_screen.dart \
+  lib/screens/help/help_screen.dart \
+  lib/screens/help/faq_screen.dart</span>
+<span class="c"># "Formatted N files" と表示されれば OK</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ====== STEP 6: PR & CI/CD ====== -->
+<section id="step6">
+  <h2><span class="n">06</span>commit → PR → main マージ <span class="en">deploy</span></h2>
+
+  <div class="steps">
+    <div class="step">
+      <div class="snum">12</div>
+      <div class="sbody">
+        <h4>変更をコミットして push</h4>
+        <span class="sloc">ターミナル / ローカル</span>
+        <div class="shell">
+<span class="p">$ </span><span class="cmd">git add -A</span>
+<span class="p">$ </span><span class="cmd">git diff --cached --stat</span>
+<span class="c"># 変更: sync_screen.dart / settings_screen.dart / help_screen.dart</span>
+<span class="c"># 新規: measurement_params_screen.dart / faq_screen.dart</span>
+
+<span class="p">$ </span><span class="cmd">git commit -m "feat: enhance sync / settings / help screens (Phase 8 — final)"</span>
+<span class="p">$ </span><span class="cmd">git push origin feature/phase8-sync-settings-help</span>
+        </div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="snum">13</div>
+      <div class="sbody">
+        <h4>GitHub でプルリクエストを作成してマージ</h4>
+        <span class="sloc">GitHub Web UI</span>
+        <ol>
+          <li>PR タイトル: <code>feat: enhance sync / settings / help screens (Phase 8 — final)</code></li>
+          <li>PR 本文:
+            <ul>
+              <li>作成・変更ファイルの一覧</li>
+              <li><code>flutter analyze</code> の件数（117件以下であること）</li>
+              <li>全画面の動作確認チェックリストをコメントとして添付</li>
+            </ul>
+          </li>
+          <li><strong>Squash and merge</strong> で main にマージ → feature ブランチを削除</li>
+        </ol>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ====== STEP 7: 実機確認 ====== -->
+<section id="step7">
+  <h2><span class="n">07</span>実機最終確認 <span class="en">final device check</span></h2>
+
+  <div class="steps">
+    <div class="step">
+      <div class="snum">14</div>
+      <div class="sbody">
+        <h4>実機で APK をインストールして最終確認</h4>
+        <span class="sloc">ターミナル + Android 実機</span>
+        <div class="shell">
+<span class="p">$ </span><span class="cmd">flutter build apk --debug && flutter install</span>
+        </div>
+        <p>以下を重点確認します。</p>
+        <ul>
+          <li>SyncScreen で実際の未同期データを選択して同期し、最終同期日時が更新されること</li>
+          <li>SettingsScreen でアプリバージョンが実際の値で表示されること</li>
+          <li>「測定条件の設定」を開いてパラメータを変更後、測定画面でその値が使われること</li>
+          <li>HelpScreen の FAQ が開き、アプリ情報ダイアログが表示されること</li>
+          <li>Phase 1〜7 で実装したすべての機能（測定・圃場詳細・作業記録・タイムライン・時系列）が引き続き正常に動作すること</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ====== DoD ====== -->
+<section id="dod">
+  <h2><span class="n">✓</span>完了条件チェックリスト — Phase 8 および全フェーズ総括 <span class="en">definition of done</span></h2>
+
+  <p style="font-size:13px;color:var(--ink3);margin-bottom:16px;">
+    <span class="tag l">L</span> ローカル確認 &nbsp;
+    <span class="tag ci">CI</span> PR &amp; CI/CD 確認 &nbsp;
+    <span class="tag e">E</span> 実機デプロイ後確認
+  </p>
+
+  <h3>Phase 8 の完了条件</h3>
+  <ul class="dod-list">
+    <li>
+      <span class="tag l">L</span> 今回追加したファイルの <code>dart analyze</code> でエラー・警告なし
+    </li>
+    <li>
+      <span class="tag l">L</span> SyncScreen に進捗バー・エラー強調・リトライボタン・最終同期日時が表示される
+    </li>
+    <li>
+      <span class="tag l">L</span> SettingsScreen のバージョン表示が動的（<code>package_info_plus</code> 取得値）になっている
+    </li>
+    <li>
+      <span class="tag l">L</span> SettingsScreen「測定条件の設定」タップで MeasurementParamsScreen が開く
+    </li>
+    <li>
+      <span class="tag l">L</span> HelpScreen「よくある質問」タップで FaqScreen が開き、7件の FAQ が表示される
+    </li>
+    <li>
+      <span class="tag l">L</span> HelpScreen「アプリ情報」タップでバージョン情報ダイアログが表示される
+    </li>
+    <li>
+      <span class="tag ci">CI</span> feature ブランチが main にマージされ、CI が success になっている
+    </li>
+    <li>
+      <span class="tag e">E</span> 実機で SyncScreen の同期が動作し、最終同期日時が更新される
+    </li>
+    <li>
+      <span class="tag e">E</span> 実機で測定パラメータを変更後、測定画面でその値が使われる
+    </li>
+  </ul>
+
+  <h3 style="margin-top:32px;">Phase 1〜8 全フェーズ完了の総合確認</h3>
+  <ul class="dod-list">
+    <li>
+      <span class="tag e">E</span>
+      <strong>測定フロー（Phase 7）</strong>: センサー接続 → BG → 圃場選択 → 測定 → ピン赤→黄→緑 が動作する
+    </li>
+    <li>
+      <span class="tag e">E</span>
+      <strong>圃場一覧（Phase 4）</strong>: カード3行レイアウト。CEC/CaO/K₂O/MgO の平均値が表示される
+    </li>
+    <li>
+      <span class="tag e">E</span>
+      <strong>マップタブ（Phase 4）</strong>: 測定ピンが地図上に表示され、パラメータ・日付切替が動作する
+    </li>
+    <li>
+      <span class="tag e">E</span>
+      <strong>時系列タブ（Phase 5）</strong>: 折れ線グラフ（avg + min/max バンド）が表示される。パラメータ切替が動作する
+    </li>
+    <li>
+      <span class="tag e">E</span>
+      <strong>タイムラインタブ（Phase 5）</strong>: 測定結果カードと作業ログカードが日付降順で混在表示される
+    </li>
+    <li>
+      <span class="tag e">E</span>
+      <strong>作業記録入力（Phase 6）</strong>: 「+作業記録」FAB → 3ステップ入力 → 保存 → タイムライン更新が動作する
+    </li>
+    <li>
+      <span class="tag e">E</span>
+      <strong>オフライン保存（Phase 6）</strong>: オフライン時の作業ログ保存 → 同期画面から送信が動作する
+    </li>
+    <li>
+      <span class="tag e">E</span>
+      <strong>同期画面（Phase 8）</strong>: 未同期データの一括同期・エラーリトライ・最終同期日時が動作する
+    </li>
+    <li>
+      <span class="tag e">E</span>
+      <strong>設定画面（Phase 8）</strong>: アカウント・通信・測定条件・バージョン情報が表示される
+    </li>
+    <li>
+      <span class="tag e">E</span>
+      <strong>ヘルプ画面（Phase 8）</strong>: FAQ・アプリ情報が表示される
+    </li>
+    <li>
+      <span class="tag ci">CI</span>
+      <strong>バックエンド（Phase 1〜2）</strong>: <code>php artisan test</code>（ローカル）で 43件以上 PASS。EC2 デプロイ済み
+    </li>
+  </ul>
+
+  <div class="callout" style="margin-top:32px;background:var(--leafp);border-color:var(--leaf);">
+    <strong>🎉 Phase 1〜8 完了。</strong>
+    HenryMonitor モバイルアプリの UI 大幅修正計画が完了しました。
+    引き続き予定している機能拡張（固定地点機能・Ca/K/Mg 推定モデル統合・CEC₂→CEC キー修正）は
+    別タスクとして新しいフェーズ計画を立ててから着手してください。
+    お疲れ様でした。
+  </div>
+</section>
+
+</main>
+</div>
+</body>
+</html>

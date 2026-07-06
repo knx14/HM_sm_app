@@ -1,0 +1,1459 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1.0" />
+<title>HenryMonitor Phase 3 実装手順書 — Flutter ナビゲーション刷新</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&family=Noto+Serif+JP:wght@700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:#f8f7f1;--paper:#fff;--ink:#1a2318;--ink-2:#3d4f3a;--ink-3:#6b7e68;
+  --line:#dbd6c4;--line-soft:#eae6d6;
+  --leaf:#2e5c39;--leaf-l:#4a8459;--leaf-p:#e2ede4;
+  --soil:#7a4525;--soil-p:#f2e8e0;
+  --amber:#b85c00;--amber-p:#fef0d8;
+  --red:#b02020;--red-p:#fce4e4;
+  --blue:#1a4f7a;--blue-p:#ddeaf5;
+  --teal:#1a6a6a;--teal-p:#d8efef;
+  --code-bg:#181f16;--code-fg:#d4e8cc;
+  --code-cm:#5a8f58;--code-kw:#7dd3a8;--code-st:#f7c07a;
+  --code-nm:#7ec8e3;--code-cl:#e8d07a;--code-ar:#c8a0e8;
+  --step-line:#b0c8b0;
+}
+*{box-sizing:border-box;}html{scroll-behavior:smooth;}
+body{margin:0;padding:0;background:var(--bg);color:var(--ink);font-family:"Noto Sans JP",sans-serif;font-size:14.5px;line-height:1.8;-webkit-font-smoothing:antialiased;}
+.layout{display:flex;min-height:100vh;}
+
+/* ── Sidebar ── */
+.toc{width:252px;flex-shrink:0;background:#111a10;color:#c8d8c4;padding:28px 0 60px;position:sticky;top:0;height:100vh;overflow-y:auto;}
+.toc-logo{padding:0 20px 18px;border-bottom:1px solid rgba(255,255,255,.08);margin-bottom:14px;}
+.toc-logo .proj{font-size:11px;letter-spacing:.18em;color:#5a9a56;text-transform:uppercase;}
+.toc-logo .phase{font-family:"Noto Serif JP",serif;font-size:18px;color:#e8f0e4;font-weight:700;margin-top:4px;}
+.toc-logo .sub{font-size:11px;color:#5a9a56;margin-top:2px;line-height:1.5;}
+.toc ul{list-style:none;margin:0;padding:0;}
+.toc li a{display:block;padding:6px 20px;font-size:12px;color:#8ab88a;text-decoration:none;border-left:3px solid transparent;transition:all .15s;}
+.toc li a:hover{background:rgba(255,255,255,.06);color:#e8f0e4;border-left-color:var(--leaf-l);}
+.toc li a.sec{font-weight:700;color:#c4dcc0;font-size:12px;margin-top:8px;}
+.toc li a.sub{padding-left:32px;font-size:11.5px;color:#6a9a66;}
+.toc hr{border:none;border-top:1px solid rgba(255,255,255,.06);margin:8px 20px;}
+
+/* ── Main ── */
+.main{flex:1;padding:48px 56px 100px;max-width:900px;}
+
+/* ── Cover ── */
+.cover{background:var(--paper);border:1px solid var(--line);padding:40px 44px;position:relative;overflow:hidden;margin-bottom:52px;}
+.cover::after{content:"";position:absolute;top:0;left:0;right:0;height:5px;background:linear-gradient(90deg,var(--leaf) 0%,var(--leaf-l) 50%,var(--teal) 100%);}
+.badge{font-family:"JetBrains Mono",monospace;font-size:11px;letter-spacing:.2em;background:var(--leaf-p);color:var(--leaf);padding:3px 10px;border-radius:2px;display:inline-block;margin-bottom:14px;text-transform:uppercase;}
+.cover h1{font-family:"Noto Serif JP",serif;font-size:28px;font-weight:700;margin:0 0 8px;line-height:1.35;}
+.cover .desc{color:var(--ink-2);font-size:14px;margin:0 0 24px;}
+.cmeta{display:flex;gap:24px;flex-wrap:wrap;border-top:1px solid var(--line-soft);padding-top:18px;}
+.cmeta dl{margin:0;}.cmeta dt{font-family:"JetBrains Mono",monospace;font-size:10px;letter-spacing:.15em;text-transform:uppercase;color:var(--ink-3);margin:0 0 3px;}.cmeta dd{margin:0;font-size:13px;font-weight:500;}
+
+/* ── Sections ── */
+section{margin-bottom:60px;}
+h2{font-family:"Noto Serif JP",serif;font-size:21px;font-weight:700;margin:0 0 20px;padding:13px 18px;background:var(--ink);color:#e8f0e4;display:flex;align-items:center;gap:14px;}
+h2 .n{font-family:"JetBrains Mono",monospace;font-size:12px;color:var(--leaf-l);letter-spacing:.1em;}
+h2 .en{font-family:"JetBrains Mono",monospace;font-size:10px;color:#6a9a66;letter-spacing:.2em;text-transform:uppercase;margin-left:auto;}
+h3{font-size:16px;font-weight:700;margin:32px 0 10px;padding-bottom:7px;border-bottom:2px solid var(--leaf-p);color:var(--leaf);}
+h4{font-size:14px;font-weight:700;margin:20px 0 8px;color:var(--ink-2);}
+p{margin:0 0 12px;}ul,ol{margin:0 0 12px;padding-left:20px;}li{margin-bottom:5px;}strong{color:var(--ink);}
+
+/* ── Steps ── */
+.steps{position:relative;}
+.step{display:grid;grid-template-columns:52px 1fr;gap:0 18px;margin-bottom:8px;position:relative;}
+.step::before{content:"";position:absolute;left:25px;top:52px;bottom:-8px;width:2px;background:var(--step-line);}
+.step:last-child::before{display:none;}
+.step-num{width:52px;height:52px;border-radius:50%;background:var(--leaf);color:#fff;display:flex;align-items:center;justify-content:center;font-family:"JetBrains Mono",monospace;font-size:14px;font-weight:700;flex-shrink:0;position:relative;z-index:1;align-self:start;margin-top:12px;}
+.step-num.chk{background:var(--blue);}
+.step-num.wrn{background:var(--amber);}
+.step-body{background:var(--paper);border:1px solid var(--line);padding:18px 22px 16px;}
+.step-body h4{margin-top:0;font-size:15px;color:var(--ink);}
+.step-body p:last-child,.step-body ul:last-child{margin-bottom:0;}
+.sloc{font-family:"JetBrains Mono",monospace;font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);background:var(--bg);border:1px solid var(--line-soft);padding:2px 8px;border-radius:2px;display:inline-block;margin-bottom:8px;}
+
+/* ── Code ── */
+pre{background:var(--code-bg);color:var(--code-fg);padding:16px 18px;border-radius:3px;overflow-x:auto;font-family:"JetBrains Mono",monospace;font-size:12.5px;line-height:1.7;margin:10px 0 12px;}
+pre .fn{display:block;font-size:10px;letter-spacing:.1em;color:#486a46;margin-bottom:10px;border-bottom:1px solid rgba(255,255,255,.06);padding-bottom:8px;}
+pre .cm{color:var(--code-cm);}pre .kw{color:var(--code-kw);}pre .st{color:var(--code-st);}
+pre .nm{color:var(--code-nm);}pre .cl{color:var(--code-cl);}pre .ar{color:var(--code-ar);}
+pre .wg{color:#f0b060;}/* widget names */
+code{font-family:"JetBrains Mono",monospace;font-size:12.5px;background:#edeadc;color:var(--soil);padding:1px 5px;border-radius:2px;}
+.shell{background:#090f08;color:#a8d8a0;padding:14px 18px;border-radius:3px;font-family:"JetBrains Mono",monospace;font-size:12.5px;line-height:1.7;margin:10px 0 12px;border-left:3px solid var(--leaf-l);overflow-x:auto;}
+.shell .p{color:#4a8a48;user-select:none;}.shell .c{color:#326030;}.shell .cmd{color:#c0e0b8;}
+
+/* ── Callouts ── */
+.callout{padding:12px 16px;margin:12px 0;font-size:13.5px;border-left:4px solid var(--leaf);background:var(--leaf-p);}
+.callout.warn{border-color:var(--amber);background:var(--amber-p);}
+.callout.danger{border-color:var(--red);background:var(--red-p);}
+.callout.info{border-color:var(--blue);background:var(--blue-p);}
+.callout.note{border-color:var(--soil);background:var(--soil-p);}
+.callout.teal{border-color:var(--teal);background:var(--teal-p);}
+.callout strong{display:block;margin-bottom:3px;}
+
+/* ── Tables ── */
+table{border-collapse:collapse;width:100%;margin:10px 0 14px;font-size:13px;}
+th,td{padding:8px 12px;border-bottom:1px solid var(--line-soft);text-align:left;vertical-align:top;}
+th{background:var(--leaf-p);font-weight:700;font-size:11.5px;letter-spacing:.04em;border-bottom:2px solid var(--leaf);color:var(--leaf);}
+tr:hover td{background:#f5f2e8;}
+
+/* ── Tags ── */
+.tag{display:inline-block;font-family:"JetBrains Mono",monospace;font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:2px 7px;border-radius:2px;vertical-align:middle;margin:0 2px;}
+.tag.new{background:var(--leaf-p);color:var(--leaf);}
+.tag.mod{background:var(--blue-p);color:var(--blue);}
+.tag.del{background:var(--red-p);color:var(--red);}
+.tag.kept{background:#ede9d8;color:var(--ink-3);}
+.tag.l{background:var(--leaf-p);color:var(--leaf);}
+.tag.ci{background:var(--blue-p);color:var(--blue);}
+.tag.e{background:var(--soil-p);color:var(--soil);}
+
+/* ── File tree ── */
+.filetree{background:var(--paper);border:1px solid var(--line);padding:16px 20px;font-family:"JetBrains Mono",monospace;font-size:12.5px;line-height:1.9;margin:10px 0 14px;}
+.filetree .d{color:var(--leaf);font-weight:700;}
+.filetree .nf{color:var(--amber);}
+.filetree .nf::after{content:" ← NEW";font-size:10px;opacity:.7;}
+.filetree .mf{color:var(--blue);}
+.filetree .mf::after{content:" ← EDIT";font-size:10px;opacity:.7;}
+.filetree .df{color:var(--red);text-decoration:line-through;opacity:.6;}
+.filetree .df::after{content:" ← DELETE";font-size:10px;opacity:.7;}
+
+/* ── Before/After diff ── */
+.diff-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:12px 0;}
+.diff-box{border:1px solid var(--line);padding:0;}
+.diff-label{font-family:"JetBrains Mono",monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;padding:6px 12px;font-weight:700;}
+.diff-label.before{background:var(--red-p);color:var(--red);}
+.diff-label.after{background:var(--leaf-p);color:var(--leaf);}
+.diff-content{padding:12px 14px;font-family:"JetBrains Mono",monospace;font-size:12px;line-height:1.7;background:var(--paper);}
+
+/* ── DoD ── */
+.dod-list{list-style:none;padding-left:0;}
+.dod-list li{padding:10px 14px 10px 40px;position:relative;border-bottom:1px solid var(--line-soft);font-size:13.5px;}
+.dod-list li::before{content:"☐";position:absolute;left:12px;color:var(--leaf);font-size:16px;line-height:1;top:12px;}
+.dod-list li:last-child{border-bottom:none;}
+.dod-list li .dc{display:block;margin-top:3px;font-size:12px;color:var(--ink-3);}
+
+@media(max-width:900px){.layout{display:block;}.toc{width:100%;height:auto;position:static;}.main{padding:28px 20px 64px;}.diff-grid{grid-template-columns:1fr;}}
+</style>
+</head>
+<body>
+<div class="layout">
+
+<!-- ======== TOC ======== -->
+<nav class="toc">
+  <div class="toc-logo">
+    <div class="proj">HenryMonitor</div>
+    <div class="phase">Phase 3</div>
+    <div class="sub">Flutter ナビゲーション刷新<br>BottomNav → HomeScreen 4ボタン</div>
+  </div>
+  <ul>
+    <li><a class="sec" href="#overview">0. Phase 3 の全体像</a></li>
+    <li><a class="sub" href="#before-after">現行 vs 新構成</a></li>
+    <li><a class="sub" href="#prereq">前提確認</a></li>
+    <li><a class="sub" href="#files">作成・編集ファイル一覧</a></li>
+    <hr>
+    <li><a class="sec" href="#step1">1. ルーター定義</a></li>
+    <li><a class="sub" href="#step1-routes">AppRouter 作成</a></li>
+    <hr>
+    <li><a class="sec" href="#step2">2. HomeScreen 実装</a></li>
+    <li><a class="sub" href="#step2-screen">4ボタン + ヘルプ</a></li>
+    <li><a class="sub" href="#step2-pending">未同期バッジ</a></li>
+    <hr>
+    <li><a class="sec" href="#step3">3. SyncScreen 実装</a></li>
+    <li><a class="sec" href="#step4">4. SettingsScreen 実装</a></li>
+    <li><a class="sec" href="#step5">5. HelpScreen 実装</a></li>
+    <hr>
+    <li><a class="sec" href="#step6">6. MainScaffold / BottomNav 廃止</a></li>
+    <li><a class="sub" href="#step6-remove">BottomNav コード削除</a></li>
+    <li><a class="sub" href="#step6-entrypoint">エントリーポイント変更</a></li>
+    <hr>
+    <li><a class="sec" href="#step7">7. 既存画面のルーティング接続</a></li>
+    <li><a class="sub" href="#step7-measure">測定画面</a></li>
+    <li><a class="sub" href="#step7-farm">圃場画面</a></li>
+    <hr>
+    <li><a class="sec" href="#step8">8. 動作確認（ローカル）</a></li>
+    <li><a class="sec" href="#step9">9. commit → PR → CI/CD</a></li>
+    <li><a class="sec" href="#step10">10. 実機デプロイ後確認</a></li>
+    <li><a class="sec" href="#dod">✓ 完了条件</a></li>
+  </ul>
+</nav>
+
+<!-- ======== Main ======== -->
+<main class="main">
+
+<div class="cover">
+  <span class="badge">Phase 3 / flutter navigation</span>
+  <h1>Flutter ナビゲーション刷新 — 実装手順書</h1>
+  <p class="desc">
+    現行の <strong>BottomNavigationBar（3タブ）</strong> を廃止し、
+    新設計の <strong>HomeScreen 集約型（主要4ボタン + ヘルプ）</strong> へ移行します。
+    既存の測定・圃場機能は引き続き使えるようにしながら、
+    同期・設定・ヘルプ画面を独立した画面として新設します。
+    バックエンド API 変更はありません。
+  </p>
+  <div class="cmeta">
+    <dl><dt>STEP 1〜8</dt><dd>ローカル Flutter 環境で実施</dd></dl>
+    <dl><dt>STEP 9</dt><dd>commit → PR → main マージ → CI/CD（APK ビルドのみ）</dd></dl>
+    <dl><dt>STEP 10</dt><dd>実機（Android）での動作確認</dd></dl>
+    <dl><dt>ブランチ</dt><dd><code>feature/phase3-flutter-navigation</code></dd></dl>
+  </div>
+</div>
+
+<!-- ====== 0. OVERVIEW ====== -->
+<section id="overview">
+  <h2><span class="n">00</span>Phase 3 の全体像 <span class="en">overview</span></h2>
+
+  <h3 id="before-after">現行構成 vs 新構成</h3>
+
+  <div class="diff-grid">
+    <div class="diff-box">
+      <div class="diff-label before">現行（Phase 3 前）</div>
+      <div class="diff-content">MainScaffold（IndexedStack）
+├─ HomeScreen（結果閲覧タブ）
+├─ MeasurementSessionScreen
+│    └─ Step1〜3の4画面遷移
+└─ FarmScreen（圃場管理タブ）
+
+BottomNavigationBar
+  ホーム / 測定 / 圃場管理
+  （3タブ固定）
+
+未同期: ホーム画面上部バナー
+設定: 測定画面の歯車マーク
+ヘルプ: なし
+同期: 未アップロード一覧
+      （バナータップ経由）</div>
+    </div>
+    <div class="diff-box">
+      <div class="diff-label after">新構成（Phase 3 後）</div>
+      <div class="diff-content">HomeScreen（集約型）
+├─ 「測定を始める」→ MeasurementScreen
+├─ 「圃場」→ FarmListScreen
+├─ 「同期」→ SyncScreen（新設）
+│    └─ 未同期バッジ表示
+├─ 「設定」→ SettingsScreen（新設）
+└─ 「ヘルプ」→ HelpScreen（新設）
+
+BottomNavigationBar: 廃止
+スタックナビゲーション
+（Navigator push/pop で遷移）
+
+未同期件数: HomeScreen の
+     同期ボタンバッジに表示</div>
+    </div>
+  </div>
+
+  <div class="callout info">
+    <strong>Phase 3 のスコープ。</strong>
+    Phase 3 はナビゲーション構造の刷新と骨組みの完成が目標です。
+    各新画面（SyncScreen / SettingsScreen / HelpScreen）は
+    <em>既存機能を正しく引き継ぎ、画面骨格が動くこと</em>を優先します。
+    各画面の内部実装の充実（タイムラインタブ等）は Phase 4〜8 で行います。
+  </div>
+
+  <h3>Phase 3 で行うこと / 行わないこと</h3>
+  <table>
+    <thead><tr><th>項目</th><th>Phase 3</th></tr></thead>
+    <tbody>
+      <tr><td>BottomNav 廃止・HomeScreen 4ボタン</td><td><span class="tag new">実施</span></td></tr>
+      <tr><td>Navigator スタック遷移への移行</td><td><span class="tag new">実施</span></td></tr>
+      <tr><td>SyncScreen 骨格（未同期一覧 UI を移植）</td><td><span class="tag new">実施</span></td></tr>
+      <tr><td>SettingsScreen 骨格（既存設定 UI を移植）</td><td><span class="tag new">実施</span></td></tr>
+      <tr><td>HelpScreen 骨格（ガイド静的画面）</td><td><span class="tag new">実施</span></td></tr>
+      <tr><td>MeasurementScreen の地図中心1画面化</td><td><span class="tag kept">Phase 7</span></td></tr>
+      <tr><td>FarmDetailScreen の3タブ実装</td><td><span class="tag kept">Phase 4〜5</span></td></tr>
+      <tr><td>作業記録入力画面</td><td><span class="tag kept">Phase 6</span></td></tr>
+    </tbody>
+  </table>
+
+  <h3 id="prereq">前提確認（作業開始前チェック）</h3>
+  <div class="steps">
+    <div class="step">
+      <div class="step-num chk">✓</div>
+      <div class="step-body">
+        <h4>Phase 2 完了・main マージ済みであることを確認</h4>
+        <span class="sloc">ターミナル / ローカル</span>
+        <div class="shell">
+<span class="c"># main を最新に更新</span>
+<span class="p">$ </span><span class="cmd">git checkout main && git pull origin main</span>
+<span class="c"># Phase 2 のコミットが含まれていることを確認</span>
+<span class="p">$ </span><span class="cmd">git log --oneline -5</span>
+        </div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num chk">✓</div>
+      <div class="step-body">
+        <h4>feature ブランチを作成</h4>
+        <span class="sloc">ターミナル / ローカル</span>
+        <div class="shell">
+<span class="p">$ </span><span class="cmd">git checkout -b feature/phase3-flutter-navigation</span>
+<span class="p">$ </span><span class="cmd">git branch</span>
+<span class="c"># * feature/phase3-flutter-navigation と表示されれば OK</span>
+        </div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num chk">✓</div>
+      <div class="step-body">
+        <h4>Flutter プロジェクトが正常にビルドできることを確認</h4>
+        <span class="sloc">ターミナル / ローカル（Flutter プロジェクトルート）</span>
+        <div class="shell">
+<span class="p">$ </span><span class="cmd">flutter pub get</span>
+<span class="p">$ </span><span class="cmd">flutter analyze</span>
+<span class="c"># "No issues found!" が出ることを確認してから作業開始</span>
+<span class="c"># warning がある場合はメモしておく（Phase 3 で新たに増やさないことを確認するため）</span>
+        </div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num chk">✓</div>
+      <div class="step-body">
+        <h4>現行のディレクトリ構造を把握する</h4>
+        <span class="sloc">ターミナル / ローカル</span>
+        <p>
+          Cursor に渡す前に、実際の <code>lib/</code> 配下のディレクトリ構造を確認します。
+          特に以下のファイルが存在することを確認してください。
+        </p>
+        <div class="shell">
+<span class="p">$ </span><span class="cmd">find lib -name "*.dart" | sort</span>
+<span class="c"># 少なくとも以下が存在するはず:</span>
+<span class="c">#   lib/main.dart</span>
+<span class="c">#   lib/screens/home/home_screen.dart        （現行: 結果閲覧タブ）</span>
+<span class="c">#   lib/screens/measurement/...             （測定関連）</span>
+<span class="c">#   lib/screens/farm/farm_screen.dart        （圃場管理タブ）</span>
+<span class="c">#   lib/providers/pending_uploads_provider.dart など</span>
+        </div>
+        <div class="callout note">
+          <strong>実際のファイルパスを Cursor に渡すこと。</strong>
+          以降の手順書では一般的なパスを使いますが、
+          実際のプロジェクトのパスに読み替えてください。
+          <code>find lib -name "*.dart" | sort</code> の結果を Cursor セッション冒頭に貼り付けると
+          Cursor が正確なパスを把握できます。
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <h3 id="files">作成・編集ファイル一覧</h3>
+  <div class="filetree">
+lib/
+├── <span class="d">router/</span>
+│   └── <span class="nf">app_router.dart                  （ルート定義）</span>
+├── <span class="d">screens/</span>
+│   ├── <span class="d">home/</span>
+│   │   └── <span class="mf">home_screen.dart               （既存の結果閲覧 → 4ボタン HOME に全面刷新）</span>
+│   ├── <span class="d">sync/</span>
+│   │   └── <span class="nf">sync_screen.dart               （同期画面を独立画面として新設）</span>
+│   ├── <span class="d">settings/</span>
+│   │   └── <span class="nf">settings_screen.dart           （設定画面を独立画面として新設）</span>
+│   └── <span class="d">help/</span>
+│       └── <span class="nf">help_screen.dart               （ヘルプ画面を新設）</span>
+├── <span class="mf">main.dart                              （MaterialApp の initialRoute を変更）</span>
+└── <span class="d">widgets/</span>（既存）
+    └── <span class="d">main_scaffold/</span>
+        └── <span class="mf">main_scaffold.dart             （BottomNav を削除・HomeScreen に変更）</span>
+
+<span class="df">lib/widgets/main_scaffold/bottom_nav_bar.dart    （BottomNav 専用ウィジェットがあれば削除）</span>
+  </div>
+
+  <div class="callout warn">
+    <strong>既存の HomeScreen（結果閲覧）について。</strong>
+    現行の <code>home_screen.dart</code> は「最新結果の表示 + 圃場別測定日リスト」の結果閲覧タブです。
+    Phase 3 ではこのファイルを <strong>4ボタン集約 HomeScreen に全面刷新</strong>します。
+    既存の結果閲覧ロジック（最新結果・前回比較）は
+    Phase 4 の FarmDetailScreen のマップタブに移行するため、
+    Phase 3 では一時的に結果閲覧タブが消えます。これは意図した動作です。
+  </div>
+</section>
+
+<!-- ====== STEP 1: Router ====== -->
+<section id="step1">
+  <h2><span class="n">01</span>ルーター定義の作成 <span class="en">router</span></h2>
+
+  <p>
+    現行の IndexedStack + BottomNav によるタブ切り替えを廃止し、
+    <strong>名前付きルート（Named Routes）</strong> によるスタックナビゲーションに移行します。
+    すべてのルート名をここで一元管理することで、
+    画面追加時に変更箇所が明確になります。
+  </p>
+
+  <div class="steps">
+    <div class="step" id="step1-routes">
+      <div class="step-num">1</div>
+      <div class="step-body">
+        <h4>lib/router/app_router.dart を新規作成</h4>
+        <span class="sloc">lib/router/app_router.dart（新規作成）</span>
+        <div class="shell">
+<span class="p">$ </span><span class="cmd">mkdir -p lib/router</span>
+<span class="p">$ </span><span class="cmd">touch lib/router/app_router.dart</span>
+        </div>
+<pre><span class="fn">lib/router/app_router.dart</span><span class="kw">import</span> <span class="st">'package:flutter/material.dart'</span>;
+
+<span class="cm">// 各画面をインポート（実際のパスはプロジェクトに合わせて修正）</span>
+<span class="kw">import</span> <span class="st">'../screens/home/home_screen.dart'</span>;
+<span class="kw">import</span> <span class="st">'../screens/sync/sync_screen.dart'</span>;
+<span class="kw">import</span> <span class="st">'../screens/settings/settings_screen.dart'</span>;
+<span class="kw">import</span> <span class="st">'../screens/help/help_screen.dart'</span>;
+<span class="cm">// 既存画面</span>
+<span class="kw">import</span> <span class="st">'../screens/measurement/measurement_session_screen.dart'</span>;
+<span class="kw">import</span> <span class="st">'../screens/farm/farm_screen.dart'</span>;
+
+<span class="cm">/// アプリ内のすべての名前付きルートを一元管理する。
+/// 画面間遷移は必ずここで定義したルート名を使うこと。</span>
+<span class="kw">class</span> <span class="cl">AppRouter</span> {
+  <span class="cm">// ── ルート名定数 ──────────────────────────────────────────</span>
+  <span class="kw">static const</span> <span class="cl">String</span> home        = <span class="st">'/'</span>;
+  <span class="kw">static const</span> <span class="cl">String</span> measurement  = <span class="st">'/measurement'</span>;
+  <span class="kw">static const</span> <span class="cl">String</span> farmList     = <span class="st">'/farms'</span>;
+  <span class="kw">static const</span> <span class="cl">String</span> sync         = <span class="st">'/sync'</span>;
+  <span class="kw">static const</span> <span class="cl">String</span> settings     = <span class="st">'/settings'</span>;
+  <span class="kw">static const</span> <span class="cl">String</span> help         = <span class="st">'/help'</span>;
+
+  <span class="cm">// ── ルートテーブル ────────────────────────────────────────</span>
+  <span class="kw">static</span> <span class="cl">Map</span>&lt;<span class="cl">String</span>, <span class="cl">WidgetBuilder</span>&gt; get routes =&gt; {
+    home:       (context) =&gt; <span class="kw">const</span> <span class="wg">HomeScreen</span>(),
+    measurement:(context) =&gt; <span class="kw">const</span> <span class="wg">MeasurementSessionScreen</span>(),
+    farmList:   (context) =&gt; <span class="kw">const</span> <span class="wg">FarmScreen</span>(),
+    sync:       (context) =&gt; <span class="kw">const</span> <span class="wg">SyncScreen</span>(),
+    settings:   (context) =&gt; <span class="kw">const</span> <span class="wg">SettingsScreen</span>(),
+    help:       (context) =&gt; <span class="kw">const</span> <span class="wg">HelpScreen</span>(),
+  };
+}</pre>
+        <div class="callout">
+          <strong>既存画面のインポートパスについて。</strong>
+          <code>measurement_session_screen.dart</code> と <code>farm_screen.dart</code> のパスは
+          実際のプロジェクト構造に合わせてください。
+          <code>find lib -name "*.dart"</code> の結果を参照して正確なパスを使います。
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ====== STEP 2: HomeScreen ====== -->
+<section id="step2">
+  <h2><span class="n">02</span>HomeScreen の刷新（4ボタン集約型） <span class="en">home screen</span></h2>
+
+  <p>
+    現行の <code>home_screen.dart</code>（結果閲覧タブ）を
+    主要4ボタン + ヘルプの集約型ホーム画面に完全に書き換えます。
+  </p>
+
+  <div class="steps">
+    <div class="step" id="step2-screen">
+      <div class="step-num">2</div>
+      <div class="step-body">
+        <h4>home_screen.dart を全面書き換え</h4>
+        <span class="sloc">lib/screens/home/home_screen.dart（既存ファイルを全面置き換え）</span>
+        <p>
+          デザイン仕様：「測定を始める」（赤系大ボタン）と「圃場」（緑系大ボタン）を縦に並べ、
+          下段に「同期」「設定」の2分割ボタン。最下部に細いヘルプバー。
+          ログインユーザー名を上部に表示。
+        </p>
+<pre><span class="fn">lib/screens/home/home_screen.dart</span><span class="kw">import</span> <span class="st">'package:flutter/material.dart'</span>;
+<span class="kw">import</span> <span class="st">'package:provider/provider.dart'</span>;
+
+<span class="cm">// 既存の Provider をインポート（実際のパスに合わせること）</span>
+<span class="kw">import</span> <span class="st">'../../providers/user_provider.dart'</span>;
+<span class="kw">import</span> <span class="st">'../../providers/pending_uploads_provider.dart'</span>;
+<span class="kw">import</span> <span class="st">'../../router/app_router.dart'</span>;
+
+<span class="kw">class</span> <span class="cl">HomeScreen</span> <span class="kw">extends</span> <span class="cl">StatelessWidget</span> {
+  <span class="kw">const</span> <span class="cl">HomeScreen</span>({<span class="kw">super</span>.key});
+
+  <span class="kw">@override</span>
+  <span class="cl">Widget</span> build(<span class="cl">BuildContext</span> context) {
+    <span class="kw">final</span> user           = context.watch&lt;<span class="cl">UserProvider</span>&gt;();
+    <span class="kw">final</span> pendingUploads = context.watch&lt;<span class="cl">PendingUploadsProvider</span>&gt;();
+    <span class="kw">final</span> pendingCount   = pendingUploads.pendingCount;  <span class="cm">// int</span>
+
+    <span class="kw">return</span> <span class="wg">Scaffold</span>(
+      backgroundColor: <span class="wg">Colors</span>.white,
+      body: <span class="wg">SafeArea</span>(
+        child: <span class="wg">Padding</span>(
+          padding: <span class="kw">const</span> <span class="wg">EdgeInsets</span>.symmetric(horizontal: <span class="nm">20</span>, vertical: <span class="nm">16</span>),
+          child: <span class="wg">Column</span>(
+            crossAxisAlignment: <span class="wg">CrossAxisAlignment</span>.stretch,
+            children: [
+
+              <span class="cm">// ── ① アカウント表示 ─────────────────────────────────</span>
+              <span class="wg">GestureDetector</span>(
+                onTap: () =&gt; <span class="wg">Navigator</span>.pushNamed(context, <span class="wg">AppRouter</span>.settings),
+                child: <span class="wg">Container</span>(
+                  padding: <span class="kw">const</span> <span class="wg">EdgeInsets</span>.symmetric(horizontal: <span class="nm">14</span>, vertical: <span class="nm">10</span>),
+                  decoration: <span class="wg">BoxDecoration</span>(
+                    color: <span class="kw">const</span> <span class="wg">Color</span>(<span class="nm">0xFFF5F5F0</span>),
+                    borderRadius: <span class="wg">BorderRadius</span>.circular(<span class="nm">8</span>),
+                  ),
+                  child: <span class="wg">Row</span>(children: [
+                    <span class="wg">CircleAvatar</span>(
+                      backgroundColor: <span class="kw">const</span> <span class="wg">Color</span>(<span class="nm">0xFF2E5C39</span>),
+                      radius: <span class="nm">16</span>,
+                      child: <span class="wg">Text</span>(
+                        user.displayName.isNotEmpty
+                            ? user.displayName[<span class="nm">0</span>].toUpperCase()
+                            : <span class="st">'?'</span>,
+                        style: <span class="kw">const</span> <span class="wg">TextStyle</span>(color: <span class="wg">Colors</span>.white, fontSize: <span class="nm">14</span>),
+                      ),
+                    ),
+                    <span class="kw">const</span> <span class="wg">SizedBox</span>(width: <span class="nm">10</span>),
+                    <span class="wg">Text</span>(user.displayName,
+                        style: <span class="kw">const</span> <span class="wg">TextStyle</span>(fontWeight: <span class="wg">FontWeight</span>.w600)),
+                    <span class="kw">const</span> <span class="wg">Spacer</span>(),
+                    <span class="kw">const</span> <span class="wg">Icon</span>(<span class="wg">Icons</span>.chevron_right, color: <span class="wg">Colors</span>.grey),
+                  ]),
+                ),
+              ),
+              <span class="kw">const</span> <span class="wg">SizedBox</span>(height: <span class="nm">24</span>),
+
+              <span class="cm">// ── ② 主要大ボタン（測定・圃場）──────────────────────</span>
+              <span class="wg">Expanded</span>(
+                child: <span class="wg">Column</span>(
+                  crossAxisAlignment: <span class="wg">CrossAxisAlignment</span>.stretch,
+                  children: [
+
+                    <span class="cm">// 「測定を始める」ボタン（赤系）</span>
+                    <span class="wg">Expanded</span>(
+                      child: <span class="wg">_HomeButton</span>(
+                        label: <span class="st">'測定を始める'</span>,
+                        icon: <span class="wg">Icons</span>.play_arrow_rounded,
+                        color: <span class="kw">const</span> <span class="wg">Color</span>(<span class="nm">0xFFB02020</span>),
+                        onTap: () =&gt; <span class="wg">Navigator</span>.pushNamed(
+                            context, <span class="wg">AppRouter</span>.measurement),
+                      ),
+                    ),
+                    <span class="kw">const</span> <span class="wg">SizedBox</span>(height: <span class="nm">12</span>),
+
+                    <span class="cm">// 「圃場」ボタン（緑系）</span>
+                    <span class="wg">Expanded</span>(
+                      child: <span class="wg">_HomeButton</span>(
+                        label: <span class="st">'圃場'</span>,
+                        subtitle: <span class="st">'一覧 / 登録 / 詳細'</span>,
+                        icon: <span class="wg">Icons</span>.grass,
+                        color: <span class="kw">const</span> <span class="wg">Color</span>(<span class="nm">0xFF2E5C39</span>),
+                        onTap: () =&gt; <span class="wg">Navigator</span>.pushNamed(
+                            context, <span class="wg">AppRouter</span>.farmList),
+                      ),
+                    ),
+                    <span class="kw">const</span> <span class="wg">SizedBox</span>(height: <span class="nm">12</span>),
+
+                    <span class="cm">// ── ③ 下段2分割ボタン（同期・設定）───────────────────</span>
+                    <span class="wg">Row</span>(children: [
+
+                      <span class="cm">// 「同期」ボタン（未同期バッジ付き）</span>
+                      <span class="wg">Expanded</span>(
+                        child: <span class="wg">_SyncButton</span>(
+                          pendingCount: pendingCount,
+                          onTap: () =&gt; <span class="wg">Navigator</span>.pushNamed(
+                              context, <span class="wg">AppRouter</span>.sync),
+                        ),
+                      ),
+                      <span class="kw">const</span> <span class="wg">SizedBox</span>(width: <span class="nm">12</span>),
+
+                      <span class="cm">// 「設定」ボタン</span>
+                      <span class="wg">Expanded</span>(
+                        child: <span class="wg">_HomeButton</span>(
+                          label: <span class="st">'設定'</span>,
+                          subtitle: <span class="st">'機器・アカウント'</span>,
+                          icon: <span class="wg">Icons</span>.settings_outlined,
+                          color: <span class="kw">const</span> <span class="wg">Color</span>(<span class="nm">0xFF6B5C44</span>),
+                          onTap: () =&gt; <span class="wg">Navigator</span>.pushNamed(
+                              context, <span class="wg">AppRouter</span>.settings),
+                        ),
+                      ),
+                    ]),
+                  ],
+                ),
+              ),
+              <span class="kw">const</span> <span class="wg">SizedBox</span>(height: <span class="nm">12</span>),
+
+              <span class="cm">// ── ④ ヘルプ細バー ──────────────────────────────────</span>
+              <span class="wg">TextButton</span>.icon(
+                onPressed: () =&gt;
+                    <span class="wg">Navigator</span>.pushNamed(context, <span class="wg">AppRouter</span>.help),
+                icon: <span class="kw">const</span> <span class="wg">Icon</span>(<span class="wg">Icons</span>.help_outline, size: <span class="nm">18</span>),
+                label: <span class="kw">const</span> <span class="wg">Text</span>(<span class="st">'ヘルプ'</span>),
+                style: <span class="wg">TextButton</span>.styleFrom(
+                  foregroundColor: <span class="wg">Colors</span>.grey[<span class="nm">600</span>],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+<span class="cm">// ── 汎用ホームボタン ───────────────────────────────────────────</span>
+<span class="kw">class</span> <span class="cl">_HomeButton</span> <span class="kw">extends</span> <span class="cl">StatelessWidget</span> {
+  <span class="kw">const</span> <span class="cl">_HomeButton</span>({
+    required <span class="kw">this</span>.label,
+    required <span class="kw">this</span>.icon,
+    required <span class="kw">this</span>.color,
+    required <span class="kw">this</span>.onTap,
+    <span class="kw">this</span>.subtitle,
+  });
+
+  <span class="kw">final</span> <span class="cl">String</span>   label;
+  <span class="kw">final</span> <span class="cl">String</span>?  subtitle;
+  <span class="kw">final</span> <span class="cl">IconData</span> icon;
+  <span class="kw">final</span> <span class="cl">Color</span>    color;
+  <span class="kw">final</span> <span class="wg">VoidCallback</span> onTap;
+
+  <span class="kw">@override</span>
+  <span class="cl">Widget</span> build(<span class="cl">BuildContext</span> context) {
+    <span class="kw">return</span> <span class="wg">Material</span>(
+      color: color,
+      borderRadius: <span class="wg">BorderRadius</span>.circular(<span class="nm">12</span>),
+      child: <span class="wg">InkWell</span>(
+        onTap: onTap,
+        borderRadius: <span class="wg">BorderRadius</span>.circular(<span class="nm">12</span>),
+        child: <span class="wg">Container</span>(
+          alignment: <span class="wg">Alignment</span>.center,
+          child: <span class="wg">Column</span>(
+            mainAxisAlignment: <span class="wg">MainAxisAlignment</span>.center,
+            children: [
+              <span class="wg">Icon</span>(icon, color: <span class="wg">Colors</span>.white, size: <span class="nm">32</span>),
+              <span class="kw">const</span> <span class="wg">SizedBox</span>(height: <span class="nm">8</span>),
+              <span class="wg">Text</span>(label,
+                  style: <span class="kw">const</span> <span class="wg">TextStyle</span>(
+                      color: <span class="wg">Colors</span>.white,
+                      fontSize: <span class="nm">18</span>,
+                      fontWeight: <span class="wg">FontWeight</span>.bold)),
+              <span class="kw">if</span> (subtitle != <span class="kw">null</span>)
+                <span class="wg">Text</span>(subtitle!,
+                    style: <span class="wg">TextStyle</span>(
+                        color: <span class="wg">Colors</span>.white.withOpacity(<span class="nm">0.8</span>),
+                        fontSize: <span class="nm">12</span>)),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+<span class="cm">// ── 同期ボタン（未同期バッジ付き）──────────────────────────────</span>
+<span class="kw">class</span> <span class="cl">_SyncButton</span> <span class="kw">extends</span> <span class="cl">StatelessWidget</span> {
+  <span class="kw">const</span> <span class="cl">_SyncButton</span>({required <span class="kw">this</span>.pendingCount, required <span class="kw">this</span>.onTap});
+
+  <span class="kw">final</span> <span class="kw">int</span>          pendingCount;
+  <span class="kw">final</span> <span class="wg">VoidCallback</span> onTap;
+
+  <span class="kw">@override</span>
+  <span class="cl">Widget</span> build(<span class="cl">BuildContext</span> context) {
+    <span class="kw">return</span> <span class="wg">Stack</span>(
+      clipBehavior: <span class="wg">Clip</span>.none,
+      children: [
+        <span class="wg">_HomeButton</span>(
+          label: <span class="st">'同期'</span>,
+          subtitle: pendingCount > <span class="nm">0</span>
+              ? <span class="st">'未同期 $pendingCount 件'</span>
+              : <span class="kw">null</span>,
+          icon: <span class="wg">Icons</span>.cloud_sync_outlined,
+          color: <span class="kw">const</span> <span class="wg">Color</span>(<span class="nm">0xFFB07820</span>),
+          onTap: onTap,
+        ),
+        <span class="cm">// 未同期件数 > 0 のときだけ赤バッジを表示</span>
+        <span class="kw">if</span> (pendingCount > <span class="nm">0</span>)
+          <span class="wg">Positioned</span>(
+            top: <span class="nm">8</span>, right: <span class="nm">8</span>,
+            child: <span class="wg">Container</span>(
+              width: <span class="nm">18</span>, height: <span class="nm">18</span>,
+              decoration: <span class="kw">const</span> <span class="wg">BoxDecoration</span>(
+                  color: <span class="wg">Colors</span>.red, shape: <span class="wg">BoxShape</span>.circle),
+              alignment: <span class="wg">Alignment</span>.center,
+              child: <span class="wg">Text</span>(
+                <span class="st">'!'</span>,
+                style: <span class="kw">const</span> <span class="wg">TextStyle</span>(color: <span class="wg">Colors</span>.white, fontSize: <span class="nm">11</span>, fontWeight: <span class="wg">FontWeight</span>.bold),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}</pre>
+
+        <div class="callout warn">
+          <strong><code>UserProvider</code> と <code>PendingUploadsProvider</code> のインポートパスについて。</strong>
+          既存プロジェクトの実際のパスに合わせてください。
+          <code>UserProvider</code> の <code>displayName</code> ゲッターが存在するか確認し、
+          なければ <code>user.name</code> など既存のフィールド名に置き換えてください。
+        </div>
+      </div>
+    </div>
+
+    <div class="step" id="step2-pending">
+      <div class="step-num">3</div>
+      <div class="step-body">
+        <h4>PendingUploadsProvider に <code>pendingCount</code> ゲッターを確認・追加</h4>
+        <span class="sloc">lib/providers/pending_uploads_provider.dart（既存ファイルを確認）</span>
+        <p>
+          既存の <code>PendingUploadsProvider</code> に未同期件数を返すゲッターが存在するか確認します。
+          存在しない場合のみ以下を追加してください。
+        </p>
+<pre><span class="fn">追加するゲッター（既存ファイル内の適切な位置に追記）</span>  <span class="cm">/// 未同期データ件数。HomeScreen のバッジ表示に使う。</span>
+  <span class="kw">int get</span> pendingCount =&gt; _pendingItems.length;
+  <span class="cm">// _pendingItems は既存の List&lt;PendingUploadItem&gt; フィールドを想定。
+  // 実際のフィールド名に合わせてください。</span></pre>
+        <div class="callout info">
+          <strong>既存実装の確認方法。</strong>
+          <code>grep -rn "pending" lib/providers/</code> で既存の pending 関連フィールドを確認できます。
+          件数を返すゲッターが既にある場合はそのまま使用してください。
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ====== STEP 3: SyncScreen ====== -->
+<section id="step3">
+  <h2><span class="n">03</span>SyncScreen の新設（独立画面化） <span class="en">sync screen</span></h2>
+
+  <p>
+    現行の「未アップロード一覧」（ホーム画面のバナータップで開く）を
+    <strong>独立した SyncScreen として新設</strong>します。
+    未同期データのカード表示・チェック選択・一括同期・削除の機能を移植します。
+  </p>
+
+  <div class="steps">
+    <div class="step">
+      <div class="step-num">4</div>
+      <div class="step-body">
+        <h4>lib/screens/sync/sync_screen.dart を新規作成</h4>
+        <span class="sloc">lib/screens/sync/sync_screen.dart（新規作成）</span>
+        <div class="shell">
+<span class="p">$ </span><span class="cmd">mkdir -p lib/screens/sync</span>
+<span class="p">$ </span><span class="cmd">touch lib/screens/sync/sync_screen.dart</span>
+        </div>
+<pre><span class="fn">lib/screens/sync/sync_screen.dart</span><span class="kw">import</span> <span class="st">'package:flutter/material.dart'</span>;
+<span class="kw">import</span> <span class="st">'package:provider/provider.dart'</span>;
+<span class="kw">import</span> <span class="st">'../../providers/pending_uploads_provider.dart'</span>;
+
+<span class="kw">class</span> <span class="cl">SyncScreen</span> <span class="kw">extends</span> <span class="cl">StatefulWidget</span> {
+  <span class="kw">const</span> <span class="cl">SyncScreen</span>({<span class="kw">super</span>.key});
+
+  <span class="kw">@override</span>
+  <span class="cl">State</span>&lt;<span class="cl">SyncScreen</span>&gt; createState() =&gt; _SyncScreenState();
+}
+
+<span class="kw">class</span> <span class="cl">_SyncScreenState</span> <span class="kw">extends</span> <span class="cl">State</span>&lt;<span class="cl">SyncScreen</span>&gt; {
+  <span class="kw">final</span> <span class="cl">Set</span>&lt;<span class="kw">int</span>&gt; _selected = {};  <span class="cm">// 選択中のインデックス</span>
+
+  <span class="kw">@override</span>
+  <span class="cl">Widget</span> build(<span class="cl">BuildContext</span> context) {
+    <span class="kw">final</span> provider = context.watch&lt;<span class="cl">PendingUploadsProvider</span>&gt;();
+    <span class="kw">final</span> items    = provider.pendingItems;   <span class="cm">// List&lt;PendingUploadItem&gt;</span>
+
+    <span class="kw">return</span> <span class="wg">Scaffold</span>(
+      appBar: <span class="wg">AppBar</span>(
+        title: <span class="kw">const</span> <span class="wg">Text</span>(<span class="st">'同期'</span>),
+        backgroundColor: <span class="kw">const</span> <span class="wg">Color</span>(<span class="nm">0xFFB07820</span>),
+        foregroundColor: <span class="wg">Colors</span>.white,
+      ),
+      body: items.isEmpty
+          ? <span class="kw">const</span> <span class="wg">Center</span>(child: <span class="wg">Text</span>(<span class="st">'未アップロードデータはありません'</span>))
+          : <span class="wg">Column</span>(
+              children: [
+                <span class="cm">// 件数 + 最終同期日時</span>
+                _buildHeader(context, provider, items),
+                <span class="cm">// リスト</span>
+                <span class="wg">Expanded</span>(
+                  child: <span class="wg">ListView</span>.separated(
+                    itemCount: items.length,
+                    separatorBuilder: (_, __) =&gt;
+                        <span class="kw">const</span> <span class="wg">Divider</span>(height: <span class="nm">1</span>),
+                    itemBuilder: (context, i) =&gt;
+                        _buildItem(context, provider, items[i], i),
+                  ),
+                ),
+                <span class="cm">// 下部ボタン</span>
+                _buildBottomBar(context, provider),
+              ],
+            ),
+    );
+  }
+
+  <span class="cl">Widget</span> _buildHeader(<span class="cl">BuildContext</span> ctx, <span class="cl">PendingUploadsProvider</span> prov,
+      <span class="cl">List</span> items) {
+    <span class="kw">return</span> <span class="wg">Container</span>(
+      padding: <span class="kw">const</span> <span class="wg">EdgeInsets</span>.all(<span class="nm">16</span>),
+      color: <span class="kw">const</span> <span class="wg">Color</span>(<span class="nm">0xFFFEF0D8</span>),
+      child: <span class="wg">Row</span>(children: [
+        <span class="wg">Text</span>(<span class="st">'未同期 ${items.length} 件'</span>,
+            style: <span class="kw">const</span> <span class="wg">TextStyle</span>(fontWeight: <span class="wg">FontWeight</span>.bold)),
+        <span class="kw">const</span> <span class="wg">Spacer</span>(),
+        <span class="wg">TextButton</span>(
+          onPressed: () =&gt; setState(() {
+            _selected.length == items.length
+                ? _selected.clear()
+                : _selected.addAll(
+                    <span class="cl">List</span>.generate(items.length, (i) =&gt; i));
+          }),
+          child: <span class="wg">Text</span>(_selected.length == items.length
+              ? <span class="st">'全解除'</span> : <span class="st">'全選択（${items.length} 件）'</span>),
+        ),
+      ]),
+    );
+  }
+
+  <span class="cl">Widget</span> _buildItem(<span class="cl">BuildContext</span> ctx, <span class="cl">PendingUploadsProvider</span> prov,
+      <span class="kw">dynamic</span> item, <span class="kw">int</span> i) {
+    <span class="cm">// PendingUploadItem のフィールド名は既存実装に合わせて調整</span>
+    <span class="kw">return</span> <span class="wg">CheckboxListTile</span>(
+      value: _selected.contains(i),
+      onChanged: (v) =&gt; setState(() =&gt;
+          v! ? _selected.add(i) : _selected.remove(i)),
+      title: <span class="wg">Text</span>(item.farmName ?? <span class="st">'圃場不明'</span>),
+      subtitle: <span class="wg">Text</span>(item.timestamp ?? <span class="st">''</span>),
+      secondary: <span class="wg">Icon</span>(
+        item.hasError ? <span class="wg">Icons</span>.warning_amber_rounded : <span class="wg">Icons</span>.cloud_upload_outlined,
+        color: item.hasError ? <span class="wg">Colors</span>.red : <span class="wg">Colors</span>.grey,
+      ),
+    );
+  }
+
+  <span class="cl">Widget</span> _buildBottomBar(<span class="cl">BuildContext</span> ctx, <span class="cl">PendingUploadsProvider</span> prov) {
+    <span class="kw">return</span> <span class="wg">Container</span>(
+      padding: <span class="kw">const</span> <span class="wg">EdgeInsets</span>.all(<span class="nm">16</span>),
+      child: <span class="wg">Row</span>(children: [
+        <span class="wg">OutlinedButton</span>(
+          onPressed: _selected.isEmpty ? <span class="kw">null</span> :
+              () =&gt; prov.deleteSelected(_selected.toList()),
+          child: <span class="kw">const</span> <span class="wg">Text</span>(<span class="st">'選択を削除'</span>),
+        ),
+        <span class="kw">const</span> <span class="wg">SizedBox</span>(width: <span class="nm">12</span>),
+        <span class="wg">Expanded</span>(
+          child: <span class="wg">ElevatedButton</span>(
+            onPressed: _selected.isEmpty ? <span class="kw">null</span> :
+                () =&gt; prov.syncSelected(_selected.toList()),
+            style: <span class="wg">ElevatedButton</span>.styleFrom(
+                backgroundColor: <span class="kw">const</span> <span class="wg">Color</span>(<span class="nm">0xFFB07820</span>)),
+            child: <span class="kw">const</span> <span class="wg">Text</span>(<span class="st">'同期'</span>,
+                style: <span class="wg">TextStyle</span>(color: <span class="wg">Colors</span>.white)),
+          ),
+        ),
+      ]),
+    );
+  }
+}</pre>
+
+        <div class="callout warn">
+          <strong><code>PendingUploadItem</code> のフィールド名について。</strong>
+          <code>item.farmName</code> / <code>item.timestamp</code> / <code>item.hasError</code> は
+          既存の <code>PendingUploadItem</code> クラスのフィールド名に合わせてください。
+          また <code>provider.deleteSelected()</code> / <code>provider.syncSelected()</code> は
+          既存の未アップロード一覧画面で使っているメソッドをそのまま流用します。
+          既存の「未アップロード一覧」画面のコードを参照して実際のメソッド名に置き換えてください。
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ====== STEP 4: SettingsScreen ====== -->
+<section id="step4">
+  <h2><span class="n">04</span>SettingsScreen の新設 <span class="en">settings screen</span></h2>
+
+  <p>
+    現行は測定画面右上の歯車マークから開く詳細設定画面（測定パラメータ・センサー・ログ）が
+    設定の唯一の入口でした。
+    Phase 3 では <strong>独立した SettingsScreen として3グループ構成（アカウント / 通信 / システム）で新設</strong>し、
+    既存の詳細設定機能を「システム → 測定条件の設定」として集約します。
+  </p>
+
+  <div class="steps">
+    <div class="step">
+      <div class="step-num">5</div>
+      <div class="step-body">
+        <h4>lib/screens/settings/settings_screen.dart を新規作成</h4>
+        <span class="sloc">lib/screens/settings/settings_screen.dart（新規作成）</span>
+        <div class="shell">
+<span class="p">$ </span><span class="cmd">mkdir -p lib/screens/settings</span>
+<span class="p">$ </span><span class="cmd">touch lib/screens/settings/settings_screen.dart</span>
+        </div>
+<pre><span class="fn">lib/screens/settings/settings_screen.dart</span><span class="kw">import</span> <span class="st">'package:flutter/material.dart'</span>;
+<span class="kw">import</span> <span class="st">'package:provider/provider.dart'</span>;
+<span class="kw">import</span> <span class="st">'../../providers/user_provider.dart'</span>;
+<span class="cm">// 既存の詳細設定画面（測定パラメータ）をインポート</span>
+<span class="kw">import</span> <span class="st">'../measurement/bg_screen.dart'</span>;  <span class="cm">// 実際のパスに合わせること</span>
+
+<span class="kw">class</span> <span class="cl">SettingsScreen</span> <span class="kw">extends</span> <span class="cl">StatelessWidget</span> {
+  <span class="kw">const</span> <span class="cl">SettingsScreen</span>({<span class="kw">super</span>.key});
+
+  <span class="kw">@override</span>
+  <span class="cl">Widget</span> build(<span class="cl">BuildContext</span> context) {
+    <span class="kw">final</span> user = context.watch&lt;<span class="cl">UserProvider</span>&gt;();
+
+    <span class="kw">return</span> <span class="wg">Scaffold</span>(
+      appBar: <span class="wg">AppBar</span>(
+        title: <span class="kw">const</span> <span class="wg">Text</span>(<span class="st">'設定'</span>),
+        backgroundColor: <span class="kw">const</span> <span class="wg">Color</span>(<span class="nm">0xFF6B5C44</span>),
+        foregroundColor: <span class="wg">Colors</span>.white,
+      ),
+      body: <span class="wg">ListView</span>(
+        children: [
+
+          <span class="cm">// ── ① アカウント ─────────────────────────────────────</span>
+          _sectionHeader(<span class="st">'アカウント'</span>),
+          <span class="wg">ListTile</span>(
+            title: <span class="kw">const</span> <span class="wg">Text</span>(<span class="st">'ユーザー名'</span>),
+            trailing: <span class="wg">Text</span>(user.displayName,
+                style: <span class="wg">TextStyle</span>(color: <span class="wg">Colors</span>.grey[<span class="nm">600</span>])),
+          ),
+          <span class="wg">ListTile</span>(
+            title: <span class="kw">const</span> <span class="wg">Text</span>(<span class="st">'メール'</span>),
+            trailing: <span class="wg">Text</span>(user.email ?? <span class="st">''</span>,
+                style: <span class="wg">TextStyle</span>(color: <span class="wg">Colors</span>.grey[<span class="nm">600</span>])),
+          ),
+          <span class="wg">ListTile</span>(
+            title: <span class="kw">const</span> <span class="wg">Text</span>(<span class="st">'ログアウト'</span>,
+                style: <span class="wg">TextStyle</span>(color: <span class="wg">Colors</span>.red)),
+            onTap: () =&gt; _confirmLogout(context, user),
+          ),
+          <span class="kw">const</span> <span class="wg">Divider</span>(),
+
+          <span class="cm">// ── ② 通信 ───────────────────────────────────────────</span>
+          _sectionHeader(<span class="st">'通信'</span>),
+          <span class="wg">ListTile</span>(
+            title: <span class="kw">const</span> <span class="wg">Text</span>(<span class="st">'測定機器'</span>),
+            trailing: <span class="wg">Text</span>(user.ampId ?? <span class="st">'未接続'</span>,
+                style: <span class="wg">TextStyle</span>(color: <span class="wg">Colors</span>.grey[<span class="nm">600</span>])),
+          ),
+          <span class="wg">ListTile</span>(
+            title: <span class="kw">const</span> <span class="wg">Text</span>(<span class="st">'シリアル No'</span>),
+            trailing: <span class="wg">Text</span>(user.sensorNo ?? <span class="st">'—'</span>,
+                style: <span class="wg">TextStyle</span>(color: <span class="wg">Colors</span>.grey[<span class="nm">600</span>])),
+          ),
+          <span class="kw">const</span> <span class="wg">Divider</span>(),
+
+          <span class="cm">// ── ③ システム ────────────────────────────────────────</span>
+          _sectionHeader(<span class="st">'システム'</span>),
+          <span class="wg">ListTile</span>(
+            title: <span class="kw">const</span> <span class="wg">Text</span>(<span class="st">'測定条件の設定'</span>),
+            trailing: <span class="kw">const</span> <span class="wg">Icon</span>(<span class="wg">Icons</span>.chevron_right),
+            <span class="cm">// 既存の詳細設定画面（BgScreen / DetailSettingsScreen 等）へ遷移</span>
+            onTap: () =&gt; <span class="wg">Navigator</span>.push(context,
+                <span class="wg">MaterialPageRoute</span>(builder: (_) =&gt; <span class="kw">const</span> <span class="wg">BgScreen</span>())),
+          ),
+          <span class="wg">ListTile</span>(
+            title: <span class="kw">const</span> <span class="wg">Text</span>(<span class="st">'バージョン'</span>),
+            trailing: <span class="wg">Text</span>(<span class="st">'v0.4.0'</span>,  <span class="cm">// 実際のバージョンに合わせる</span>
+                style: <span class="wg">TextStyle</span>(color: <span class="wg">Colors</span>.grey[<span class="nm">600</span>])),
+          ),
+          <span class="wg">ListTile</span>(
+            title: <span class="kw">const</span> <span class="wg">Text</span>(<span class="st">'利用規約'</span>),
+            trailing: <span class="kw">const</span> <span class="wg">Icon</span>(<span class="wg">Icons</span>.chevron_right),
+            onTap: () {},  <span class="cm">// TODO: 将来実装</span>
+          ),
+        ],
+      ),
+    );
+  }
+
+  <span class="cl">Widget</span> _sectionHeader(<span class="cl">String</span> title) =&gt; <span class="wg">Container</span>(
+        padding: <span class="kw">const</span> <span class="wg">EdgeInsets</span>.fromLTRB(<span class="nm">16</span>, <span class="nm">12</span>, <span class="nm">16</span>, <span class="nm">4</span>),
+        color: <span class="kw">const</span> <span class="wg">Color</span>(<span class="nm">0xFFF5F5F0</span>),
+        child: <span class="wg">Text</span>(title,
+            style: <span class="kw">const</span> <span class="wg">TextStyle</span>(
+                fontSize: <span class="nm">12</span>,
+                fontWeight: <span class="wg">FontWeight</span>.bold,
+                color: <span class="wg">Colors</span>.grey)),
+      );
+
+  <span class="kw">void</span> _confirmLogout(<span class="cl">BuildContext</span> context, <span class="cl">UserProvider</span> user) {
+    showDialog(
+      context: context,
+      builder: (_) =&gt; <span class="wg">AlertDialog</span>(
+        title: <span class="kw">const</span> <span class="wg">Text</span>(<span class="st">'ログアウト'</span>),
+        content: <span class="kw">const</span> <span class="wg">Text</span>(<span class="st">'ログアウトしますか？'</span>),
+        actions: [
+          <span class="wg">TextButton</span>(
+              onPressed: () =&gt; <span class="wg">Navigator</span>.pop(context),
+              child: <span class="kw">const</span> <span class="wg">Text</span>(<span class="st">'キャンセル'</span>)),
+          <span class="wg">TextButton</span>(
+            onPressed: () async {
+              <span class="wg">Navigator</span>.pop(context);
+              <span class="cm">// 既存のサインアウト処理を呼ぶ（UserProvider.signOut() など）</span>
+              <span class="kw">await</span> user.signOut();
+              <span class="kw">if</span> (context.mounted) {
+                <span class="wg">Navigator</span>.of(context)
+                    .pushNamedAndRemoveUntil(<span class="st">'/'</span>, (route) =&gt; <span class="kw">false</span>);
+              }
+            },
+            child: <span class="kw">const</span> <span class="wg">Text</span>(<span class="st">'ログアウト'</span>,
+                style: <span class="wg">TextStyle</span>(color: <span class="wg">Colors</span>.red)),
+          ),
+        ],
+      ),
+    );
+  }
+}</pre>
+        <div class="callout">
+          <strong>既存詳細設定画面のクラス名について。</strong>
+          スキルドキュメントに <code>BgScreen</code> が存在するとあります。
+          実際のクラス名と import パスを確認してください。
+          <code>grep -rn "class.*Screen" lib/screens/measurement/</code> で確認できます。
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ====== STEP 5: HelpScreen ====== -->
+<section id="step5">
+  <h2><span class="n">05</span>HelpScreen の新設 <span class="en">help screen</span></h2>
+
+  <div class="steps">
+    <div class="step">
+      <div class="step-num">6</div>
+      <div class="step-body">
+        <h4>lib/screens/help/help_screen.dart を新規作成</h4>
+        <span class="sloc">lib/screens/help/help_screen.dart（新規作成）</span>
+        <div class="shell">
+<span class="p">$ </span><span class="cmd">mkdir -p lib/screens/help</span>
+<span class="p">$ </span><span class="cmd">touch lib/screens/help/help_screen.dart</span>
+        </div>
+<pre><span class="fn">lib/screens/help/help_screen.dart</span><span class="kw">import</span> <span class="st">'package:flutter/material.dart'</span>;
+
+<span class="kw">class</span> <span class="cl">HelpScreen</span> <span class="kw">extends</span> <span class="cl">StatelessWidget</span> {
+  <span class="kw">const</span> <span class="cl">HelpScreen</span>({<span class="kw">super</span>.key});
+
+  <span class="kw">@override</span>
+  <span class="cl">Widget</span> build(<span class="cl">BuildContext</span> context) {
+    <span class="kw">return</span> <span class="wg">Scaffold</span>(
+      appBar: <span class="wg">AppBar</span>(
+        title: <span class="kw">const</span> <span class="wg">Text</span>(<span class="st">'ヘルプ'</span>),
+        backgroundColor: <span class="kw">const</span> <span class="wg">Color</span>(<span class="nm">0xFF4A6A80</span>),
+        foregroundColor: <span class="wg">Colors</span>.white,
+      ),
+      body: <span class="wg">ListView</span>(
+        padding: <span class="kw">const</span> <span class="wg">EdgeInsets</span>.all(<span class="nm">16</span>),
+        children: [
+
+          <span class="cm">// ── メニューカード ───────────────────────────────────</span>
+          _helpCard(context, <span class="wg">Icons</span>.menu_book, <span class="st">'使い方ガイド'</span>,
+              <span class="st">'アプリの基本フロー（5ステップ）'</span>, () {
+            showModalBottomSheet(
+              context: context,
+              isScrollControlled: <span class="kw">true</span>,
+              builder: (_) =&gt; <span class="kw">const</span> <span class="cl">_GuideSheet</span>(),
+            );
+          }),
+          <span class="kw">const</span> <span class="wg">SizedBox</span>(height: <span class="nm">12</span>),
+          _helpCard(context, <span class="wg">Icons</span>.help_outline, <span class="st">'よくある質問（FAQ）'</span>,
+              <span class="st">'測定失敗・同期エラーなど'</span>, () {
+            <span class="cm">// TODO: FAQ 画面（優先度低）</span>
+          }),
+          <span class="kw">const</span> <span class="wg">SizedBox</span>(height: <span class="nm">12</span>),
+          _helpCard(context, <span class="wg">Icons</span>.mail_outline, <span class="st">'お問い合わせ'</span>,
+              <span class="st">'サポートに連絡する'</span>, () {
+            <span class="cm">// TODO: 問い合わせフォーム（優先度低）</span>
+          }),
+          <span class="kw">const</span> <span class="wg">SizedBox</span>(height: <span class="nm">12</span>),
+          _helpCard(context, <span class="wg">Icons</span>.info_outline, <span class="st">'アプリ情報'</span>,
+              <span class="st">'利用規約・ライセンス'</span>, () {
+            <span class="cm">// TODO: アプリ情報（優先度低）</span>
+          }),
+        ],
+      ),
+    );
+  }
+
+  <span class="cl">Widget</span> _helpCard(<span class="cl">BuildContext</span> ctx, <span class="cl">IconData</span> icon, <span class="cl">String</span> title,
+      <span class="cl">String</span> sub, <span class="wg">VoidCallback</span> onTap) =&gt;
+      <span class="wg">Card</span>(
+        child: <span class="wg">ListTile</span>(
+          leading: <span class="wg">Icon</span>(icon, color: <span class="kw">const</span> <span class="wg">Color</span>(<span class="nm">0xFF2E5C39</span>)),
+          title: <span class="wg">Text</span>(title),
+          subtitle: <span class="wg">Text</span>(sub),
+          trailing: <span class="kw">const</span> <span class="wg">Icon</span>(<span class="wg">Icons</span>.chevron_right),
+          onTap: onTap,
+        ),
+      );
+}
+
+<span class="cm">// ── 使い方ガイド（ボトムシート）────────────────────────────────</span>
+<span class="kw">class</span> <span class="cl">_GuideSheet</span> <span class="kw">extends</span> <span class="cl">StatelessWidget</span> {
+  <span class="kw">const</span> <span class="cl">_GuideSheet</span>();
+
+  <span class="kw">@override</span>
+  <span class="cl">Widget</span> build(<span class="cl">BuildContext</span> context) {
+    <span class="kw">final</span> steps = <span class="kw">const</span> [
+      (<span class="st">'圃場を登録'</span>,     <span class="st">'地図上で多角形を描いて圃場を登録します'</span>),
+      (<span class="st">'機器を接続'</span>,     <span class="st">'センサとスマートフォンを接続し、接続ボタンを押します'</span>),
+      (<span class="st">'BG を取得'</span>,     <span class="st">'基準（バックグラウンド）を測定すると測定準備が完了します'</span>),
+      (<span class="st">'測定・推定する'</span>, <span class="st">'「測定開始」を押して測定します。ネットワーク接続時は推定完了後に結果が表示されます'</span>),
+      (<span class="st">'（同期する）'</span>,   <span class="st">'電波のない場所では、後で同期画面からアップロードします'</span>),
+    ];
+
+    <span class="kw">return</span> <span class="wg">DraggableScrollableSheet</span>(
+      initialChildSize: <span class="nm">0.85</span>,
+      minChildSize: <span class="nm">0.5</span>,
+      expand: <span class="kw">false</span>,
+      builder: (_, controller) =&gt; <span class="wg">ListView</span>(
+        controller: controller,
+        padding: <span class="kw">const</span> <span class="wg">EdgeInsets</span>.all(<span class="nm">24</span>),
+        children: [
+          <span class="kw">const</span> <span class="wg">Text</span>(<span class="st">'はじめての測定までの流れ'</span>,
+              style: <span class="wg">TextStyle</span>(fontSize: <span class="nm">18</span>, fontWeight: <span class="wg">FontWeight</span>.bold)),
+          <span class="kw">const</span> <span class="wg">SizedBox</span>(height: <span class="nm">20</span>),
+          ...steps.indexed.map(((i, s)) =&gt; <span class="wg">Padding</span>(
+            padding: <span class="kw">const</span> <span class="wg">EdgeInsets</span>.only(bottom: <span class="nm">20</span>),
+            child: <span class="wg">Row</span>(crossAxisAlignment: <span class="wg">CrossAxisAlignment</span>.start, children: [
+              <span class="wg">CircleAvatar</span>(
+                backgroundColor: <span class="kw">const</span> <span class="wg">Color</span>(<span class="nm">0xFF4A6A80</span>),
+                radius: <span class="nm">16</span>,
+                child: <span class="wg">Text</span>(<span class="st">'${i + 1}'</span>,
+                    style: <span class="kw">const</span> <span class="wg">TextStyle</span>(color: <span class="wg">Colors</span>.white, fontSize: <span class="nm">13</span>)),
+              ),
+              <span class="kw">const</span> <span class="wg">SizedBox</span>(width: <span class="nm">14</span>),
+              <span class="wg">Expanded</span>(child: <span class="wg">Column</span>(crossAxisAlignment: <span class="wg">CrossAxisAlignment</span>.start, children: [
+                <span class="wg">Text</span>(s.$1, style: <span class="kw">const</span> <span class="wg">TextStyle</span>(fontWeight: <span class="wg">FontWeight</span>.bold, fontSize: <span class="nm">15</span>)),
+                <span class="kw">const</span> <span class="wg">SizedBox</span>(height: <span class="nm">4</span>),
+                <span class="wg">Text</span>(s.$2, style: <span class="wg">TextStyle</span>(color: <span class="wg">Colors</span>.grey[<span class="nm">600</span>], fontSize: <span class="nm">13</span>)),
+              ])),
+            ]),
+          )),
+        ],
+      ),
+    );
+  }
+}</pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ====== STEP 6: MainScaffold 廃止 ====== -->
+<section id="step6">
+  <h2><span class="n">06</span>MainScaffold / BottomNav の廃止 <span class="en">remove bottom nav</span></h2>
+
+  <div class="steps">
+    <div class="step" id="step6-remove">
+      <div class="step-num">7</div>
+      <div class="step-body">
+        <h4>MainScaffold から BottomNavigationBar を削除</h4>
+        <span class="sloc">lib/widgets/main_scaffold/main_scaffold.dart（既存ファイルを編集）</span>
+        <p>
+          現行の <code>MainScaffold</code> は <code>IndexedStack</code> + <code>BottomNavigationBar</code>
+          で3タブを管理しています。このファイルを開いて以下の変更を行います。
+        </p>
+        <ul>
+          <li><code>IndexedStack</code> および <code>BottomNavigationBar</code> に関するコードをすべて削除</li>
+          <li><code>_currentIndex</code> などのタブ管理 state を削除</li>
+          <li>ファイル全体が不要になる場合はファイルごと削除してもよい（後述の main.dart 変更で不要になる）</li>
+        </ul>
+        <div class="callout teal">
+          <strong>「MainScaffold」自体を削除するアプローチを推奨します。</strong>
+          <code>MainScaffold</code> は BottomNav のためだけに存在するラッパーです。
+          BottomNav を廃止した後は <code>main.dart</code> から直接
+          <code>HomeScreen</code> を <code>initialRoute</code> で表示すれば済みます。
+          削除後に <code>main.dart</code> から <code>MainScaffold</code> の参照を除去してください。
+        </div>
+      </div>
+    </div>
+
+    <div class="step" id="step6-entrypoint">
+      <div class="step-num">8</div>
+      <div class="step-body">
+        <h4>main.dart のエントリーポイントを変更</h4>
+        <span class="sloc">lib/main.dart（既存ファイルを編集）</span>
+        <p>
+          <code>MaterialApp</code> の設定を以下のように変更します。
+          <code>home: MainScaffold()</code> から <code>initialRoute</code> + <code>routes</code> 方式へ移行します。
+        </p>
+<pre><span class="fn">lib/main.dart — MaterialApp の変更箇所（変更前 → 変更後）</span><span class="cm">// 変更前（BottomNav 時代）</span>
+<span class="wg">MaterialApp</span>(
+  <span class="cm">// ...</span>
+  home: <span class="wg">MainScaffold</span>(),  <span class="cm">// ← 削除</span>
+)
+
+<span class="cm">// 変更後（AppRouter 使用）</span>
+<span class="kw">import</span> <span class="st">'router/app_router.dart'</span>;  <span class="cm">// ← 追加</span>
+
+<span class="wg">MaterialApp</span>(
+  <span class="cm">// theme, locale など既存設定はそのまま維持</span>
+  initialRoute: <span class="wg">AppRouter</span>.home,
+  routes: <span class="wg">AppRouter</span>.routes,
+)</pre>
+        <div class="callout warn">
+          <strong>SplashScreen / AuthGate の扱い。</strong>
+          現行では起動時に <code>SplashScreen</code> で認証状態を確認しています。
+          <code>initialRoute</code> が <code>HomeScreen</code> に直接飛ぶと
+          未認証状態でホームが表示される可能性があります。
+          既存の認証チェックロジック（<code>SplashScreen</code> → <code>HomeScreen</code>）を
+          以下のいずれかで維持してください：
+          <ul>
+            <li><strong>推奨</strong>: <code>initialRoute: '/splash'</code> として <code>SplashScreen</code> を先頭に残す</li>
+            <li>または <code>HomeScreen</code> の <code>initState</code> で認証確認 → 未認証なら Login へリダイレクト</li>
+          </ul>
+          実際の認証フローは <code>SplashScreen</code> の既存コードを参照して判断してください。
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ====== STEP 7: 既存画面の接続 ====== -->
+<section id="step7">
+  <h2><span class="n">07</span>既存画面のルーティング接続確認 <span class="en">wire up existing screens</span></h2>
+
+  <p>
+    STEP 1 で定義した <code>AppRouter</code> に既存の測定画面・圃場画面が正しく接続されていることを確認します。
+  </p>
+
+  <div class="steps">
+    <div class="step" id="step7-measure">
+      <div class="step-num">9</div>
+      <div class="step-body">
+        <h4>MeasurementSessionScreen の動線確認</h4>
+        <span class="sloc">lib/screens/measurement/ 配下（既存ファイルを確認）</span>
+        <p>
+          <code>AppRouter.measurement</code> → <code>MeasurementSessionScreen</code> が正しく遷移するか確認します。
+          既存の測定画面内で「ホームに戻る」動線が
+          <strong>BottomNav のタブ切り替えではなく <code>Navigator.pop()</code></strong> になっていることを確認してください。
+        </p>
+        <div class="shell">
+<span class="c"># 既存の測定画面で BottomNav や IndexedStack への参照が残っていないか確認</span>
+<span class="p">$ </span><span class="cmd">grep -rn "bottomNavigationBar\|IndexedStack\|_currentIndex" lib/screens/measurement/</span>
+<span class="c"># ヒットする場合はその箇所を Navigator.pop() に変更する</span>
+        </div>
+        <div class="callout">
+          <strong>測定完了後のホーム遷移について。</strong>
+          現行の測定完了後に結果閲覧タブ（旧 HomeScreen）へ飛ぶコードがある場合、
+          Phase 3 では <code>Navigator.popUntil((r) =&gt; r.isFirst)</code> などで
+          ルートスタックのトップ（HomeScreen）に戻るように変更してください。
+        </div>
+      </div>
+    </div>
+
+    <div class="step" id="step7-farm">
+      <div class="step-num">10</div>
+      <div class="step-body">
+        <h4>FarmScreen の動線確認</h4>
+        <span class="sloc">lib/screens/farm/ 配下（既存ファイルを確認）</span>
+        <div class="shell">
+<span class="c"># 圃場画面でも BottomNav 参照が残っていないか確認</span>
+<span class="p">$ </span><span class="cmd">grep -rn "bottomNavigationBar\|IndexedStack\|_currentIndex" lib/screens/farm/</span>
+        </div>
+        <p>
+          既存の <code>FarmScreen</code> には圃場詳細画面への遷移が <code>TODO</code> のままです。
+          Phase 3 では <code>TODO</code> のままにしておいて問題ありません（Phase 4 で実装します）。
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ====== STEP 8: 動作確認 ====== -->
+<section id="step8">
+  <h2><span class="n">08</span>動作確認（ローカル） <span class="en">local verification</span></h2>
+
+  <div class="callout info">
+    <strong>Flutter にはバックエンドのような自動テストフレームワークが標準で走りません。</strong>
+    Phase 3 の動作確認は <code>flutter analyze</code> + Android エミュレーター or 実機での
+    手動チェックリストで行います。
+  </div>
+
+  <div class="steps">
+    <div class="step">
+      <div class="step-num">11</div>
+      <div class="step-body">
+        <h4>flutter analyze でエラーがないことを確認</h4>
+        <span class="sloc">ターミナル / ローカル（Flutter プロジェクトルート）</span>
+        <div class="shell">
+<span class="p">$ </span><span class="cmd">flutter analyze</span>
+<span class="c"># "No issues found!" を確認。warning も極力 0 にする。</span>
+<span class="c"># エラーがある場合は全件修正してから次へ進む。</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">12</div>
+      <div class="step-body">
+        <h4>エミュレーター or 実機で起動して画面遷移をチェック</h4>
+        <span class="sloc">Android エミュレーター or 実機</span>
+        <div class="shell">
+<span class="p">$ </span><span class="cmd">flutter run</span>
+        </div>
+        <p>以下のチェックリストを順番に確認してください。</p>
+        <table>
+          <thead><tr><th>確認項目</th><th>期待動作</th></tr></thead>
+          <tbody>
+            <tr><td>起動 → ログイン</td><td>既存の認証フローが正常に動作する</td></tr>
+            <tr><td>HomeScreen 表示</td><td>4ボタン（測定/圃場/同期/設定）+ ヘルプバーが表示される</td></tr>
+            <tr><td>「測定を始める」タップ</td><td>MeasurementSessionScreen に遷移し、バック操作で HomeScreen に戻る</td></tr>
+            <tr><td>「圃場」タップ</td><td>FarmScreen に遷移し、バック操作で HomeScreen に戻る</td></tr>
+            <tr><td>「同期」タップ</td><td>SyncScreen に遷移する（未同期データがなければ「ありません」表示）</td></tr>
+            <tr><td>「設定」タップ</td><td>SettingsScreen に遷移し、ユーザー名が表示される</td></tr>
+            <tr><td>「設定」→ 測定条件の設定</td><td>既存の詳細設定画面（BgScreen 等）に遷移する</td></tr>
+            <tr><td>「ヘルプ」タップ</td><td>HelpScreen に遷移し、4項目が表示される</td></tr>
+            <tr><td>「ヘルプ」→ 使い方ガイド</td><td>5ステップのボトムシートが開く</td></tr>
+            <tr><td>BottomNav が消えている</td><td>画面下部にタブバーが表示されない</td></tr>
+            <tr><td>未同期データがある場合</td><td>「同期」ボタンに赤い ! バッジが表示される</td></tr>
+            <tr><td>ユーザー名表示（上部）タップ</td><td>SettingsScreen に遷移する</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ====== STEP 9: PR & CI/CD ====== -->
+<section id="step9">
+  <h2><span class="n">09</span>commit → PR → main マージ → CI/CD <span class="en">deploy</span></h2>
+
+  <div class="steps">
+    <div class="step">
+      <div class="step-num">13</div>
+      <div class="step-body">
+        <h4>変更をコミットして feature ブランチを push</h4>
+        <span class="sloc">ターミナル / ローカル</span>
+        <div class="shell">
+<span class="p">$ </span><span class="cmd">git add -A</span>
+<span class="p">$ </span><span class="cmd">git diff --cached --stat</span>
+<span class="c"># 変更ファイルが意図通りであることを確認</span>
+<span class="c"># 新規: app_router.dart / sync_screen.dart / settings_screen.dart / help_screen.dart</span>
+<span class="c"># 変更: home_screen.dart / main.dart / main_scaffold.dart（削除ならリストに出る）</span>
+
+<span class="p">$ </span><span class="cmd">git commit -m "feat: replace BottomNav with HomeScreen 4-button navigation (Phase 3)"</span>
+<span class="p">$ </span><span class="cmd">git push origin feature/phase3-flutter-navigation</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">14</div>
+      <div class="step-body">
+        <h4>GitHub でプルリクエストを作成してマージ</h4>
+        <span class="sloc">GitHub Web UI</span>
+        <ol>
+          <li>「Compare &amp; pull request」をクリック</li>
+          <li>PR タイトル: <code>feat: replace BottomNav with HomeScreen 4-button navigation (Phase 3)</code></li>
+          <li>PR 本文に記載：
+            <ul>
+              <li>作成・変更・削除ファイルの一覧</li>
+              <li><code>flutter analyze</code> の "No issues found!" スクリーンショット</li>
+              <li>実機またはエミュレーターで主要導線が動作することの確認コメント</li>
+            </ul>
+          </li>
+          <li><strong>Squash and merge</strong> で main にマージ</li>
+          <li>マージ後、feature ブランチを GitHub 上で削除</li>
+        </ol>
+        <div class="callout">
+          <strong>CI/CD について。</strong>
+          Phase 3 は Flutter（モバイルアプリ）の変更のみです。
+          Laravel バックエンドへの変更はないため、EC2 デプロイや
+          <code>php artisan migrate</code> は実行されません。
+          既存の CI/CD に Flutter のビルドチェックが含まれていれば
+          それが通ることを確認してください。なければ <code>flutter analyze</code> と
+          手動実機確認をもって完了とします。
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ====== STEP 10: 実機確認 ====== -->
+<section id="step10">
+  <h2><span class="n">10</span>実機デプロイ後の確認 <span class="en">device check</span></h2>
+
+  <div class="steps">
+    <div class="step">
+      <div class="step-num">15</div>
+      <div class="step-body">
+        <h4>実機（Android）に APK をインストールして最終確認</h4>
+        <span class="sloc">ターミナル + Android 実機</span>
+        <div class="shell">
+<span class="c"># リリースビルドでも動作するか確認（debug build との差異確認）</span>
+<span class="p">$ </span><span class="cmd">flutter build apk --debug</span>
+<span class="p">$ </span><span class="cmd">flutter install</span>
+<span class="c"># または adb install build/app/outputs/flutter-apk/app-debug.apk</span>
+        </div>
+        <p>ステップ 12 のチェックリストを実機でも再確認します。特に以下を重点確認します。</p>
+        <ul>
+          <li>Cognito 認証が実機で正常に動作すること</li>
+          <li>USB センサー接続（測定画面）が従来通り動作すること</li>
+          <li>未同期データがある場合、同期バッジが表示されること</li>
+          <li>アプリを再起動してもホーム画面から始まること（BottomNav が復活していないこと）</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ====== DoD ====== -->
+<section id="dod">
+  <h2><span class="n">✓</span>完了条件チェックリスト <span class="en">definition of done</span></h2>
+
+  <p style="font-size:13px; color: var(--ink-3); margin-bottom: 16px;">
+    <span class="tag l">L</span> ローカル確認 &nbsp;
+    <span class="tag ci">CI</span> PR &amp; CI/CD 確認 &nbsp;
+    <span class="tag e">E</span> 実機デプロイ後確認
+  </p>
+
+  <ul class="dod-list">
+    <li>
+      <span class="tag l">L</span> <code>flutter analyze</code> で "No issues found!" が出る
+      <span class="dc">確認: flutter analyze</span>
+    </li>
+    <li>
+      <span class="tag l">L</span> HomeScreen に4ボタン（測定/圃場/同期/設定）+ ヘルプバーが表示される
+    </li>
+    <li>
+      <span class="tag l">L</span> BottomNavigationBar が画面下部に表示されない
+    </li>
+    <li>
+      <span class="tag l">L</span> 「測定を始める」→ MeasurementSessionScreen → バックで HomeScreen に戻れる
+    </li>
+    <li>
+      <span class="tag l">L</span> 「圃場」→ FarmScreen → バックで HomeScreen に戻れる
+    </li>
+    <li>
+      <span class="tag l">L</span> 「同期」→ SyncScreen が開く
+    </li>
+    <li>
+      <span class="tag l">L</span> 「設定」→ SettingsScreen → 「測定条件の設定」→ 既存詳細設定画面へ遷移できる
+    </li>
+    <li>
+      <span class="tag l">L</span> 「ヘルプ」→ HelpScreen → 「使い方ガイド」→ 5ステップのボトムシートが開く
+    </li>
+    <li>
+      <span class="tag l">L</span> 未同期データがある場合、「同期」ボタンに赤バッジが表示される
+    </li>
+    <li>
+      <span class="tag ci">CI</span> feature ブランチが push されており、PR が作成されている
+    </li>
+    <li>
+      <span class="tag ci">CI</span> main へ squash merge され、CI（flutter analyze / ビルドチェック）が成功している
+    </li>
+    <li>
+      <span class="tag e">E</span> 実機で Cognito 認証が動作し、HomeScreen が表示される
+    </li>
+    <li>
+      <span class="tag e">E</span> 実機で USB センサー接続（測定画面）が従来通り動作する
+    </li>
+    <li>
+      <span class="tag ci">CI</span> feature ブランチが GitHub 上で削除されている
+    </li>
+  </ul>
+
+  <div class="callout info" style="margin-top:24px;">
+    <strong>Phase 4（圃場一覧 / 圃場詳細マップタブ）への引き継ぎ。</strong>
+    Phase 3 完了後、<code>AppRouter.farmList</code> → <code>FarmScreen</code> の導線が動いていることを前提に、
+    Phase 4 では <code>FarmListScreen</code>（カードレイアウト）と
+    <code>FarmDetailScreen</code>（3タブ Scaffold）を実装します。
+    Phase 2 で実装した <code>/api/farms/{id}/results/timeseries</code> などの API への
+    Flutter 側の接続もここから始まります。
+    実機確認まですべて OK を確認してから Phase 4 の Cursor セッションを開始してください。
+  </div>
+</section>
+
+</main>
+</div>
+</body>
+</html>

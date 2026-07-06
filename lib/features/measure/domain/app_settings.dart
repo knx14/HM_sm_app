@@ -6,7 +6,7 @@ class AppSettings extends ChangeNotifier {
   double _fstart = 10000.0;
   double _fdelta = 1500.0;
   int _points = AppConstants.defaultPointCount;
-  double _excite = 1.0;
+  double _excite = 0.5;
   double _range = 0.5;
   double _integrate = 0.1;
   int _average = 1;
@@ -63,4 +63,3 @@ class AppSettings extends ChangeNotifier {
   String getZeroCommand() =>
       'zero $fstart $fdelta $points $excite $range $integrate $average';
 }
-

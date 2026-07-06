@@ -5,7 +5,10 @@ class MeasurementParser {
   /// `* idx real imag` 形式の行から ChartData を生成する（exec測定）。
   ///
   /// - `frequency` は呼び出し側で計算して渡す（例: fstart + fdelta * index）
-  static ChartData? tryParseExecDataLine(String line, {required double frequency}) {
+  static ChartData? tryParseExecDataLine(
+    String line, {
+    required double frequency,
+  }) {
     final trimmed = line.trim();
     if (!trimmed.startsWith('*')) return null;
     final parts = trimmed.split(RegExp(r'\s+'));
@@ -44,11 +47,11 @@ class MeasurementParser {
     return t == 'error' || t == 'ng';
   }
 
-  /// TypeDのID行っぽいもの（例: HM24D1234）
+  /// TypeDのID行（例: HM24D20018, 1.4.2B, 1.51B）
   static String? tryParseAmpId(String line) {
     final t = line.trim();
-    if (!t.startsWith('HM')) return null;
-    return t.split(RegExp(r'\s+')).first;
+    final match = RegExp(r'\bHM[A-Za-z0-9_-]+').firstMatch(t);
+    if (match == null) return null;
+    return t.substring(match.start).trim();
   }
 }
-

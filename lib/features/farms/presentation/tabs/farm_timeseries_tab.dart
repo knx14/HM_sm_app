@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import '../../../results/domain/result_parameter.dart';
 import '../../../results/domain/timeseries_result.dart';
 import '../../../results/presentation/providers/timeseries_notifier.dart';
+import '../../../work_logs/presentation/work_log_edit_screen.dart';
 
 class FarmTimeseriesTab extends StatelessWidget {
   const FarmTimeseriesTab({super.key, required this.farmId});
@@ -30,69 +31,106 @@ class _TimeseriesView extends StatelessWidget {
     final data = state.data;
     final displayData = state.filteredData;
 
-    return Column(
+    return Stack(
       children: [
-        _ParameterSelector(
-          selected: state.parameter,
-          isLoading: state.isLoading,
-          onChanged: context.read<TimeseriesNotifier>().setParameter,
-        ),
-        _RangeSelector(
-          selected: state.selectedRange,
-          onChanged: context.read<TimeseriesNotifier>().setRange,
-        ),
-        _PeriodSelector(
-          selectedRange: state.selectedRange,
-          selectedYear: state.selectedYear,
-          selectedMonth: state.selectedMonth,
-          availableYears: state.availableYears,
-          availableMonths: state.availableMonths,
-          onYearChanged: context.read<TimeseriesNotifier>().setSelectedYear,
-          onMonthChanged: context.read<TimeseriesNotifier>().setSelectedMonth,
-        ),
-        if (state.isLoading && data == null)
-          const Expanded(child: Center(child: CircularProgressIndicator()))
-        else if (state.error != null && data == null)
-          Expanded(
-            child: _ErrorState(message: state.error!, onRetry: state.reload),
-          )
-        else if (data == null || data.points.isEmpty)
-          const Expanded(child: Center(child: Text('測定データがありません')))
-        else if (displayData == null || displayData.points.isEmpty)
-          Expanded(
-            child: _RangeEmptyState(
-              periodLabel: state.selectedPeriodLabel,
-              onShowAll: () => state.setRange(TimeseriesRange.all),
-            ),
-          )
-        else
-          Expanded(
-            child: RefreshIndicator(
-              onRefresh: state.reload,
-              child: ListView(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-                children: [
-                  _LatestAverageCard(data: displayData),
-                  const SizedBox(height: 12),
-                  SizedBox(
-                    height: 280,
-                    child: _TimeseriesChart(data: displayData),
-                  ),
-                  const SizedBox(height: 12),
-                  const _LegendRow(),
-                  const SizedBox(height: 12),
-                  _WorkLogSummaryCard(workLogs: displayData.workLogs),
-                  if (state.isLoading)
-                    const Padding(
-                      padding: EdgeInsets.only(top: 8),
-                      child: LinearProgressIndicator(minHeight: 2),
-                    ),
-                ],
+        Positioned.fill(
+          child: Column(
+            children: [
+              _ParameterSelector(
+                selected: state.parameter,
+                isLoading: state.isLoading,
+                onChanged: context.read<TimeseriesNotifier>().setParameter,
               ),
-            ),
+              _RangeSelector(
+                selected: state.selectedRange,
+                onChanged: context.read<TimeseriesNotifier>().setRange,
+              ),
+              _PeriodSelector(
+                selectedRange: state.selectedRange,
+                selectedYear: state.selectedYear,
+                selectedMonth: state.selectedMonth,
+                availableYears: state.availableYears,
+                availableMonths: state.availableMonths,
+                onYearChanged: context
+                    .read<TimeseriesNotifier>()
+                    .setSelectedYear,
+                onMonthChanged: context
+                    .read<TimeseriesNotifier>()
+                    .setSelectedMonth,
+              ),
+              if (state.isLoading && data == null)
+                const Expanded(
+                  child: Center(child: CircularProgressIndicator()),
+                )
+              else if (state.error != null && data == null)
+                Expanded(
+                  child: _ErrorState(
+                    message: state.error!,
+                    onRetry: state.reload,
+                  ),
+                )
+              else if (data == null || data.points.isEmpty)
+                const Expanded(child: Center(child: Text('測定データがありません')))
+              else if (displayData == null || displayData.points.isEmpty)
+                Expanded(
+                  child: _RangeEmptyState(
+                    periodLabel: state.selectedPeriodLabel,
+                    onShowAll: () => state.setRange(TimeseriesRange.all),
+                  ),
+                )
+              else
+                Expanded(
+                  child: RefreshIndicator(
+                    onRefresh: state.reload,
+                    child: ListView(
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
+                      children: [
+                        _LatestAverageCard(data: displayData),
+                        const SizedBox(height: 12),
+                        SizedBox(
+                          height: 280,
+                          child: _TimeseriesChart(data: displayData),
+                        ),
+                        const SizedBox(height: 12),
+                        const _LegendRow(),
+                        if (state.isLoading)
+                          const Padding(
+                            padding: EdgeInsets.only(top: 8),
+                            child: LinearProgressIndicator(minHeight: 2),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+            ],
           ),
+        ),
+        Positioned(
+          right: 16,
+          bottom: 16,
+          child: FloatingActionButton.extended(
+            heroTag: 'timeseries_work_log_fab_${state.farmId}',
+            backgroundColor: const Color(0xFF2E5C39),
+            foregroundColor: Colors.white,
+            onPressed: () => _addWorkLog(context, state),
+            icon: const Icon(Icons.add),
+            label: const Text('作業記録'),
+          ),
+        ),
       ],
     );
+  }
+
+  Future<void> _addWorkLog(
+    BuildContext context,
+    TimeseriesNotifier state,
+  ) async {
+    final saved = await WorkLogEditScreen.show(context, farmId: state.farmId);
+    if (!saved || !context.mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('作業記録を保存しました')));
+    await state.reload();
   }
 }
 
@@ -117,97 +155,6 @@ class _RangeEmptyState extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           TextButton(onPressed: onShowAll, child: const Text('すべて表示に戻す')),
-        ],
-      ),
-    );
-  }
-}
-
-class _WorkLogSummaryCard extends StatelessWidget {
-  const _WorkLogSummaryCard({required this.workLogs});
-
-  final List<WorkLogMark> workLogs;
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return Card(
-      elevation: 0,
-      color: colorScheme.surfaceContainerLow,
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('作業ログ', style: TextStyle(fontWeight: FontWeight.w800)),
-            const SizedBox(height: 8),
-            if (workLogs.isEmpty)
-              Text(
-                'この期間の作業ログはありません',
-                style: TextStyle(
-                  color: colorScheme.onSurface.withValues(alpha: 0.62),
-                  fontSize: 12,
-                ),
-              )
-            else
-              ...workLogs.map((mark) => _WorkLogSummaryRow(mark: mark)),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _WorkLogSummaryRow extends StatelessWidget {
-  const _WorkLogSummaryRow({required this.mark});
-
-  final WorkLogMark mark;
-
-  @override
-  Widget build(BuildContext context) {
-    final color = _workTypeColor(mark.workType);
-    final title = mark.title?.trim();
-    final detail = mark.detail?.trim();
-    final amount = mark.amountValue == null
-        ? null
-        : '${mark.amountValue!.toStringAsFixed(1)} ${mark.amountUnit ?? ''}'
-              .trim();
-    final content = [
-      _workTypeLabel(mark.workType),
-      if (title != null && title.isNotEmpty) title,
-      if (detail != null && detail.isNotEmpty) detail,
-      if (amount != null && amount.isNotEmpty) amount,
-    ].join(' / ');
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 5),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 8,
-            height: 8,
-            margin: const EdgeInsets.only(top: 7),
-            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-          ),
-          const SizedBox(width: 8),
-          SizedBox(
-            width: 48,
-            child: Text(
-              _shortDate(mark.date),
-              style: TextStyle(
-                color: Theme.of(
-                  context,
-                ).colorScheme.onSurface.withValues(alpha: 0.62),
-                fontSize: 12,
-              ),
-            ),
-          ),
-          Expanded(
-            child: Text(
-              content,
-              style: const TextStyle(fontWeight: FontWeight.w700),
-            ),
-          ),
         ],
       ),
     );
@@ -464,10 +411,7 @@ class _TimeseriesChart extends StatelessWidget {
     final chart = _TimeseriesChartPainter.chartRectFor(size);
     if (!chart.inflate(16).contains(tap)) return null;
 
-    final range = _TimeseriesChartPainter.dateRangeFor(
-      points,
-      data.workLogs,
-    );
+    final range = _TimeseriesChartPainter.dateRangeFor(points, data.workLogs);
     if (range == null) return points.length == 1 ? 0 : null;
 
     int? nearestIndex;
@@ -678,12 +622,8 @@ class _TimeseriesChartPainter extends CustomPainter {
     void consider(String date) {
       final parsed = DateTime.tryParse(_dateKeyStatic(date));
       if (parsed == null) return;
-      minDate = minDate == null || parsed.isBefore(minDate!)
-          ? parsed
-          : minDate;
-      maxDate = maxDate == null || parsed.isAfter(maxDate!)
-          ? parsed
-          : maxDate;
+      minDate = minDate == null || parsed.isBefore(minDate!) ? parsed : minDate;
+      maxDate = maxDate == null || parsed.isAfter(maxDate!) ? parsed : maxDate;
     }
 
     for (final point in points) {
@@ -892,13 +832,6 @@ class _TimeseriesChartPainter extends CustomPainter {
   }
 }
 
-String _shortDate(String date) {
-  if (date.length >= 10) {
-    return '${date.substring(5, 7)}/${date.substring(8, 10)}';
-  }
-  return date;
-}
-
 String _workTypeLabel(String workType) {
   return switch (workType) {
     'fertilization' => '施肥',
@@ -906,16 +839,6 @@ String _workTypeLabel(String workType) {
     'pesticide' => '農薬',
     'harvest' => '収穫',
     _ => '作業',
-  };
-}
-
-Color _workTypeColor(String workType) {
-  return switch (workType) {
-    'fertilization' => const Color(0xFFB85C00),
-    'tillage' => const Color(0xFF7A4525),
-    'pesticide' => const Color(0xFF5A2D82),
-    'harvest' => const Color(0xFFB8860B),
-    _ => const Color(0xFF6B7E68),
   };
 }
 
