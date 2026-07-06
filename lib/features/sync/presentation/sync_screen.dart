@@ -60,7 +60,7 @@ class _SyncScreenState extends State<SyncScreen> {
   Future<void> _load() async {
     setState(() => _isLoading = true);
     final results = await Future.wait([
-      _store.listItems(),
+      _store.listItemsInMeasurementOrder(),
       _workLogRepository.pendingCount(),
     ]);
     final items = results[0] as List<PendingUploadItem>;
@@ -160,7 +160,8 @@ class _SyncScreenState extends State<SyncScreen> {
   Future<void> _syncSelected() async {
     final targets = _items
         .where((item) => _selected.contains(item.fileBase))
-        .toList();
+        .toList()
+      ..sort(PendingUploadItem.compareByMeasurementOrder);
     if (targets.isEmpty) return;
     setState(() {
       _isSyncingSelected = true;
