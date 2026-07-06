@@ -1,0 +1,1348 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>HenryMonitor Phase 7 実装手順書 — 測定画面の地図中心1画面化</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&family=Noto+Serif+JP:wght@700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#f8f7f1;--paper:#fff;--ink:#1a2318;--ink2:#3d4f3a;--ink3:#6b7e68;
+  --line:#dbd6c4;--lines:#eae6d6;
+  --leaf:#2e5c39;--leafl:#4a8459;--leafp:#e2ede4;
+  --soil:#7a4525;--soilp:#f2e8e0;
+  --amber:#b85c00;--amberp:#fef0d8;
+  --red:#b02020;--redp:#fce4e4;
+  --blue:#1a4f7a;--bluep:#ddeaf5;
+  --teal:#1a6a6a;--tealp:#d8efef;
+  --purple:#5a2d82;--purplep:#ede5f5;
+  --pin-red:#C0392B;--pin-amber:#E67E22;--pin-green:#27AE60;
+  --code-bg:#181f16;--code-fg:#d4e8cc;
+  --ccm:#5a8f58;--ckw:#7dd3a8;--cst:#f7c07a;--cnm:#7ec8e3;--ccl:#e8d07a;--cwg:#f0b060;
+  --sl:#b0c8b0;
+}
+*{box-sizing:border-box;}html{scroll-behavior:smooth;}
+body{margin:0;padding:0;background:var(--bg);color:var(--ink);font-family:"Noto Sans JP",sans-serif;font-size:14.5px;line-height:1.8;-webkit-font-smoothing:antialiased;}
+.layout{display:flex;min-height:100vh;}
+
+.toc{width:256px;flex-shrink:0;background:#0f1a0e;color:#c8d8c4;padding:28px 0 60px;position:sticky;top:0;height:100vh;overflow-y:auto;}
+.toc-logo{padding:0 20px 18px;border-bottom:1px solid rgba(255,255,255,.08);margin-bottom:14px;}
+.toc-logo .proj{font-size:11px;letter-spacing:.18em;color:#5a9a56;text-transform:uppercase;}
+.toc-logo .phase{font-family:"Noto Serif JP",serif;font-size:18px;color:#e8f0e4;font-weight:700;margin-top:4px;}
+.toc-logo .sub{font-size:11px;color:#5a9a56;margin-top:2px;line-height:1.5;}
+.toc ul{list-style:none;margin:0;padding:0;}
+.toc li a{display:block;padding:6px 20px;font-size:12px;color:#8ab88a;text-decoration:none;border-left:3px solid transparent;transition:all .15s;}
+.toc li a:hover{background:rgba(255,255,255,.06);color:#e8f0e4;border-left-color:var(--leafl);}
+.toc li a.sec{font-weight:700;color:#c4dcc0;font-size:12px;margin-top:8px;}
+.toc li a.sub{padding-left:32px;font-size:11.5px;color:#6a9a66;}
+.toc hr{border:none;border-top:1px solid rgba(255,255,255,.06);margin:8px 20px;}
+
+.main{flex:1;padding:48px 56px 100px;max-width:920px;}
+
+.cover{background:var(--paper);border:1px solid var(--line);padding:40px 44px;position:relative;overflow:hidden;margin-bottom:52px;}
+.cover::after{content:"";position:absolute;top:0;left:0;right:0;height:5px;background:linear-gradient(90deg,var(--red) 0%,var(--amber) 50%,var(--leaf) 100%);}
+.badge{font-family:"JetBrains Mono",monospace;font-size:11px;letter-spacing:.2em;background:var(--redp);color:var(--red);padding:3px 10px;border-radius:2px;display:inline-block;margin-bottom:14px;text-transform:uppercase;}
+.cover h1{font-family:"Noto Serif JP",serif;font-size:28px;font-weight:700;margin:0 0 8px;line-height:1.35;}
+.cover .desc{color:var(--ink2);font-size:14px;margin:0 0 24px;}
+.cmeta{display:flex;gap:24px;flex-wrap:wrap;border-top:1px solid var(--lines);padding-top:18px;}
+.cmeta dl{margin:0;}.cmeta dt{font-family:"JetBrains Mono",monospace;font-size:10px;letter-spacing:.15em;text-transform:uppercase;color:var(--ink3);margin:0 0 3px;}.cmeta dd{margin:0;font-size:13px;font-weight:500;}
+
+section{margin-bottom:60px;}
+h2{font-family:"Noto Serif JP",serif;font-size:21px;font-weight:700;margin:0 0 20px;padding:13px 18px;background:var(--ink);color:#e8f0e4;display:flex;align-items:center;gap:14px;}
+h2 .n{font-family:"JetBrains Mono",monospace;font-size:12px;color:var(--leafl);letter-spacing:.1em;}
+h2 .en{font-family:"JetBrains Mono",monospace;font-size:10px;color:#6a9a66;letter-spacing:.2em;text-transform:uppercase;margin-left:auto;}
+h3{font-size:16px;font-weight:700;margin:32px 0 10px;padding-bottom:7px;border-bottom:2px solid var(--leafp);color:var(--leaf);}
+h4{font-size:14px;font-weight:700;margin:20px 0 8px;color:var(--ink2);}
+p{margin:0 0 12px;}ul,ol{margin:0 0 12px;padding-left:20px;}li{margin-bottom:5px;}strong{color:var(--ink);}
+
+.steps{position:relative;}
+.step{display:grid;grid-template-columns:52px 1fr;gap:0 18px;margin-bottom:8px;position:relative;}
+.step::before{content:"";position:absolute;left:25px;top:52px;bottom:-8px;width:2px;background:var(--sl);}
+.step:last-child::before{display:none;}
+.snum{width:52px;height:52px;border-radius:50%;background:var(--leaf);color:#fff;display:flex;align-items:center;justify-content:center;font-family:"JetBrains Mono",monospace;font-size:14px;font-weight:700;flex-shrink:0;position:relative;z-index:1;align-self:start;margin-top:12px;}
+.snum.chk{background:var(--blue);}.snum.wrn{background:var(--amber);}
+.sbody{background:var(--paper);border:1px solid var(--line);padding:18px 22px 16px;}
+.sbody h4{margin-top:0;font-size:15px;color:var(--ink);}
+.sbody p:last-child,.sbody ul:last-child{margin-bottom:0;}
+.sloc{font-family:"JetBrains Mono",monospace;font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink3);background:var(--bg);border:1px solid var(--lines);padding:2px 8px;border-radius:2px;display:inline-block;margin-bottom:8px;}
+
+pre{background:var(--code-bg);color:var(--code-fg);padding:16px 18px;border-radius:3px;overflow-x:auto;font-family:"JetBrains Mono",monospace;font-size:12.5px;line-height:1.7;margin:10px 0 12px;}
+pre .fn{display:block;font-size:10px;letter-spacing:.1em;color:#486a46;margin-bottom:10px;border-bottom:1px solid rgba(255,255,255,.06);padding-bottom:8px;}
+pre .cm{color:var(--ccm);}pre .kw{color:var(--ckw);}pre .st{color:var(--cst);}
+pre .nm{color:var(--cnm);}pre .cl{color:var(--ccl);}pre .wg{color:var(--cwg);}
+code{font-family:"JetBrains Mono",monospace;font-size:12.5px;background:#edeadc;color:var(--soil);padding:1px 5px;border-radius:2px;}
+.shell{background:#090f08;color:#a8d8a0;padding:14px 18px;border-radius:3px;font-family:"JetBrains Mono",monospace;font-size:12.5px;line-height:1.7;margin:10px 0 12px;border-left:3px solid var(--leafl);overflow-x:auto;}
+.shell .p{color:#4a8a48;user-select:none;}.shell .c{color:#326030;}.shell .cmd{color:#c0e0b8;}
+
+.callout{padding:12px 16px;margin:12px 0;font-size:13.5px;border-left:4px solid var(--leaf);background:var(--leafp);}
+.callout.warn{border-color:var(--amber);background:var(--amberp);}
+.callout.danger{border-color:var(--red);background:var(--redp);}
+.callout.info{border-color:var(--blue);background:var(--bluep);}
+.callout.note{border-color:var(--soil);background:var(--soilp);}
+.callout.teal{border-color:var(--teal);background:var(--tealp);}
+.callout.purple{border-color:var(--purple);background:var(--purplep);}
+.callout strong{display:block;margin-bottom:3px;}
+
+table{border-collapse:collapse;width:100%;margin:10px 0 14px;font-size:13px;}
+th,td{padding:8px 12px;border-bottom:1px solid var(--lines);text-align:left;vertical-align:top;}
+th{background:var(--leafp);font-weight:700;font-size:11.5px;letter-spacing:.04em;border-bottom:2px solid var(--leaf);color:var(--leaf);}
+tr:hover td{background:#f5f2e8;}
+
+.tag{display:inline-block;font-family:"JetBrains Mono",monospace;font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:2px 7px;border-radius:2px;vertical-align:middle;margin:0 2px;}
+.tag.new{background:var(--leafp);color:var(--leaf);}
+.tag.mod{background:var(--bluep);color:var(--blue);}
+.tag.del{background:var(--redp);color:var(--red);}
+.tag.kept{background:#ede9d8;color:var(--ink3);}
+.tag.l{background:var(--leafp);color:var(--leaf);}
+.tag.ci{background:var(--bluep);color:var(--blue);}
+.tag.e{background:var(--soilp);color:var(--soil);}
+
+.filetree{background:var(--paper);border:1px solid var(--line);padding:16px 20px;font-family:"JetBrains Mono",monospace;font-size:12.5px;line-height:1.9;margin:10px 0 14px;}
+.filetree .d{color:var(--leaf);font-weight:700;}
+.filetree .nf{color:var(--amber);}
+.filetree .nf::after{content:" ← NEW";font-size:10px;opacity:.7;}
+.filetree .mf{color:var(--blue);}
+.filetree .mf::after{content:" ← EDIT";font-size:10px;opacity:.7;}
+.filetree .df{color:var(--red);text-decoration:line-through;opacity:.7;}
+.filetree .df::after{content:" ← RETIRE（ロジックを移植後に削除）";font-size:10px;}
+.filetree .rf{color:var(--ink3);}
+.filetree .rf::after{content:" ← 既存・ロジック流用のみ";font-size:10px;opacity:.7;}
+
+/* pin legend */
+.pin-legend{display:flex;gap:20px;flex-wrap:wrap;margin:10px 0;}
+.pin-item{display:flex;align-items:center;gap:8px;font-size:13px;}
+.pin-dot{width:20px;height:20px;border-radius:50%;border:2px solid rgba(255,255,255,.4);flex-shrink:0;}
+
+/* before/after */
+.diff-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:12px 0;}
+.diff-box{border:1px solid var(--line);}
+.diff-label{font-family:"JetBrains Mono",monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;padding:6px 12px;font-weight:700;}
+.diff-label.before{background:var(--redp);color:var(--red);}
+.diff-label.after{background:var(--leafp);color:var(--leaf);}
+.diff-content{padding:12px 14px;font-family:"JetBrains Mono",monospace;font-size:12px;line-height:1.7;background:var(--paper);}
+
+/* state diagram */
+.state-flow{display:flex;align-items:center;gap:0;margin:10px 0;flex-wrap:wrap;}
+.state-box{padding:8px 14px;border:1px solid var(--line);background:var(--paper);font-size:12px;font-family:"JetBrains Mono",monospace;text-align:center;min-width:90px;}
+.state-box.s0{border-color:var(--pin-red);color:var(--pin-red);}
+.state-box.s1{border-color:var(--pin-amber);color:var(--pin-amber);}
+.state-box.s2{border-color:var(--pin-green);color:var(--pin-green);}
+.state-arrow{padding:0 8px;color:var(--ink3);font-size:18px;}
+
+.dod-list{list-style:none;padding-left:0;}
+.dod-list li{padding:10px 14px 10px 40px;position:relative;border-bottom:1px solid var(--lines);font-size:13.5px;}
+.dod-list li::before{content:"☐";position:absolute;left:12px;color:var(--leaf);font-size:16px;line-height:1;top:12px;}
+.dod-list li:last-child{border-bottom:none;}
+.dod-list li .dc{display:block;margin-top:3px;font-size:12px;color:var(--ink3);}
+
+@media(max-width:900px){.layout{display:block;}.toc{width:100%;height:auto;position:static;}.main{padding:28px 20px 64px;}.diff-grid,.state-flow{flex-direction:column;}}
+</style>
+</head>
+<body>
+<div class="layout">
+
+<!-- ======== TOC ======== -->
+<nav class="toc">
+  <div class="toc-logo">
+    <div class="proj">HenryMonitor</div>
+    <div class="phase">Phase 7</div>
+    <div class="sub">測定画面の地図中心1画面化<br>Step1〜3廃止 → 単一Scaffold</div>
+  </div>
+  <ul>
+    <li><a class="sec" href="#overview">0. Phase 7 の全体像</a></li>
+    <li><a class="sub" href="#before-after">現行 vs 新構成</a></li>
+    <li><a class="sub" href="#logic-map">ロジック移植マップ</a></li>
+    <li><a class="sub" href="#prereq">前提確認</a></li>
+    <li><a class="sub" href="#files">作成・編集ファイル一覧</a></li>
+    <hr>
+    <li><a class="sec" href="#step1">1. MeasurementPin モデル定義</a></li>
+    <li><a class="sec" href="#step2">2. MeasurementNotifier 実装</a></li>
+    <li><a class="sub" href="#step2-state">状態設計</a></li>
+    <li><a class="sub" href="#step2-logic">ロジック移植</a></li>
+    <hr>
+    <li><a class="sec" href="#step3">3. MeasurementScreen 実装</a></li>
+    <li><a class="sub" href="#step3-header">上部ステータスチップ3つ</a></li>
+    <li><a class="sub" href="#step3-map">地図エリア</a></li>
+    <li><a class="sub" href="#step3-button">測定開始ボタン</a></li>
+    <li><a class="sec" href="#step4">4. MeasurementListScreen 実装</a></li>
+    <li><a class="sec" href="#step5">5. 旧 Step 画面のリタイア処理</a></li>
+    <li><a class="sec" href="#step6">6. routes.dart の接続変更</a></li>
+    <li><a class="sec" href="#step7">7. 動作確認（ローカル）</a></li>
+    <li><a class="sec" href="#step8">8. commit → PR → CI/CD</a></li>
+    <li><a class="sec" href="#step9">9. 実機確認（センサー接続必須）</a></li>
+    <li><a class="sec" href="#dod">✓ 完了条件</a></li>
+  </ul>
+</nav>
+
+<!-- ======== Main ======== -->
+<main class="main">
+
+<div class="cover">
+  <span class="badge">Phase 7 / measurement screen</span>
+  <h1>測定画面の地図中心1画面化 — 実装手順書</h1>
+  <p class="desc">
+    現行の <strong>Step1（センサー接続）→ Step2（BG測定）→ Step3（圃場選択）→ 本測定</strong>
+    という4画面遷移を廃止し、
+    <strong>上部ステータスチップ3つ + 地図 + 測定開始ボタンの単一画面</strong>
+    に刷新します。
+    USB シリアル通信・GPS・アップロードのロジックはそのまま流用し、
+    UI 構造のみを大きく変えます。
+    バックエンドの変更はありません。
+  </p>
+  <div class="cmeta">
+    <dl><dt>STEP 1〜7</dt><dd>ローカル Flutter 環境で実施</dd></dl>
+    <dl><dt>STEP 8</dt><dd>commit → PR → main マージ → CI/CD</dd></dl>
+    <dl><dt>STEP 9</dt><dd>実機（センサー + Android）での動作確認</dd></dl>
+    <dl><dt>ブランチ</dt><dd><code>feature/phase7-measurement-screen</code></dd></dl>
+  </div>
+</div>
+
+<!-- ====== 0. OVERVIEW ====== -->
+<section id="overview">
+  <h2><span class="n">00</span>Phase 7 の全体像 <span class="en">overview</span></h2>
+
+  <h3 id="before-after">現行構成 vs 新構成</h3>
+
+  <div class="diff-grid">
+    <div class="diff-box">
+      <div class="diff-label before">現行（Phase 7 前）</div>
+      <div class="diff-content">MeasurementSessionScreen
+├── Step1Screen（センサー接続）
+│     接続ボタン → Recall
+├── Step2Screen（BG測定）
+│     BG測定開始ボタン
+│     「完了後に圃場選択へ」
+├── Step3Screen（圃場選択）
+│     圃場リスト
+└── MeasurementScreen（本測定）
+      地図 + 測定開始ボタン
+      測定完了 → 結果反映</div>
+    </div>
+    <div class="diff-box">
+      <div class="diff-label after">新構成（Phase 7 後）</div>
+      <div class="diff-content">MeasurementScreen（単一 Scaffold）
+┌─ 上部ステータスチップ（3つ）─┐
+│  [圃場選択▼] [✓接続] [✓BG] │
+└──────────────────────────────┘
+┌─ 地図エリア ─────────────────┐
+│  圃場ポリゴン（赤枠）         │
+│  現在地（青丸）               │
+│  測定ピン（番号付き・色別）   │
+│           ≡  リスト   ◎現在地│
+└──────────────────────────────┘
+┌─ 測定開始ボタン（3つOKで有効）─┐
+
+↳ リストアイコン →
+    MeasurementListScreen（サブ）</div>
+    </div>
+  </div>
+
+  <div class="callout danger">
+    <strong>Phase 7 はロジック移植を伴う大規模リファクタリングです。</strong>
+    USB シリアル通信・GPS・アップロードのロジックは現行の <code>MeasurementSessionScreen</code> に集約されています。
+    これらを新しい <code>MeasurementNotifier</code> に移植する際、
+    <strong>既存コードを消す前に必ず動作するコードを新ファイルに複製してから削除</strong>してください。
+    少しずつ移植して動作確認する「段階的リファクタリング」で進めます。
+  </div>
+
+  <h3 id="logic-map">ロジック移植マップ（最重要）</h3>
+
+  <p>
+    現行の <code>MeasurementSessionScreen</code> の中にあるロジックを
+    どこに移すかを事前に整理します。
+    Cursor に渡す前に <strong>このマップを確認して実際のメソッド名に書き込んでください</strong>。
+  </p>
+
+  <table>
+    <thead>
+      <tr><th>ロジック</th><th>現行の場所（推定）</th><th>移植先</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>USB シリアル接続・Recall コマンド送信</td>
+        <td><code>MeasurementSessionScreen</code> の Step1 部分<br>（<code>usb_serial</code> パッケージ）</td>
+        <td><code>MeasurementNotifier.connectSensor()</code></td>
+      </tr>
+      <tr>
+        <td>BG 測定コマンド送信</td>
+        <td>Step2 の BG測定ボタンの onPressed</td>
+        <td><code>MeasurementNotifier.startBg()</code></td>
+      </tr>
+      <tr>
+        <td>圃場候補の GPS 絞り込み</td>
+        <td>Step3 の圃場リスト生成部分</td>
+        <td><code>MeasurementNotifier.loadFarmCandidates()</code></td>
+      </tr>
+      <tr>
+        <td>GPS 現在地取得</td>
+        <td>本測定画面 or Step3<br>（<code>geolocator</code>）</td>
+        <td><code>MeasurementNotifier._startGpsTracking()</code></td>
+      </tr>
+      <tr>
+        <td>圃場内外判定</td>
+        <td>本測定の「測定開始」押下時<br>（<code>maps_toolkit</code>）</td>
+        <td><code>MeasurementNotifier</code> 内の判定メソッド</td>
+      </tr>
+      <tr>
+        <td>測定実行（CSV 生成・ローカル保存）</td>
+        <td>本測定の中心ロジック</td>
+        <td><code>MeasurementNotifier.startMeasurement()</code></td>
+      </tr>
+      <tr>
+        <td>アップロード（init → S3 PUT → complete）</td>
+        <td>測定完了後 or <code>PendingUploadStore</code> 経由</td>
+        <td><code>MeasurementNotifier</code> 内または既存 Repository そのまま呼び出し</td>
+      </tr>
+      <tr>
+        <td>ピン状態管理（赤→黄→緑）</td>
+        <td>本測定画面のローカル state</td>
+        <td><code>MeasurementNotifier</code>の <code>pins</code> リスト</td>
+      </tr>
+      <tr>
+        <td>応答ログ / アップロードログ</td>
+        <td>旧詳細設定画面（<code>BgScreen</code>）</td>
+        <td><code>MeasurementNotifier.logLines</code>（表示は ListScreen に移動）</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="callout teal">
+    <strong>Cursor セッション開始前に以下を実行してください。</strong>
+    <div class="shell" style="margin-top:8px;">
+<span class="c"># MeasurementSessionScreen の実際のファイルパスを確認</span>
+<span class="p">$ </span><span class="cmd">find lib/features/measure -name "*.dart" | sort</span>
+<span class="c"># または</span>
+<span class="p">$ </span><span class="cmd">find lib -name "*measurement*" -o -name "*measure*session*" | grep -v ".dart_tool"</span>
+
+<span class="c"># 現行ファイルの主要メソッド一覧を取得</span>
+<span class="p">$ </span><span class="cmd">grep -n "void \|Future\|Stream\|_connect\|_bg\|_measure\|_upload\|_gps\|_farm" \
+  $(find lib/features/measure -name "*.dart") | head -40</span>
+
+<span class="c"># USB Serial / Geolocator / maps_toolkit の使い方を確認</span>
+<span class="p">$ </span><span class="cmd">grep -n "UsbSerial\|Geolocator\|PolygonUtil\|usb_serial" \
+  $(find lib/features/measure -name "*.dart") | head -20</span>
+    </div>
+    確認結果（メソッド名の実態）を Cursor セッション冒頭に貼り付けてください。
+  </div>
+
+  <h3>ピンの状態遷移（設計確認）</h3>
+
+  <div class="state-flow">
+    <div class="state-box s0">赤<br>測定中 / エラー</div>
+    <div class="state-arrow">→</div>
+    <div class="state-box s1">黄<br>測定完了<br>（ローカル保存済み）</div>
+    <div class="state-arrow">→</div>
+    <div class="state-box s2">緑<br>推定完了<br>（API completed）</div>
+  </div>
+
+  <div class="pin-legend">
+    <div class="pin-item">
+      <div class="pin-dot" style="background:var(--pin-red);"></div>
+      <span>赤 = 測定中 / エラー / 打点直後</span>
+    </div>
+    <div class="pin-item">
+      <div class="pin-dot" style="background:var(--pin-amber);"></div>
+      <span>黄 = 測定完了（CSV ローカル保存済み・アップロード未完了または処理中）</span>
+    </div>
+    <div class="pin-item">
+      <div class="pin-dot" style="background:var(--pin-green);"></div>
+      <span>緑 = 推定完了（API が <code>completed</code> を返した）</span>
+    </div>
+    <div class="pin-item">
+      <div class="pin-dot" style="background:#3498DB;"></div>
+      <span>青丸 = 自分の現在地（GPS）。常時表示</span>
+    </div>
+  </div>
+
+  <h3 id="prereq">前提確認</h3>
+  <div class="steps">
+    <div class="step">
+      <div class="snum chk">✓</div>
+      <div class="sbody">
+        <h4>Phase 6 完了・main マージ済みを確認してブランチ作成</h4>
+        <span class="sloc">ターミナル / ローカル</span>
+        <div class="shell">
+<span class="p">$ </span><span class="cmd">git checkout main && git pull origin main</span>
+<span class="p">$ </span><span class="cmd">git log --oneline -3</span>
+<span class="c"># Phase 6 のコミット（work log input）が含まれること</span>
+<span class="p">$ </span><span class="cmd">git checkout -b feature/phase7-measurement-screen</span>
+        </div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="snum chk">✓</div>
+      <div class="sbody">
+        <h4>現行 MeasurementSessionScreen の行数・構造を確認</h4>
+        <span class="sloc">ターミナル / ローカル</span>
+        <div class="shell">
+<span class="c"># ファイルの行数と State クラスの構成を確認</span>
+<span class="p">$ </span><span class="cmd">find lib -name "*measure*session*" -o -name "*measurement_session*" \
+  | xargs wc -l</span>
+
+<span class="c"># State クラス・主要フィールドのリスト</span>
+<span class="p">$ </span><span class="cmd">grep -n "class\|late \|final \|bool \|int \|List\|Stream\|Subscription" \
+  $(find lib -name "*measurement*session*") | head -50</span>
+        </div>
+        <div class="callout warn">
+          <strong>500行超えのファイルである可能性があります。</strong>
+          Cursor は長大ファイルのリファクタリングが苦手なため、
+          まず「新ファイルに空の骨格を作る」→「メソッドを1つずつ移植する」
+          という小分け指示で進めてください。
+          本手順書もその順番で記述しています。
+        </div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="snum chk">✓</div>
+      <div class="sbody">
+        <h4>analyze baseline を確認</h4>
+        <span class="sloc">ターミナル / ローカル</span>
+        <div class="shell">
+<span class="p">$ </span><span class="cmd">flutter analyze 2>&1 | tail -3</span>
+<span class="c"># "117 issues found" を確認</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <h3 id="files">作成・編集ファイル一覧</h3>
+  <div class="filetree">
+lib/features/measure/
+├── <span class="d">domain/</span>
+│   └── <span class="nf">measurement_pin.dart        （ピン1点のデータモデル）</span>
+├── <span class="d">presentation/</span>
+│   ├── <span class="nf">measurement_notifier.dart   （USB・GPS・測定・ピン状態を集約）</span>
+│   ├── <span class="nf">measurement_screen.dart     （単一Scaffold: チップ + 地図 + ボタン）</span>
+│   ├── <span class="nf">measurement_list_screen.dart（測定リスト: ピン一覧・削除・位置修正）</span>
+│   └── <span class="df">measurement_session_screen.dart （ロジック移植完了後に削除）</span>
+  </div>
+
+  <div class="callout note">
+    <strong>ディレクトリパスは実際のプロジェクトに合わせてください。</strong>
+    Phase 4〜6 の実装コメントから <code>lib/features/measure/presentation/</code> が
+    <code>measurement_session_screen.dart</code> のある場所だと想定されます。
+    <code>find lib -name "*measurement_session*"</code> で確認してください。
+  </div>
+</section>
+
+<!-- ====== STEP 1: Pin Model ====== -->
+<section id="step1">
+  <h2><span class="n">01</span>MeasurementPin モデル定義 <span class="en">pin model</span></h2>
+
+  <div class="steps">
+    <div class="step">
+      <div class="snum">1</div>
+      <div class="sbody">
+        <h4>measurement_pin.dart を新規作成</h4>
+        <span class="sloc">lib/features/measure/domain/measurement_pin.dart（新規作成）</span>
+<pre><span class="fn">lib/features/measure/domain/measurement_pin.dart</span><span class="cm">/// 地図上のピン1点を表すデータクラス。
+/// MeasurementNotifier の pins リストで管理し、
+/// MeasurementScreen と MeasurementListScreen の両方が参照する。</span>
+<span class="kw">enum</span> <span class="cl">PinStatus</span> {
+  measuring,   <span class="cm">// 赤: 測定中 / 打点直後 / エラー</span>
+  measured,    <span class="cm">// 黄: CSV ローカル保存済み（アップロード待ちまたは処理中）</span>
+  completed,   <span class="cm">// 緑: API が completed を返した（推定完了）</span>
+}
+
+<span class="kw">class</span> <span class="cl">MeasurementPin</span> {
+  <span class="kw">final</span> <span class="kw">int</span>       index;      <span class="cm">// 1始まりの番号（表示用）</span>
+  <span class="kw">final</span> <span class="kw">double</span>    latitude;
+  <span class="kw">final</span> <span class="kw">double</span>    longitude;
+  <span class="kw">final</span> <span class="cl">PinStatus</span> status;
+  <span class="kw">final</span> <span class="kw">double</span>?   cec;        <span class="cm">// 推定完了後に値が入る</span>
+  <span class="kw">final</span> <span class="kw">bool</span>      hasError;
+
+  <span class="kw">const</span> <span class="cl">MeasurementPin</span>({
+    required <span class="kw">this</span>.index,
+    required <span class="kw">this</span>.latitude,
+    required <span class="kw">this</span>.longitude,
+    <span class="kw">this</span>.status   = <span class="cl">PinStatus</span>.measuring,
+    <span class="kw">this</span>.cec,
+    <span class="kw">this</span>.hasError = <span class="kw">false</span>,
+  });
+
+  <span class="cm">/// status を変えた新しい MeasurementPin を返す（immutable 更新）</span>
+  <span class="cl">MeasurementPin</span> copyWith({
+    <span class="cl">PinStatus</span>? status,
+    <span class="kw">double</span>?    cec,
+    <span class="kw">bool</span>?      hasError,
+    <span class="kw">double</span>?    latitude,
+    <span class="kw">double</span>?    longitude,
+  }) =&gt; <span class="cl">MeasurementPin</span>(
+    index:     index,
+    latitude:  latitude  ?? <span class="kw">this</span>.latitude,
+    longitude: longitude ?? <span class="kw">this</span>.longitude,
+    status:    status    ?? <span class="kw">this</span>.status,
+    cec:       cec       ?? <span class="kw">this</span>.cec,
+    hasError:  hasError  ?? <span class="kw">this</span>.hasError,
+  );
+}</pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ====== STEP 2: Notifier ====== -->
+<section id="step2">
+  <h2><span class="n">02</span>MeasurementNotifier の実装 <span class="en">notifier</span></h2>
+
+  <p>
+    現行の <code>MeasurementSessionScreen</code> に散在するロジックを
+    <code>MeasurementNotifier</code> に集約します。
+    UI（Widget）はここを watch するだけで済むようにします。
+  </p>
+
+  <div class="steps">
+    <div class="step" id="step2-state">
+      <div class="snum">2</div>
+      <div class="sbody">
+        <h4>MeasurementNotifier の骨格を作成（まず空の状態で）</h4>
+        <span class="sloc">lib/features/measure/presentation/measurement_notifier.dart（新規作成）</span>
+        <p>
+          最初はコンパイルが通る空の骨格のみ作成します。
+          ロジックの移植は次のステップで行います。
+        </p>
+<pre><span class="fn">measurement_notifier.dart — まず骨格のみ作成</span><span class="kw">import</span> <span class="st">'package:flutter/foundation.dart'</span>;
+<span class="cm">// 既存の import を確認してここに追加すること</span>
+<span class="kw">import</span> <span class="st">'package:google_maps_flutter/google_maps_flutter.dart'</span>;
+<span class="kw">import</span> <span class="st">'../domain/measurement_pin.dart'</span>;
+
+<span class="kw">class</span> <span class="cl">MeasurementNotifier</span> <span class="kw">extends</span> <span class="cl">ChangeNotifier</span> {
+
+  <span class="cm">// ── センサー接続状態 ─────────────────────────────────────</span>
+  <span class="kw">bool</span>          isSensorConnected = <span class="kw">false</span>;
+  <span class="kw">bool</span>          isBgDone          = <span class="kw">false</span>;
+  <span class="kw">bool</span>          isConnecting      = <span class="kw">false</span>;
+  <span class="kw">bool</span>          isBgRunning       = <span class="kw">false</span>;
+
+  <span class="cm">// ── 圃場選択状態 ────────────────────────────────────────</span>
+  <span class="kw">int</span>?          selectedFarmId;
+  <span class="cl">String</span>?       selectedFarmName;
+  <span class="cm">// farms の型は既存コードの Farm モデルに合わせること</span>
+  <span class="cl">List</span>&lt;<span class="kw">dynamic</span>&gt; farmCandidates    = [];
+  <span class="kw">bool</span>          isLoadingFarms    = <span class="kw">false</span>;
+
+  <span class="cm">// ── GPS ──────────────────────────────────────────────</span>
+  <span class="cl">LatLng</span>?       currentLocation;  <span class="cm">// 青丸の現在地</span>
+
+  <span class="cm">// ── 測定ピン ─────────────────────────────────────────</span>
+  <span class="kw">final</span> <span class="cl">List</span>&lt;<span class="cl">MeasurementPin</span>&gt; pins = [];
+
+  <span class="cm">// ── ログ ─────────────────────────────────────────────</span>
+  <span class="kw">final</span> <span class="cl">List</span>&lt;<span class="cl">String</span>&gt; logLines = [];
+
+  <span class="cm">// ── 測定可否 ─────────────────────────────────────────</span>
+  <span class="kw">bool</span> get canStartMeasurement =&gt;
+      isSensorConnected && isBgDone && selectedFarmId != <span class="kw">null</span>;
+
+  <span class="cm">// ── メソッド（ロジック移植後に実装） ─────────────────────</span>
+  <span class="kw">Future</span>&lt;<span class="kw">void</span>&gt; connectSensor()         <span class="kw">async</span> { <span class="cm">/* TODO: 移植 */</span> }
+  <span class="kw">Future</span>&lt;<span class="kw">void</span>&gt; startBg()               <span class="kw">async</span> { <span class="cm">/* TODO: 移植 */</span> }
+  <span class="kw">Future</span>&lt;<span class="kw">void</span>&gt; loadFarmCandidates()    <span class="kw">async</span> { <span class="cm">/* TODO: 移植 */</span> }
+  <span class="kw">void</span>          selectFarm(<span class="kw">int</span> id, <span class="cl">String</span> name) { <span class="cm">/* TODO */</span> }
+  <span class="kw">Future</span>&lt;<span class="kw">void</span>&gt; startMeasurement()      <span class="kw">async</span> { <span class="cm">/* TODO: 移植 */</span> }
+  <span class="kw">void</span>          correctPinPosition(<span class="kw">int</span> index, <span class="cl">LatLng</span> newPos) { <span class="cm">/* TODO */</span> }
+  <span class="kw">void</span>          deletePin(<span class="kw">int</span> index) { <span class="cm">/* TODO */</span> }
+
+  <span class="kw">@override</span>
+  <span class="kw">void</span> dispose() {
+    <span class="cm">/* USB シリアル・GPS の subscription をキャンセル */</span>
+    <span class="kw">super</span>.dispose();
+  }
+}</pre>
+      </div>
+    </div>
+
+    <div class="step" id="step2-logic">
+      <div class="snum">3</div>
+      <div class="sbody">
+        <h4>現行コードからロジックを移植（メソッドごとに確認しながら）</h4>
+        <span class="sloc">measurement_notifier.dart に追記</span>
+        <p>
+          以下の順番で1メソッドずつ移植し、
+          各移植後に <code>flutter analyze</code> でエラーがないことを確認してください。
+        </p>
+
+        <h4>① connectSensor() — USB シリアル接続 + Recall</h4>
+        <ul>
+          <li>現行の Step1 の「接続」ボタン <code>onPressed</code> のロジックを移植</li>
+          <li><code>UsbSerial</code> のオープン → <code>"condition recall 0"</code> 送信 → タイムアウト 20秒</li>
+          <li>完了後: <code>isSensorConnected = true</code> → <code>notifyListeners()</code></li>
+          <li>失敗後: <code>isSensorConnected = false</code>、ログに追記</li>
+        </ul>
+
+        <h4>② startBg() — BG 測定コマンド送信</h4>
+        <ul>
+          <li>現行の Step2 の「BG測定開始」ボタンのロジックを移植</li>
+          <li>コマンド: <code>"null 1.0 0.5 0.1 1"</code>（デフォルト値。設定値があればそれを使う）</li>
+          <li>完了後: <code>isBgDone = true</code> → <code>notifyListeners()</code></li>
+        </ul>
+
+        <h4>③ loadFarmCandidates() — GPS + 圃場候補絞り込み</h4>
+        <ul>
+          <li>現在地を取得して GPS に近い順に圃場候補を返す（現行 Step3 のロジック）</li>
+          <li>GPS は <code>Geolocator.getCurrentPosition</code></li>
+          <li>結果を <code>farmCandidates</code> にセット → <code>notifyListeners()</code></li>
+        </ul>
+
+        <h4>④ startMeasurement() — 測定実行（最も複雑）</h4>
+        <ul>
+          <li>現在地（またはタップ補正位置）から <code>PolygonUtil.containsLocation</code> で圃場内外判定</li>
+          <li>outside の場合は例外 / エラーログを出して処理中断</li>
+          <li>測定実行（CSV生成）→ <code>ApplicationDocumentsDirectory</code> に保存</li>
+          <li>ローカル保存完了後: ピンを赤→黄に更新 → <code>notifyListeners()</code></li>
+          <li>アップロード（init → S3 PUT → complete）</li>
+          <li>アップロード完了後: ピンを黄→緑に更新 → <code>notifyListeners()</code></li>
+          <li>アップロード失敗: <code>PendingUploadStore</code> に追加 → ピンは黄のまま</li>
+        </ul>
+
+        <div class="callout danger">
+          <strong>startMeasurement() の移植は段階的に行ってください。</strong>
+          一度にすべてを移植しようとすると型エラーや依存関係の問題が連鎖します。
+          以下の順番で少しずつ移植・確認を繰り返してください。
+          <ol>
+            <li>圃場内外判定のみ移植してテスト</li>
+            <li>CSV 生成・ローカル保存を追加してテスト</li>
+            <li>ピン状態更新を追加してテスト</li>
+            <li>アップロードロジックを追加してテスト</li>
+          </ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ====== STEP 3: MeasurementScreen ====== -->
+<section id="step3">
+  <h2><span class="n">03</span>MeasurementScreen の実装（単一 Scaffold） <span class="en">measurement screen</span></h2>
+
+  <div class="steps">
+    <div class="step" id="step3-header">
+      <div class="snum">4</div>
+      <div class="sbody">
+        <h4>measurement_screen.dart を新規作成（上部ステータスチップ3つ）</h4>
+        <span class="sloc">lib/features/measure/presentation/measurement_screen.dart（新規作成）</span>
+<pre><span class="fn">lib/features/measure/presentation/measurement_screen.dart</span><span class="kw">import</span> <span class="st">'package:flutter/material.dart'</span>;
+<span class="kw">import</span> <span class="st">'package:google_maps_flutter/google_maps_flutter.dart'</span>;
+<span class="kw">import</span> <span class="st">'package:provider/provider.dart'</span>;
+<span class="kw">import</span> <span class="st">'measurement_notifier.dart'</span>;
+<span class="kw">import</span> <span class="st">'measurement_list_screen.dart'</span>;
+
+<span class="kw">class</span> <span class="cl">MeasurementScreen</span> <span class="kw">extends</span> <span class="cl">StatelessWidget</span> {
+  <span class="kw">const</span> <span class="cl">MeasurementScreen</span>({<span class="kw">super</span>.key});
+
+  <span class="kw">@override</span>
+  <span class="cl">Widget</span> build(<span class="cl">BuildContext</span> context) {
+    <span class="kw">return</span> <span class="wg">ChangeNotifierProvider</span>(
+      create: (_) =&gt; <span class="cl">MeasurementNotifier</span>()..loadFarmCandidates(),
+      child: <span class="kw">const</span> <span class="cl">_MeasurementView</span>(),
+    );
+  }
+}
+
+<span class="kw">class</span> <span class="cl">_MeasurementView</span> <span class="kw">extends</span> <span class="cl">StatelessWidget</span> {
+  <span class="kw">const</span> <span class="cl">_MeasurementView</span>();
+
+  <span class="kw">@override</span>
+  <span class="cl">Widget</span> build(<span class="cl">BuildContext</span> context) {
+    <span class="kw">final</span> n = context.watch&lt;<span class="cl">MeasurementNotifier</span>&gt;();
+
+    <span class="kw">return</span> <span class="wg">Scaffold</span>(
+      body: <span class="wg">SafeArea</span>(
+        child: <span class="wg">Column</span>(children: [
+
+          <span class="cm">// ── 上部ステータスチップ3つ ───────────────────────────────</span>
+          <span class="wg">Container</span>(
+            padding: <span class="kw">const</span> <span class="wg">EdgeInsets</span>.symmetric(horizontal: <span class="nm">8</span>, vertical: <span class="nm">8</span>),
+            child: <span class="wg">Row</span>(children: [
+
+              <span class="cm">// チップ①: 圃場選択（プルダウン）</span>
+              <span class="wg">Expanded</span>(
+                child: <span class="cl">_FarmChip</span>(notifier: n),
+              ),
+              <span class="kw">const</span> <span class="wg">SizedBox</span>(width: <span class="nm">8</span>),
+
+              <span class="cm">// チップ②: センサー接続</span>
+              <span class="cl">_StatusChip</span>(
+                label:     <span class="st">'接続'</span>,
+                subLabel:  <span class="st">'センサ'</span>,
+                isDone:    n.isSensorConnected,
+                isLoading: n.isConnecting,
+                onTap:     n.isSensorConnected ? <span class="kw">null</span> : n.connectSensor,
+              ),
+              <span class="kw">const</span> <span class="wg">SizedBox</span>(width: <span class="nm">8</span>),
+
+              <span class="cm">// チップ③: BG 測定</span>
+              <span class="cl">_StatusChip</span>(
+                label:     <span class="st">'BG'</span>,
+                subLabel:  <span class="st">'基準'</span>,
+                isDone:    n.isBgDone,
+                isLoading: n.isBgRunning,
+                <span class="cm">// 接続完了後のみタップ可能</span>
+                onTap:     n.isSensorConnected && !n.isBgDone ? n.startBg : <span class="kw">null</span>,
+              ),
+            ]),
+          ),
+
+          <span class="cm">// ── 地図エリア ────────────────────────────────────────</span>
+          <span class="wg">Expanded</span>(
+            child: <span class="wg">Stack</span>(children: [
+              <span class="cl">_MeasurementMap</span>(notifier: n),
+
+              <span class="cm">// 右上: 測定リストボタン</span>
+              <span class="wg">Positioned</span>(
+                top: <span class="nm">8</span>, right: <span class="nm">8</span>,
+                child: <span class="wg">FloatingActionButton</span>.small(
+                  heroTag: <span class="st">'measure_list'</span>,
+                  backgroundColor: <span class="wg">Colors</span>.white,
+                  foregroundColor: <span class="wg">Colors</span>.black87,
+                  onPressed: () =&gt; <span class="wg">Navigator</span>.push(
+                    context,
+                    <span class="wg">MaterialPageRoute</span>(
+                      builder: (_) =&gt; <span class="wg">ChangeNotifierProvider</span>.value(
+                        value: n,
+                        child: <span class="kw">const</span> <span class="cl">MeasurementListScreen</span>(),
+                      ),
+                    ),
+                  ),
+                  child: <span class="kw">const</span> <span class="wg">Icon</span>(<span class="wg">Icons</span>.list),
+                ),
+              ),
+
+              <span class="cm">// 右下: 現在地ボタン</span>
+              <span class="wg">Positioned</span>(
+                bottom: <span class="nm">8</span>, right: <span class="nm">8</span>,
+                child: <span class="wg">FloatingActionButton</span>.small(
+                  heroTag: <span class="st">'measure_location'</span>,
+                  backgroundColor: <span class="wg">Colors</span>.white,
+                  foregroundColor: <span class="wg">Colors</span>.black87,
+                  onPressed: () {
+                    <span class="cm">// GoogleMapController をセンタリング（実装は _MeasurementMap 内）</span>
+                    context.read&lt;<span class="cl">MeasurementNotifier</span>&gt;().centerOnCurrentLocation();
+                  },
+                  child: <span class="kw">const</span> <span class="wg">Icon</span>(<span class="wg">Icons</span>.my_location),
+                ),
+              ),
+            ]),
+          ),
+
+          <span class="cm">// ── 下部: 測定開始ボタン ─────────────────────────────</span>
+          <span class="wg">Padding</span>(
+            padding: <span class="kw">const</span> <span class="wg">EdgeInsets</span>.all(<span class="nm">12</span>),
+            child: <span class="wg">SizedBox</span>(
+              width: <span class="kw">double</span>.infinity, height: <span class="nm">52</span>,
+              child: <span class="wg">ElevatedButton</span>.icon(
+                icon:  <span class="kw">const</span> <span class="wg">Icon</span>(<span class="wg">Icons</span>.play_arrow_rounded),
+                label: <span class="kw">const</span> <span class="wg">Text</span>(<span class="st">'測定開始'</span>),
+                style: <span class="wg">ElevatedButton</span>.styleFrom(
+                  backgroundColor: n.canStartMeasurement
+                      ? <span class="kw">const</span> <span class="wg">Color</span>(<span class="nm">0xFFB02020</span>) : <span class="wg">Colors</span>.grey[<span class="nm">400</span>],
+                  foregroundColor: <span class="wg">Colors</span>.white,
+                ),
+                <span class="cm">// 3チップすべてOKの時のみ有効化</span>
+                onPressed: n.canStartMeasurement
+                    ? () =&gt; n.startMeasurement() : <span class="kw">null</span>,
+              ),
+            ),
+          ),
+        ]),
+      ),
+    );
+  }
+}
+
+<span class="cm">// ── 圃場選択チップ（プルダウン）──────────────────────────────</span>
+<span class="kw">class</span> <span class="cl">_FarmChip</span> <span class="kw">extends</span> <span class="cl">StatelessWidget</span> {
+  <span class="kw">const</span> <span class="cl">_FarmChip</span>({required <span class="kw">this</span>.notifier});
+  <span class="kw">final</span> <span class="cl">MeasurementNotifier</span> notifier;
+
+  <span class="kw">@override</span>
+  <span class="cl">Widget</span> build(<span class="cl">BuildContext</span> context) {
+    <span class="kw">return</span> <span class="wg">GestureDetector</span>(
+      onTap: () =&gt; _showFarmPicker(context),
+      child: <span class="wg">Container</span>(
+        padding: <span class="kw">const</span> <span class="wg">EdgeInsets</span>.symmetric(horizontal: <span class="nm">10</span>, vertical: <span class="nm">8</span>),
+        decoration: <span class="wg">BoxDecoration</span>(
+          color: notifier.selectedFarmId != <span class="kw">null</span>
+              ? <span class="kw">const</span> <span class="wg">Color</span>(<span class="nm">0xFF2E5C39</span>) : <span class="wg">Colors</span>.grey[<span class="nm">300</span>],
+          borderRadius: <span class="wg">BorderRadius</span>.circular(<span class="nm">20</span>),
+        ),
+        child: <span class="wg">Row</span>(mainAxisSize: <span class="wg">MainAxisSize</span>.min, children: [
+          <span class="wg">Text</span>(
+            notifier.selectedFarmName ?? <span class="st">'圃場を選択'</span>,
+            style: <span class="wg">TextStyle</span>(
+              color: notifier.selectedFarmId != <span class="kw">null</span>
+                  ? <span class="wg">Colors</span>.white : <span class="wg">Colors</span>.black54,
+              fontSize: <span class="nm">13</span>, fontWeight: <span class="wg">FontWeight</span>.w600,
+            ),
+          ),
+          <span class="wg">Icon</span>(<span class="wg">Icons</span>.arrow_drop_down,
+              color: notifier.selectedFarmId != <span class="kw">null</span>
+                  ? <span class="wg">Colors</span>.white : <span class="wg">Colors</span>.black54,
+              size: <span class="nm">18</span>),
+        ]),
+      ),
+    );
+  }
+
+  <span class="kw">void</span> _showFarmPicker(<span class="cl">BuildContext</span> context) {
+    showModalBottomSheet(
+      context: context,
+      builder: (_) =&gt; <span class="wg">ListView</span>(
+        children: [
+          <span class="wg">Padding</span>(
+            padding: <span class="kw">const</span> <span class="wg">EdgeInsets</span>.all(<span class="nm">16</span>),
+            child: <span class="wg">Text</span>(<span class="st">'測定する圃場を選択'</span>,
+                style: <span class="kw">const</span> <span class="wg">TextStyle</span>(fontWeight: <span class="wg">FontWeight</span>.bold, fontSize: <span class="nm">16</span>)),
+          ),
+          <span class="kw">const</span> <span class="wg">Divider</span>(height: <span class="nm">1</span>),
+          ...notifier.farmCandidates.map((farm) =&gt; <span class="wg">ListTile</span>(
+            <span class="cm">// farm は既存の Farm モデル。フィールド名に合わせること</span>
+            title: <span class="wg">Text</span>(farm.farmName ?? <span class="st">''</span>),
+            subtitle: <span class="wg">Text</span>(<span class="st">'ID: ${farm.id}'</span>),
+            onTap: () {
+              notifier.selectFarm(farm.id <span class="kw">as</span> <span class="kw">int</span>, farm.farmName <span class="kw">as</span> <span class="cl">String</span>);
+              <span class="wg">Navigator</span>.pop(context);
+            },
+          )),
+        ],
+      ),
+    );
+  }
+}
+
+<span class="cm">// ── ステータスチップ（接続 / BG）──────────────────────────────</span>
+<span class="kw">class</span> <span class="cl">_StatusChip</span> <span class="kw">extends</span> <span class="cl">StatelessWidget</span> {
+  <span class="kw">const</span> <span class="cl">_StatusChip</span>({
+    required <span class="kw">this</span>.label,    required <span class="kw">this</span>.subLabel,
+    required <span class="kw">this</span>.isDone,   required <span class="kw">this</span>.isLoading,
+    <span class="kw">this</span>.onTap,
+  });
+  <span class="kw">final</span> <span class="cl">String</span>       label, subLabel;
+  <span class="kw">final</span> <span class="kw">bool</span>         isDone, isLoading;
+  <span class="kw">final</span> <span class="wg">VoidCallback</span>? onTap;
+
+  <span class="kw">@override</span>
+  <span class="cl">Widget</span> build(<span class="cl">BuildContext</span> context) {
+    <span class="kw">final</span> bg = isDone
+        ? <span class="kw">const</span> <span class="wg">Color</span>(<span class="nm">0xFF2E5C39</span>)
+        : onTap != <span class="kw">null</span> ? <span class="kw">const</span> <span class="wg">Color</span>(<span class="nm">0xFF5A5A5A</span>) : <span class="wg">Colors</span>.grey[<span class="nm">300</span>];
+    <span class="kw">final</span> fg = isDone || onTap != <span class="kw">null</span> ? <span class="wg">Colors</span>.white : <span class="wg">Colors</span>.black38;
+
+    <span class="kw">return</span> <span class="wg">GestureDetector</span>(
+      onTap: onTap,
+      child: <span class="wg">Container</span>(
+        padding: <span class="kw">const</span> <span class="wg">EdgeInsets</span>.symmetric(horizontal: <span class="nm">10</span>, vertical: <span class="nm">6</span>),
+        decoration: <span class="wg">BoxDecoration</span>(color: bg, borderRadius: <span class="wg">BorderRadius</span>.circular(<span class="nm">20</span>)),
+        child: isLoading
+            ? <span class="wg">SizedBox</span>(width: <span class="nm">16</span>, height: <span class="nm">16</span>,
+                child: <span class="wg">CircularProgressIndicator</span>(strokeWidth: <span class="nm">2</span>,
+                    color: fg))
+            : <span class="wg">Column</span>(mainAxisSize: <span class="wg">MainAxisSize</span>.min, children: [
+                <span class="wg">Text</span>(isDone ? <span class="st">'✓ $label'</span> : label,
+                    style: <span class="wg">TextStyle</span>(color: fg, fontSize: <span class="nm">12</span>, fontWeight: <span class="wg">FontWeight</span>.bold)),
+                <span class="wg">Text</span>(subLabel,
+                    style: <span class="wg">TextStyle</span>(color: fg.withValues(alpha: <span class="nm">0.8</span>), fontSize: <span class="nm">10</span>)),
+              ]),
+      ),
+    );
+  }
+}</pre>
+      </div>
+    </div>
+
+    <div class="step" id="step3-map">
+      <div class="snum">5</div>
+      <div class="sbody">
+        <h4>地図エリアウィジェット（_MeasurementMap）を実装</h4>
+        <span class="sloc">同ファイルに続けて追記</span>
+<pre><span class="fn">_MeasurementMap — 圃場ポリゴン + 現在地 + 測定ピンを描画</span><span class="kw">class</span> <span class="cl">_MeasurementMap</span> <span class="kw">extends</span> <span class="cl">StatefulWidget</span> {
+  <span class="kw">const</span> <span class="cl">_MeasurementMap</span>({required <span class="kw">this</span>.notifier});
+  <span class="kw">final</span> <span class="cl">MeasurementNotifier</span> notifier;
+  <span class="kw">@override</span>
+  <span class="cl">State</span>&lt;<span class="cl">_MeasurementMap</span>&gt; createState() =&gt; _MeasurementMapState();
+}
+
+<span class="kw">class</span> <span class="cl">_MeasurementMapState</span> <span class="kw">extends</span> <span class="cl">State</span>&lt;<span class="cl">_MeasurementMap</span>&gt; {
+  <span class="cl">GoogleMapController</span>? _mapCtrl;
+
+  <span class="kw">@override</span>
+  <span class="cl">Widget</span> build(<span class="cl">BuildContext</span> context) {
+    <span class="kw">final</span> n = widget.notifier;
+
+    <span class="cm">// 測定ピンを Marker Set に変換</span>
+    <span class="kw">final</span> markers = &lt;<span class="cl">Marker</span>&gt;{};
+
+    <span class="cm">// 現在地（青丸）</span>
+    <span class="kw">if</span> (n.currentLocation != <span class="kw">null</span>) {
+      markers.add(<span class="cl">Marker</span>(
+        markerId: <span class="kw">const</span> <span class="cl">MarkerId</span>(<span class="st">'_current'</span>),
+        position: n.currentLocation!,
+        icon: <span class="cl">BitmapDescriptor</span>.defaultMarkerWithHue(
+            <span class="cl">BitmapDescriptor</span>.hueAzure),
+        zIndex: <span class="nm">100</span>,
+      ));
+    }
+
+    <span class="cm">// 測定ピン（状態に応じて色を変える）</span>
+    <span class="kw">for</span> (<span class="kw">final</span> pin <span class="kw">in</span> n.pins) {
+      <span class="kw">final</span> hue = <span class="kw">switch</span> (pin.status) {
+        <span class="cl">PinStatus</span>.measuring  =&gt; <span class="cl">BitmapDescriptor</span>.hueRed,
+        <span class="cl">PinStatus</span>.measured   =&gt; <span class="cl">BitmapDescriptor</span>.hueYellow,
+        <span class="cl">PinStatus</span>.completed  =&gt; <span class="cl">BitmapDescriptor</span>.hueGreen,
+      };
+      markers.add(<span class="cl">Marker</span>(
+        markerId: <span class="cl">MarkerId</span>(<span class="st">'pin_${pin.index}'</span>),
+        position: <span class="cl">LatLng</span>(pin.latitude, pin.longitude),
+        icon: <span class="cl">BitmapDescriptor</span>.defaultMarkerWithHue(hue),
+        infoWindow: <span class="cl">InfoWindow</span>(
+          title: <span class="st">'${pin.index}'</span> + (pin.cec != <span class="kw">null</span> ? <span class="st">': ${pin.cec!.toStringAsFixed(1)}'</span> : <span class="st">''</span>),
+        ),
+        <span class="cm">// ピンのタップは地図上では無効（誤操作防止）。操作はリスト画面から</span>
+        onTap: () {},
+      ));
+    }
+
+    <span class="cm">// 圃場ポリゴン（赤枠）</span>
+    <span class="kw">final</span> polygons = &lt;<span class="cl">Polygon</span>&gt;{};
+    <span class="cm">// n.selectedFarmPolygon が LatLng リストで提供される前提。
+    // 既存の圃場ポリゴン描画ロジックを流用してください。</span>
+
+    <span class="kw">return</span> <span class="wg">GoogleMap</span>(
+      initialCameraPosition: <span class="cl">CameraPosition</span>(
+        target: n.currentLocation ?? <span class="kw">const</span> <span class="cl">LatLng</span>(<span class="nm">35.681236</span>, <span class="nm">139.767125</span>),
+        zoom: <span class="nm">17</span>,
+      ),
+      mapType: <span class="cl">MapType</span>.satellite,
+      myLocationButtonEnabled: <span class="kw">false</span>,
+      markers: markers,
+      polygons: polygons,
+      onMapCreated: (ctrl) => _mapCtrl = ctrl,
+      <span class="cm">// 地図タップ = 測定ピンの位置補正（onTap で currentLocation を上書き）</span>
+      onTap: (latLng) =&gt; n.overrideLocation(latLng),
+    );
+  }
+}</pre>
+
+        <div class="callout">
+          <strong>圃場ポリゴンの描画ロジックについて。</strong>
+          現行の <code>MeasurementSessionScreen</code> で圃場境界を地図に描画しているコードがあるはずです。
+          <code>grep -n "Polygon\|boundary_polygon\|boundaryPolygon" $(find lib/features/measure -name "*.dart")</code>
+          で確認して、同じロジックを <code>_MeasurementMapState</code> に移植してください。
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ====== STEP 4: MeasurementListScreen ====== -->
+<section id="step4">
+  <h2><span class="n">04</span>MeasurementListScreen の実装 <span class="en">list screen</span></h2>
+
+  <div class="steps">
+    <div class="step">
+      <div class="snum">6</div>
+      <div class="sbody">
+        <h4>measurement_list_screen.dart を新規作成</h4>
+        <span class="sloc">lib/features/measure/presentation/measurement_list_screen.dart（新規作成）</span>
+        <p>
+          右上の「リスト」ボタンから開くサブ画面です。
+          <code>MeasurementNotifier</code> は <code>ChangeNotifierProvider.value</code> で共有されています。
+        </p>
+<pre><span class="fn">lib/features/measure/presentation/measurement_list_screen.dart</span><span class="kw">import</span> <span class="st">'package:flutter/material.dart'</span>;
+<span class="kw">import</span> <span class="st">'package:provider/provider.dart'</span>;
+<span class="kw">import</span> <span class="st">'measurement_notifier.dart'</span>;
+<span class="kw">import</span> <span class="st">'../domain/measurement_pin.dart'</span>;
+
+<span class="kw">class</span> <span class="cl">MeasurementListScreen</span> <span class="kw">extends</span> <span class="cl">StatefulWidget</span> {
+  <span class="kw">const</span> <span class="cl">MeasurementListScreen</span>({<span class="kw">super</span>.key});
+  <span class="kw">@override</span>
+  <span class="cl">State</span>&lt;<span class="cl">MeasurementListScreen</span>&gt; createState() =&gt; _MeasurementListScreenState();
+}
+
+<span class="kw">class</span> <span class="cl">_MeasurementListScreenState</span> <span class="kw">extends</span> <span class="cl">State</span>&lt;<span class="cl">MeasurementListScreen</span>&gt; {
+  <span class="kw">final</span> _selected = &lt;<span class="kw">int</span>&gt;{};  <span class="cm">// 選択中のピン index</span>
+  <span class="kw">bool</span> _showUnconfirmedOnly = <span class="kw">false</span>;
+
+  <span class="kw">@override</span>
+  <span class="cl">Widget</span> build(<span class="cl">BuildContext</span> context) {
+    <span class="kw">final</span> n    = context.watch&lt;<span class="cl">MeasurementNotifier</span>&gt;();
+    <span class="kw">final</span> pins = _showUnconfirmedOnly
+        ? n.pins.where((p) =&gt; p.status != <span class="cl">PinStatus</span>.completed).toList()
+        : n.pins;
+
+    <span class="kw">return</span> <span class="wg">Scaffold</span>(
+      appBar: <span class="wg">AppBar</span>(
+        title: <span class="wg">Text</span>(n.selectedFarmName != <span class="kw">null</span> ? <span class="st">'測定リスト - ${n.selectedFarmName}'</span> : <span class="st">'測定リスト'</span>),
+        backgroundColor: <span class="kw">const</span> <span class="wg">Color</span>(<span class="nm">0xFF1A2318</span>),
+        foregroundColor: <span class="wg">Colors</span>.white,
+        actions: [
+          <span class="cm">// 「未確定のみ」フィルタ</span>
+          <span class="wg">TextButton</span>(
+            onPressed: () =&gt; setState(() =&gt; _showUnconfirmedOnly = !_showUnconfirmedOnly),
+            child: <span class="wg">Text</span>(
+              <span class="st">'未確定のみ'</span>,
+              style: <span class="wg">TextStyle</span>(
+                color: _showUnconfirmedOnly ? <span class="kw">const</span> <span class="wg">Color</span>(<span class="nm">0xFF7DD3A8</span>) : <span class="wg">Colors</span>.white70,
+              ),
+            ),
+          ),
+        ],
+      ),
+      body: <span class="wg">Column</span>(children: [
+
+        <span class="cm">// 件数表示</span>
+        <span class="wg">Container</span>(
+          padding: <span class="kw">const</span> <span class="wg">EdgeInsets</span>.symmetric(horizontal: <span class="nm">16</span>, vertical: <span class="nm">8</span>),
+          color: <span class="kw">const</span> <span class="wg">Color</span>(<span class="nm">0xFFF5F5F0</span>),
+          child: <span class="wg">Text</span>(<span class="st">'全 ${n.pins.length} 件'</span>,
+              style: <span class="wg">TextStyle</span>(color: <span class="wg">Colors</span>.grey[<span class="nm">700</span>], fontSize: <span class="nm">13</span>)),
+        ),
+
+        <span class="cm">// ピンリスト</span>
+        <span class="wg">Expanded</span>(
+          child: <span class="wg">ListView</span>.separated(
+            itemCount: pins.length,
+            separatorBuilder: (_, __) =&gt; <span class="kw">const</span> <span class="wg">Divider</span>(height: <span class="nm">1</span>),
+            itemBuilder: (ctx, i) {
+              <span class="kw">final</span> pin = pins[i];
+              <span class="kw">final</span> isError = pin.hasError;
+              <span class="kw">return</span> <span class="wg">CheckboxListTile</span>(
+                tileColor: isError ? <span class="kw">const</span> <span class="wg">Color</span>(<span class="nm">0xFFFCE4E4</span>) : <span class="kw">null</span>,
+                value: _selected.contains(pin.index),
+                onChanged: (v) =&gt; setState(() =&gt; v!
+                    ? _selected.add(pin.index)
+                    : _selected.remove(pin.index)),
+                leading: <span class="wg">CircleAvatar</span>(
+                  radius: <span class="nm">14</span>,
+                  backgroundColor: _pinColor(pin.status),
+                  child: <span class="wg">Text</span>(<span class="st">'${pin.index}'</span>,
+                      style: <span class="kw">const</span> <span class="wg">TextStyle</span>(color: <span class="wg">Colors</span>.white, fontSize: <span class="nm">11</span>)),
+                ),
+                title: <span class="wg">Row</span>(children: [
+                  <span class="wg">Text</span>(<span class="st">'CEC'</span>,  style: <span class="wg">TextStyle</span>(fontSize: <span class="nm">11</span>, color: <span class="wg">Colors</span>.grey[<span class="nm">600</span>])),
+                  <span class="kw">const</span> <span class="wg">SizedBox</span>(width: <span class="nm">4</span>),
+                  <span class="wg">Text</span>(pin.cec?.toStringAsFixed(<span class="nm">1</span>) ?? <span class="st">'—'</span>,
+                      style: <span class="kw">const</span> <span class="wg">TextStyle</span>(fontWeight: <span class="wg">FontWeight</span>.bold)),
+                ]),
+                trailing: isError
+                    ? <span class="kw">const</span> <span class="wg">Text</span>(<span class="st">'エラー'</span>,
+                        style: <span class="wg">TextStyle</span>(color: <span class="wg">Colors</span>.red, fontSize: <span class="nm">12</span>))
+                    : <span class="wg">Text</span>(_statusLabel(pin.status),
+                        style: <span class="wg">TextStyle</span>(color: <span class="wg">Colors</span>.grey[<span class="nm">600</span>], fontSize: <span class="nm">12</span>)),
+              );
+            },
+          ),
+        ),
+
+        <span class="cm">// 下部ボタン</span>
+        <span class="wg">SafeArea</span>(
+          child: <span class="wg">Padding</span>(
+            padding: <span class="kw">const</span> <span class="wg">EdgeInsets</span>.all(<span class="nm">12</span>),
+            child: <span class="wg">Row</span>(children: [
+              <span class="wg">OutlinedButton</span>(
+                onPressed: _selected.isEmpty ? <span class="kw">null</span> : () {
+                  <span class="kw">for</span> (<span class="kw">final</span> idx <span class="kw">in</span> _selected) n.deletePin(idx);
+                  setState(() =&gt; _selected.clear());
+                },
+                child: <span class="kw">const</span> <span class="wg">Text</span>(<span class="st">'選択を削除'</span>),
+              ),
+              <span class="kw">const</span> <span class="wg">SizedBox</span>(width: <span class="nm">12</span>),
+              <span class="wg">Expanded</span>(
+                child: <span class="wg">ElevatedButton</span>(
+                  onPressed: _selected.isEmpty ? <span class="kw">null</span> : () {
+                    <span class="cm">// 位置修正: 選択中の1点の位置を地図に戻って補正する</span>
+                    <span class="kw">if</span> (_selected.length == <span class="nm">1</span>) {
+                      n.startPinCorrection(_selected.first);
+                      <span class="wg">Navigator</span>.pop(context);
+                    }
+                  },
+                  child: <span class="kw">const</span> <span class="wg">Text</span>(<span class="st">'位置を修正'</span>),
+                ),
+              ),
+            ]),
+          ),
+        ),
+      ]),
+    );
+  }
+
+  <span class="cl">Color</span> _pinColor(<span class="cl">PinStatus</span> s) =&gt; <span class="kw">switch</span> (s) {
+    <span class="cl">PinStatus</span>.measuring =&gt; <span class="kw">const</span> <span class="wg">Color</span>(<span class="nm">0xFFC0392B</span>),
+    <span class="cl">PinStatus</span>.measured  =&gt; <span class="kw">const</span> <span class="wg">Color</span>(<span class="nm">0xFFE67E22</span>),
+    <span class="cl">PinStatus</span>.completed =&gt; <span class="kw">const</span> <span class="wg">Color</span>(<span class="nm">0xFF27AE60</span>),
+  };
+
+  <span class="cl">String</span> _statusLabel(<span class="cl">PinStatus</span> s) =&gt; <span class="kw">switch</span> (s) {
+    <span class="cl">PinStatus</span>.measuring =&gt; <span class="st">'測定中'</span>,
+    <span class="cl">PinStatus</span>.measured  =&gt; <span class="st">'測定完了'</span>,
+    <span class="cl">PinStatus</span>.completed =&gt; <span class="st">'推定完了'</span>,
+  };
+}</pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ====== STEP 5: Retire old screens ====== -->
+<section id="step5">
+  <h2><span class="n">05</span>旧 Step 画面のリタイア処理 <span class="en">retire old screens</span></h2>
+
+  <div class="steps">
+    <div class="step">
+      <div class="snum">7</div>
+      <div class="sbody">
+        <h4>移植完了を確認してから旧ファイルを削除</h4>
+        <span class="sloc">ターミナル / ローカル</span>
+
+        <div class="callout danger">
+          <strong>必ず以下の順番で作業してください。削除を先にしないこと。</strong>
+          <ol>
+            <li><code>MeasurementNotifier</code> に全ロジックが移植され、<code>flutter analyze</code> でエラーなし</li>
+            <li><code>MeasurementScreen</code> でエミュレーター上の動作確認が完了</li>
+            <li><code>routes.dart</code> で <code>AppRoutes.measurement</code> を新 <code>MeasurementScreen</code> に切り替え済み</li>
+            <li><strong>以上3点確認後にのみ旧ファイルを削除</strong></li>
+          </ol>
+        </div>
+        <div class="shell">
+<span class="c"># 旧 measurement_session_screen.dart に対する参照が残っていないことを確認</span>
+<span class="p">$ </span><span class="cmd">grep -rn "MeasurementSessionScreen\|measurement_session_screen" lib/ \
+  --include="*.dart"</span>
+<span class="c"># 参照が routes.dart 以外で0件になっていることを確認してから削除</span>
+
+<span class="c"># 旧ファイルを git 管理下から削除</span>
+<span class="p">$ </span><span class="cmd">git rm lib/features/measure/presentation/measurement_session_screen.dart</span>
+<span class="c"># （ファイルパスは実際のパスに合わせる）</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ====== STEP 6: routes.dart ====== -->
+<section id="step6">
+  <h2><span class="n">06</span>routes.dart の接続変更 <span class="en">routing</span></h2>
+
+  <div class="steps">
+    <div class="step">
+      <div class="snum">8</div>
+      <div class="sbody">
+        <h4>AppRoutes.measurement を新 MeasurementScreen に差し替え</h4>
+        <span class="sloc">lib/app/routes.dart（既存ファイルを編集）</span>
+        <div class="shell">
+<span class="c"># routes.dart の現在の測定画面の設定を確認</span>
+<span class="p">$ </span><span class="cmd">grep -n "MeasurementSession\|measurement\|measure" lib/app/routes.dart</span>
+        </div>
+<pre><span class="fn">routes.dart — 変更箇所</span><span class="cm">// 変更前</span>
+<span class="kw">import</span> <span class="st">'../features/measure/presentation/measurement_session_screen.dart'</span>;
+<span class="cm">// routes テーブル内</span>
+<span class="cl">AppRoutes</span>.measurement: (_) =&gt; <span class="kw">const</span> <span class="cl">MeasurementSessionScreen</span>(),
+
+<span class="cm">// 変更後</span>
+<span class="kw">import</span> <span class="st">'../features/measure/presentation/measurement_screen.dart'</span>;
+<span class="cm">// routes テーブル内</span>
+<span class="cl">AppRoutes</span>.measurement: (_) =&gt; <span class="kw">const</span> <span class="cl">MeasurementScreen</span>(),</pre>
+        <div class="callout">
+          <strong>HomeScreen の「測定を始める」ボタンは Phase 3 で <code>AppRoutes.measurement</code> に繋がっています。</strong>
+          routes.dart を変更するだけで、HomeScreen のボタンが自動的に新しい画面を開くようになります。
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ====== STEP 7: 動作確認 ====== -->
+<section id="step7">
+  <h2><span class="n">07</span>動作確認（ローカル） <span class="en">local check</span></h2>
+
+  <div class="steps">
+    <div class="step">
+      <div class="snum">9</div>
+      <div class="sbody">
+        <h4>flutter analyze でエラー件数を確認</h4>
+        <span class="sloc">ターミナル / ローカル</span>
+        <div class="shell">
+<span class="p">$ </span><span class="cmd">flutter analyze 2>&1 | tail -5</span>
+<span class="c"># baseline: 117件。旧ファイル削除で deprecated 関連が減る可能性がある（OK）</span>
+<span class="c"># 新規追加ファイルに error / warning がないことを確認</span>
+        </div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="snum">10</div>
+      <div class="sbody">
+        <h4>エミュレーターでの UI 確認（センサーなしで確認できる項目）</h4>
+        <span class="sloc">Android エミュレーター</span>
+        <div class="shell">
+<span class="p">$ </span><span class="cmd">flutter run</span>
+        </div>
+        <table>
+          <thead><tr><th>確認項目</th><th>期待動作</th><th>センサーなしでも確認可</th></tr></thead>
+          <tbody>
+            <tr><td>HomeScreen「測定を始める」タップ</td><td>新 MeasurementScreen が開く（旧 Step1 画面が出ない）</td><td>✓</td></tr>
+            <tr><td>MeasurementScreen の上部チップ</td><td>「圃場選択▼」「接続 センサ」「BG 基準」の3チップが表示</td><td>✓</td></tr>
+            <tr><td>「測定開始」ボタンの状態</td><td>3チップ未完了時はグレーで押せない</td><td>✓</td></tr>
+            <tr><td>圃場選択チップをタップ</td><td>圃場候補のボトムシートが表示される</td><td>✓</td></tr>
+            <tr><td>圃場を選択</td><td>チップが緑に変わり、圃場名が表示される</td><td>✓</td></tr>
+            <tr><td>右上リストボタンをタップ</td><td>MeasurementListScreen が開く</td><td>✓</td></tr>
+            <tr><td>MeasurementListScreen の「未確定のみ」フィルタ</td><td>フィルタが動作する</td><td>✓</td></tr>
+            <tr><td>地図に現在地（青丸）が表示される</td><td>GPS シミュレータ（エミュレータ）の位置に青丸が出る</td><td>✓</td></tr>
+            <tr><td>バック操作</td><td>HomeScreen に戻る（旧 Step1 に戻らない）</td><td>✓</td></tr>
+            <tr><td>他の画面（圃場・設定・ヘルプ）への影響なし</td><td>Phase 6 時点と変わらず動作する</td><td>✓</td></tr>
+          </tbody>
+        </table>
+        <div class="callout info">
+          <strong>センサー接続 / BG 測定 / 実測の確認は STEP 9（実機）で行います。</strong>
+          エミュレーターでは USB デバイスを接続できないため、
+          チップのタップ → ローディング表示 → エラー表示（デバイスなし）の流れが
+          クラッシュせずに動作すれば OK とします。
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ====== STEP 8: PR & CI/CD ====== -->
+<section id="step8">
+  <h2><span class="n">08</span>commit → PR → main マージ <span class="en">deploy</span></h2>
+
+  <div class="steps">
+    <div class="step">
+      <div class="snum">11</div>
+      <div class="sbody">
+        <h4>変更をコミットして push</h4>
+        <span class="sloc">ターミナル / ローカル</span>
+        <div class="shell">
+<span class="p">$ </span><span class="cmd">git add -A</span>
+<span class="p">$ </span><span class="cmd">git diff --cached --stat</span>
+<span class="c"># 新規: measurement_pin.dart / measurement_notifier.dart</span>
+<span class="c">#       measurement_screen.dart / measurement_list_screen.dart</span>
+<span class="c"># 変更: routes.dart（MeasurementScreen への差し替え）</span>
+<span class="c"># 削除: measurement_session_screen.dart（git rm 済み）</span>
+
+<span class="p">$ </span><span class="cmd">git commit -m "feat: replace step-based flow with single measurement screen (Phase 7)"</span>
+<span class="p">$ </span><span class="cmd">git push origin feature/phase7-measurement-screen</span>
+        </div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="snum">12</div>
+      <div class="sbody">
+        <h4>GitHub でプルリクエストを作成してマージ</h4>
+        <span class="sloc">GitHub Web UI</span>
+        <ol>
+          <li>PR タイトル: <code>feat: replace step-based flow with single measurement screen (Phase 7)</code></li>
+          <li>PR 本文に記載：作成・変更・削除ファイルの一覧 + analyze 件数 + エミュレーター動作確認コメント</li>
+          <li><strong>Squash and merge</strong> で main にマージ → feature ブランチを削除</li>
+        </ol>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ====== STEP 9: 実機確認 ====== -->
+<section id="step9">
+  <h2><span class="n">09</span>実機確認（センサー接続必須） <span class="en">device check</span></h2>
+
+  <div class="callout warn">
+    <strong>Phase 7 の実機確認は実際のセンサーを接続して行ってください。</strong>
+    USB シリアル通信・BG 測定・本測定のロジックはエミュレーターでは検証できません。
+    センサーが手元にない場合は「センサーなし確認項目のみ」を実機でも確認し、
+    センサーありの確認は後日実施してください。
+  </div>
+
+  <div class="steps">
+    <div class="step">
+      <div class="snum">13</div>
+      <div class="sbody">
+        <h4>実機で APK をインストールして確認</h4>
+        <span class="sloc">ターミナル + Android 実機（+ センサー）</span>
+        <div class="shell">
+<span class="p">$ </span><span class="cmd">flutter build apk --debug && flutter install</span>
+        </div>
+        <table>
+          <thead><tr><th>確認項目</th><th>期待動作</th><th>センサー要否</th></tr></thead>
+          <tbody>
+            <tr><td>「測定を始める」→ 新 MeasurementScreen 表示</td><td>3チップ + 地図が表示される</td><td>不要</td></tr>
+            <tr><td>「接続 センサ」チップをタップ</td><td>センサーに接続し、Recall が送信される。チップが緑になる</td><td>必要</td></tr>
+            <tr><td>「BG 基準」チップをタップ（接続後）</td><td>BG 測定が実行される。完了でチップが緑になる</td><td>必要</td></tr>
+            <tr><td>圃場を選択</td><td>圃場名チップが緑になり、地図に圃場ポリゴン（赤枠）が表示される</td><td>不要</td></tr>
+            <tr><td>「測定開始」ボタンが活性化</td><td>3チップが全て緑になるとボタンが赤色で押せるようになる</td><td>必要</td></tr>
+            <tr><td>地図タップで位置補正</td><td>マーカーが移動する</td><td>不要</td></tr>
+            <tr><td>「測定開始」タップ（圃場外）</td><td>エラーメッセージが出て測定されない</td><td>必要</td></tr>
+            <tr><td>「測定開始」タップ（圃場内）</td><td>測定が実行されピン（赤→黄→緑）が地図に追加される</td><td>必要</td></tr>
+            <tr><td>リスト画面でピンの CEC 値を確認</td><td>推定完了後に CEC 値が表示される</td><td>必要</td></tr>
+            <tr><td>ピンを選択して「選択を削除」</td><td>ピンが地図とリストから削除される</td><td>不要</td></tr>
+            <tr><td>旧 Step1〜3 の画面が表示されない</td><td>いずれの導線でも旧画面に遷移しない</td><td>不要</td></tr>
+            <tr><td>他機能（圃場・作業ログ）への影響なし</td><td>Phase 6 時点と変わらず動作する</td><td>不要</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ====== DoD ====== -->
+<section id="dod">
+  <h2><span class="n">✓</span>完了条件チェックリスト <span class="en">definition of done</span></h2>
+
+  <p style="font-size:13px;color:var(--ink3);margin-bottom:16px;">
+    <span class="tag l">L</span> ローカル確認 &nbsp;
+    <span class="tag ci">CI</span> PR &amp; CI/CD 確認 &nbsp;
+    <span class="tag e">E</span> 実機デプロイ後確認
+  </p>
+
+  <ul class="dod-list">
+    <li>
+      <span class="tag l">L</span> <code>flutter analyze</code> でエラーなし（info 件数は 117件以下）
+      <span class="dc">確認: flutter analyze 2>&amp;1 | tail -5</span>
+    </li>
+    <li>
+      <span class="tag l">L</span> <code>grep -rn "MeasurementSessionScreen" lib/</code> の結果が 0件
+    </li>
+    <li>
+      <span class="tag l">L</span> HomeScreen「測定を始める」タップで新 MeasurementScreen が開く（旧 Step1 画面が出ない）
+    </li>
+    <li>
+      <span class="tag l">L</span> 上部ステータスチップが3つ表示され、3つすべてOKで「測定開始」ボタンが活性化する
+    </li>
+    <li>
+      <span class="tag l">L</span> 右上リストボタンで MeasurementListScreen が開き、「未確定のみ」フィルタが動作する
+    </li>
+    <li>
+      <span class="tag l">L</span> バック操作で HomeScreen に正しく戻れる
+    </li>
+    <li>
+      <span class="tag ci">CI</span> feature ブランチが main にマージされ、CI が success になっている
+    </li>
+    <li>
+      <span class="tag ci">CI</span> feature ブランチが GitHub 上で削除されている
+    </li>
+    <li>
+      <span class="tag e">E</span> 実機でセンサー接続チップ → BG チップ → 測定開始 の流れが動作する
+    </li>
+    <li>
+      <span class="tag e">E</span> 実機で測定実行後にピンが赤→黄→緑に遷移する
+    </li>
+    <li>
+      <span class="tag e">E</span> 実機で旧 Step1〜3 の画面がいずれの導線でも表示されない
+    </li>
+  </ul>
+
+  <div class="callout info" style="margin-top:24px;">
+    <strong>Phase 8（同期 / 設定 / ヘルプ画面の充実）への引き継ぎ。</strong>
+    Phase 7 完了後、測定フローが新1画面で動作していることを確認してから
+    Phase 8 の Cursor セッションを開始してください。
+    Phase 8 では Phase 3 でスタブとして置いた
+    SyncScreen（チェック選択・進捗バー・リトライ）、
+    SettingsScreen（測定条件・自動同期設定）、
+    HelpScreen（FAQ・アプリ情報）の内部を充実させます。
+  </div>
+</section>
+
+</main>
+</div>
+</body>
+</html>

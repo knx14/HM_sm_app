@@ -70,6 +70,7 @@ class MeasurementStateProvider extends ChangeNotifier {
   bool isConnected = false;
   bool recallDone = false;
   bool bgDone = false;
+  String? sensorSerialNo;
 
   String _jstDateString() {
     final utc = DateTime.now().toUtc();
@@ -177,6 +178,7 @@ class MeasurementStateProvider extends ChangeNotifier {
     required bool isConnected,
     required bool recallDone,
     required bool bgDone,
+    String? sensorSerialNo,
   }) {
     this.selectedFarm = selectedFarm;
     this.confirmedLocation = confirmedLocation;
@@ -185,6 +187,7 @@ class MeasurementStateProvider extends ChangeNotifier {
     this.isConnected = isConnected;
     this.recallDone = recallDone;
     this.bgDone = bgDone;
+    this.sensorSerialNo = isConnected ? sensorSerialNo : null;
     notifyListeners();
   }
 }
@@ -294,6 +297,14 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
   bool get _isSerialBusy =>
       _isConnecting || _isRecalling || _bgIsMeasuring || _isMeasuring;
 
+  bool get _isShowingMeasurementProgress => _bgIsMeasuring || _isMeasuring;
+
+  double get _currentMeasurementProgress {
+    if (_bgIsMeasuring) return _bgProgress.clamp(0.0, 1.0);
+    if (!_isMeasuring || _totalPoints <= 0) return 0.0;
+    return (_receivedPoints / _totalPoints).clamp(0.0, 1.0);
+  }
+
   List<LatLng> get _farmPolygon => (_selectedFarm?.boundaryPolygon ?? const [])
       .map((e) => LatLng(e['lat'] ?? 0, e['lng'] ?? 0))
       .toList();
@@ -325,6 +336,7 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
     _isConnected = SerialComm.isConnected();
     _recallDone = _isConnected && _sessionState.recallDone;
     _bgDone = _isConnected && _sessionState.bgDone;
+    _ampId = _isConnected ? _sessionState.sensorSerialNo : null;
     _selectedFarm = _sessionState.selectedFarm;
     final selectedFarm = _selectedFarm;
     if (selectedFarm != null) {
@@ -413,6 +425,7 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
       isConnected: _isConnected,
       recallDone: _recallDone,
       bgDone: _bgDone,
+      sensorSerialNo: _ampId,
     );
   }
 
@@ -626,6 +639,7 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
       _bgDone = false;
       _isMeasuring = false;
       _bgProgress = 0.0;
+      _ampId = null;
     });
     _persistSessionState();
     _appendLog('USBが切断されました。接続からやり直してください。\n');
@@ -648,6 +662,9 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
           _isConnecting = false;
           _isConnected = success;
           _currentStep = SessionStep.connect;
+          if (success) {
+            _ampId = null;
+          }
         });
       }
     }
@@ -676,6 +693,7 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
       _bgDone = false;
       _bgProgress = 0.0;
       _currentStep = SessionStep.connect;
+      _ampId = null;
     });
     _persistSessionState();
     SerialComm.init(_onReceive);
@@ -709,6 +727,7 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
 
   void _sendIDCommand() {
     if (!_isConnected || _isSerialBusy) return;
+    _appendLog('送信: ID\n');
     MeasurementService.sendIdCommand();
   }
 
@@ -1312,6 +1331,7 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
   void _onReceive(String data) {
     if (!mounted) return;
     var shouldPersist = false;
+    var shouldRequestSensorId = false;
     setState(() {
       _logController.text += data;
       final newLines = data.split('\n');
@@ -1323,6 +1343,7 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
         if (amp != null && amp != _ampId) {
           _ampId = amp;
           _logController.text += 'AMP ID: $_ampId\n';
+          shouldPersist = true;
         }
 
         if (MeasurementParser.isOkLine(line)) {
@@ -1332,6 +1353,7 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
             _recallDone = true;
             _currentStep = SessionStep.bg;
             shouldPersist = true;
+            shouldRequestSensorId = true;
             continue;
           }
           if (_currentStep == SessionStep.bg && _bgIsMeasuring) {
@@ -1399,6 +1421,9 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
     });
     if (shouldPersist) {
       _persistSessionState();
+    }
+    if (shouldRequestSensorId) {
+      _sendIDCommand();
     }
   }
 
@@ -1733,51 +1758,34 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
           ),
         if (_correctingSpotId != null)
           Positioned(
-            top: 72,
-            left: 12,
             right: 12,
-            child: _PinCorrectionBanner(
-              spotNumber:
-                  _spots.indexWhere((spot) => spot.id == _correctingSpotId) + 1,
-              onDone: () {
-                setState(() => _correctingSpotId = null);
-                _persistSessionState();
-              },
-            ),
-          ),
-        if (_correctingSpotId != null)
-          Positioned(
-            left: 0,
-            right: 0,
-            bottom: 132,
-            child: Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  _NudgeButton(
-                    icon: Icons.arrow_upward,
-                    onTap: () => _nudgeCorrectingSpot(latMeters: 1),
-                  ),
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      _NudgeButton(
-                        icon: Icons.arrow_back,
-                        onTap: () => _nudgeCorrectingSpot(lngMeters: -1),
-                      ),
-                      const SizedBox(width: 48),
-                      _NudgeButton(
-                        icon: Icons.arrow_forward,
-                        onTap: () => _nudgeCorrectingSpot(lngMeters: 1),
-                      ),
-                    ],
-                  ),
-                  _NudgeButton(
-                    icon: Icons.arrow_downward,
-                    onTap: () => _nudgeCorrectingSpot(latMeters: -1),
-                  ),
-                ],
-              ),
+            bottom: 64,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _NudgeButton(
+                  icon: Icons.arrow_upward,
+                  onTap: () => _nudgeCorrectingSpot(latMeters: 0.5),
+                ),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _NudgeButton(
+                      icon: Icons.arrow_back,
+                      onTap: () => _nudgeCorrectingSpot(lngMeters: -0.5),
+                    ),
+                    const SizedBox(width: 48),
+                    _NudgeButton(
+                      icon: Icons.arrow_forward,
+                      onTap: () => _nudgeCorrectingSpot(lngMeters: 0.5),
+                    ),
+                  ],
+                ),
+                _NudgeButton(
+                  icon: Icons.arrow_downward,
+                  onTap: () => _nudgeCorrectingSpot(latMeters: -0.5),
+                ),
+              ],
             ),
           ),
         Positioned(
@@ -1801,7 +1809,7 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
         ),
         // 圃場内外ステータスの視覚フィードバック
         // _markerGeoStatus は毎回 _confirmedLocation から計算されるため常に正確
-        if (_markerGeoStatus != null)
+        if (_markerGeoStatus != null && _correctingSpotId == null)
           Positioned(
             left: 12,
             right: 72,
@@ -2027,6 +2035,31 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
     );
   }
 
+  Widget _buildMeasurementProgressBar() {
+    final progress = _currentMeasurementProgress;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+      child: Column(
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: LinearProgressIndicator(
+              value: progress,
+              minHeight: 16,
+              backgroundColor: Colors.grey.shade200,
+              color: const Color(0xFF2E5C39),
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            '${(progress * 100).toInt()}%',
+            style: TextStyle(fontSize: 12, color: Colors.grey[700]),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return PopScope(
@@ -2045,28 +2078,7 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
         body: Column(
           children: [
             _buildTopStatusBar(),
-            if (_bgIsMeasuring)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
-                child: Column(
-                  children: [
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(8),
-                      child: LinearProgressIndicator(
-                        value: _bgProgress.clamp(0.0, 1.0),
-                        minHeight: 16,
-                        backgroundColor: Colors.grey.shade200,
-                        color: const Color(0xFF2E5C39),
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      '${(_bgProgress.clamp(0.0, 1.0) * 100).toInt()}%',
-                      style: TextStyle(fontSize: 12, color: Colors.grey[700]),
-                    ),
-                  ],
-                ),
-              ),
+            if (_isShowingMeasurementProgress) _buildMeasurementProgressBar(),
             Expanded(child: _buildMeasureBody()),
             _buildBottomMeasureButton(),
           ],
@@ -2202,44 +2214,6 @@ class _ActionStatusChip extends StatelessWidget {
                     ],
                   ),
           ),
-        ),
-      ),
-    );
-  }
-}
-
-class _PinCorrectionBanner extends StatelessWidget {
-  const _PinCorrectionBanner({required this.spotNumber, required this.onDone});
-
-  final int spotNumber;
-  final VoidCallback onDone;
-
-  @override
-  Widget build(BuildContext context) {
-    final numberLabel = spotNumber > 0 ? '測定点 $spotNumber' : '選択中の測定点';
-    return Material(
-      color: Colors.black87,
-      borderRadius: BorderRadius.circular(10),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(12, 8, 6, 8),
-        child: Row(
-          children: [
-            const Icon(Icons.edit_location_alt, color: Colors.white, size: 18),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                '$numberLabel の位置修正中。地図をタップするとピンが移動します。',
-                style: const TextStyle(color: Colors.white, fontSize: 13),
-              ),
-            ),
-            TextButton(
-              onPressed: onDone,
-              child: const Text(
-                '完了',
-                style: TextStyle(color: Color(0xFF7DD3A8)),
-              ),
-            ),
-          ],
         ),
       ),
     );

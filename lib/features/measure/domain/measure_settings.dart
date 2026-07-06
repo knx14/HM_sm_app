@@ -22,7 +22,7 @@ class MeasureSettings {
     fstart: 10000.0,
     fdelta: 1500.0,
     points: 150,
-    excite: 1.0,
+    excite: 0.5,
     range: 0.5,
     integrate: 0.1,
     average: 1,
@@ -30,6 +30,6 @@ class MeasureSettings {
 
   String execCommand() => 'exec $excite $range $integrate $average';
 
-  String zeroCommand() => 'zero $fstart $fdelta $points $excite $range $integrate $average';
+  String zeroCommand() =>
+      'zero $fstart $fdelta $points $excite $range $integrate $average';
 }
-

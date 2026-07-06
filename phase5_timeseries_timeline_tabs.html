@@ -1,0 +1,1439 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>HenryMonitor Phase 5 実装手順書 — 時系列タブ / タイムラインタブ</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&family=Noto+Serif+JP:wght@700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#f8f7f1;--paper:#fff;--ink:#1a2318;--ink2:#3d4f3a;--ink3:#6b7e68;
+  --line:#dbd6c4;--lines:#eae6d6;
+  --leaf:#2e5c39;--leafl:#4a8459;--leafp:#e2ede4;
+  --soil:#7a4525;--soilp:#f2e8e0;
+  --amber:#b85c00;--amberp:#fef0d8;
+  --red:#b02020;--redp:#fce4e4;
+  --blue:#1a4f7a;--bluep:#ddeaf5;
+  --teal:#1a6a6a;--tealp:#d8efef;
+  --purple:#5a2d82;--purplep:#ede5f5;
+  --code-bg:#181f16;--code-fg:#d4e8cc;
+  --ccm:#5a8f58;--ckw:#7dd3a8;--cst:#f7c07a;--cnm:#7ec8e3;--ccl:#e8d07a;--cwg:#f0b060;
+  --sl:#b0c8b0;
+}
+*{box-sizing:border-box;}html{scroll-behavior:smooth;}
+body{margin:0;padding:0;background:var(--bg);color:var(--ink);font-family:"Noto Sans JP",sans-serif;font-size:14.5px;line-height:1.8;-webkit-font-smoothing:antialiased;}
+.layout{display:flex;min-height:100vh;}
+
+.toc{width:256px;flex-shrink:0;background:#0f1a0e;color:#c8d8c4;padding:28px 0 60px;position:sticky;top:0;height:100vh;overflow-y:auto;}
+.toc-logo{padding:0 20px 18px;border-bottom:1px solid rgba(255,255,255,.08);margin-bottom:14px;}
+.toc-logo .proj{font-size:11px;letter-spacing:.18em;color:#5a9a56;text-transform:uppercase;}
+.toc-logo .phase{font-family:"Noto Serif JP",serif;font-size:18px;color:#e8f0e4;font-weight:700;margin-top:4px;}
+.toc-logo .sub{font-size:11px;color:#5a9a56;margin-top:2px;line-height:1.5;}
+.toc ul{list-style:none;margin:0;padding:0;}
+.toc li a{display:block;padding:6px 20px;font-size:12px;color:#8ab88a;text-decoration:none;border-left:3px solid transparent;transition:all .15s;}
+.toc li a:hover{background:rgba(255,255,255,.06);color:#e8f0e4;border-left-color:var(--leafl);}
+.toc li a.sec{font-weight:700;color:#c4dcc0;font-size:12px;margin-top:8px;}
+.toc li a.sub{padding-left:32px;font-size:11.5px;color:#6a9a66;}
+.toc hr{border:none;border-top:1px solid rgba(255,255,255,.06);margin:8px 20px;}
+
+.main{flex:1;padding:48px 56px 100px;max-width:920px;}
+
+.cover{background:var(--paper);border:1px solid var(--line);padding:40px 44px;position:relative;overflow:hidden;margin-bottom:52px;}
+.cover::after{content:"";position:absolute;top:0;left:0;right:0;height:5px;background:linear-gradient(90deg,var(--leaf) 0%,var(--leafl) 40%,var(--purple) 100%);}
+.badge{font-family:"JetBrains Mono",monospace;font-size:11px;letter-spacing:.2em;background:var(--leafp);color:var(--leaf);padding:3px 10px;border-radius:2px;display:inline-block;margin-bottom:14px;text-transform:uppercase;}
+.cover h1{font-family:"Noto Serif JP",serif;font-size:28px;font-weight:700;margin:0 0 8px;line-height:1.35;}
+.cover .desc{color:var(--ink2);font-size:14px;margin:0 0 24px;}
+.cmeta{display:flex;gap:24px;flex-wrap:wrap;border-top:1px solid var(--lines);padding-top:18px;}
+.cmeta dl{margin:0;}.cmeta dt{font-family:"JetBrains Mono",monospace;font-size:10px;letter-spacing:.15em;text-transform:uppercase;color:var(--ink3);margin:0 0 3px;}.cmeta dd{margin:0;font-size:13px;font-weight:500;}
+
+section{margin-bottom:60px;}
+h2{font-family:"Noto Serif JP",serif;font-size:21px;font-weight:700;margin:0 0 20px;padding:13px 18px;background:var(--ink);color:#e8f0e4;display:flex;align-items:center;gap:14px;}
+h2 .n{font-family:"JetBrains Mono",monospace;font-size:12px;color:var(--leafl);letter-spacing:.1em;}
+h2 .en{font-family:"JetBrains Mono",monospace;font-size:10px;color:#6a9a66;letter-spacing:.2em;text-transform:uppercase;margin-left:auto;}
+h3{font-size:16px;font-weight:700;margin:32px 0 10px;padding-bottom:7px;border-bottom:2px solid var(--leafp);color:var(--leaf);}
+h4{font-size:14px;font-weight:700;margin:20px 0 8px;color:var(--ink2);}
+p{margin:0 0 12px;}ul,ol{margin:0 0 12px;padding-left:20px;}li{margin-bottom:5px;}strong{color:var(--ink);}
+
+.steps{position:relative;}
+.step{display:grid;grid-template-columns:52px 1fr;gap:0 18px;margin-bottom:8px;position:relative;}
+.step::before{content:"";position:absolute;left:25px;top:52px;bottom:-8px;width:2px;background:var(--sl);}
+.step:last-child::before{display:none;}
+.snum{width:52px;height:52px;border-radius:50%;background:var(--leaf);color:#fff;display:flex;align-items:center;justify-content:center;font-family:"JetBrains Mono",monospace;font-size:14px;font-weight:700;flex-shrink:0;position:relative;z-index:1;align-self:start;margin-top:12px;}
+.snum.chk{background:var(--blue);}.snum.wrn{background:var(--amber);}
+.sbody{background:var(--paper);border:1px solid var(--line);padding:18px 22px 16px;}
+.sbody h4{margin-top:0;font-size:15px;color:var(--ink);}
+.sbody p:last-child,.sbody ul:last-child{margin-bottom:0;}
+.sloc{font-family:"JetBrains Mono",monospace;font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink3);background:var(--bg);border:1px solid var(--lines);padding:2px 8px;border-radius:2px;display:inline-block;margin-bottom:8px;}
+
+pre{background:var(--code-bg);color:var(--code-fg);padding:16px 18px;border-radius:3px;overflow-x:auto;font-family:"JetBrains Mono",monospace;font-size:12.5px;line-height:1.7;margin:10px 0 12px;}
+pre .fn{display:block;font-size:10px;letter-spacing:.1em;color:#486a46;margin-bottom:10px;border-bottom:1px solid rgba(255,255,255,.06);padding-bottom:8px;}
+pre .cm{color:var(--ccm);}pre .kw{color:var(--ckw);}pre .st{color:var(--cst);}
+pre .nm{color:var(--cnm);}pre .cl{color:var(--ccl);}pre .wg{color:var(--cwg);}
+code{font-family:"JetBrains Mono",monospace;font-size:12.5px;background:#edeadc;color:var(--soil);padding:1px 5px;border-radius:2px;}
+.shell{background:#090f08;color:#a8d8a0;padding:14px 18px;border-radius:3px;font-family:"JetBrains Mono",monospace;font-size:12.5px;line-height:1.7;margin:10px 0 12px;border-left:3px solid var(--leafl);overflow-x:auto;}
+.shell .p{color:#4a8a48;user-select:none;}.shell .c{color:#326030;}.shell .cmd{color:#c0e0b8;}
+
+.callout{padding:12px 16px;margin:12px 0;font-size:13.5px;border-left:4px solid var(--leaf);background:var(--leafp);}
+.callout.warn{border-color:var(--amber);background:var(--amberp);}
+.callout.danger{border-color:var(--red);background:var(--redp);}
+.callout.info{border-color:var(--blue);background:var(--bluep);}
+.callout.note{border-color:var(--soil);background:var(--soilp);}
+.callout.teal{border-color:var(--teal);background:var(--tealp);}
+.callout.purple{border-color:var(--purple);background:var(--purplep);}
+.callout strong{display:block;margin-bottom:3px;}
+
+table{border-collapse:collapse;width:100%;margin:10px 0 14px;font-size:13px;}
+th,td{padding:8px 12px;border-bottom:1px solid var(--lines);text-align:left;vertical-align:top;}
+th{background:var(--leafp);font-weight:700;font-size:11.5px;letter-spacing:.04em;border-bottom:2px solid var(--leaf);color:var(--leaf);}
+tr:hover td{background:#f5f2e8;}
+
+.tag{display:inline-block;font-family:"JetBrains Mono",monospace;font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:2px 7px;border-radius:2px;vertical-align:middle;margin:0 2px;}
+.tag.new{background:var(--leafp);color:var(--leaf);}
+.tag.mod{background:var(--bluep);color:var(--blue);}
+.tag.kept{background:#ede9d8;color:var(--ink3);}
+.tag.l{background:var(--leafp);color:var(--leaf);}
+.tag.ci{background:var(--bluep);color:var(--blue);}
+.tag.e{background:var(--soilp);color:var(--soil);}
+
+.filetree{background:var(--paper);border:1px solid var(--line);padding:16px 20px;font-family:"JetBrains Mono",monospace;font-size:12.5px;line-height:1.9;margin:10px 0 14px;}
+.filetree .d{color:var(--leaf);font-weight:700;}
+.filetree .nf{color:var(--amber);}
+.filetree .nf::after{content:" ← NEW";font-size:10px;opacity:.7;}
+.filetree .mf{color:var(--blue);}
+.filetree .mf::after{content:" ← EDIT（スタブ → 実装）";font-size:10px;opacity:.7;}
+.filetree .rf{color:var(--ink3);}
+.filetree .rf::after{content:" ← 既存流用";font-size:10px;opacity:.7;}
+
+/* API spec */
+.api-box{border:1px solid var(--line);background:var(--paper);margin:16px 0 24px;}
+.api-header{background:var(--ink);color:#e8f0e4;padding:10px 16px;display:flex;align-items:center;gap:12px;font-family:"JetBrains Mono",monospace;font-size:13px;}
+.api-method{font-family:"JetBrains Mono",monospace;font-size:11px;font-weight:700;padding:3px 10px;border-radius:2px;}
+.api-method.get{background:#1a5a2a;color:#7dd3a8;}
+.api-path{font-size:14px;color:#e8f0e4;flex:1;}
+.api-use{font-size:12px;color:#9ab89a;}
+.api-body{padding:14px 18px;}
+.api-body h4{margin-top:12px;color:var(--soil);font-size:13px;}
+.api-body h4:first-child{margin-top:0;}
+
+/* chart visual */
+.chart-mockup{background:#1e2a1e;border:1px solid #3a5a3a;padding:16px;font-family:"JetBrains Mono",monospace;font-size:12px;color:#d4e8cc;line-height:1.6;margin:10px 0;}
+
+.dod-list{list-style:none;padding-left:0;}
+.dod-list li{padding:10px 14px 10px 40px;position:relative;border-bottom:1px solid var(--lines);font-size:13.5px;}
+.dod-list li::before{content:"☐";position:absolute;left:12px;color:var(--leaf);font-size:16px;line-height:1;top:12px;}
+.dod-list li:last-child{border-bottom:none;}
+.dod-list li .dc{display:block;margin-top:3px;font-size:12px;color:var(--ink3);}
+
+@media(max-width:900px){.layout{display:block;}.toc{width:100%;height:auto;position:static;}.main{padding:28px 20px 64px;}}
+</style>
+</head>
+<body>
+<div class="layout">
+
+<!-- ======== TOC ======== -->
+<nav class="toc">
+  <div class="toc-logo">
+    <div class="proj">HenryMonitor</div>
+    <div class="phase">Phase 5</div>
+    <div class="sub">時系列タブ / タイムラインタブ<br>スタブ → 実装（Flutter）</div>
+  </div>
+  <ul>
+    <li><a class="sec" href="#overview">0. Phase 5 の全体像</a></li>
+    <li><a class="sub" href="#arch">既存アーキテクチャの確認</a></li>
+    <li><a class="sub" href="#prereq">前提確認</a></li>
+    <li><a class="sub" href="#files">作成・編集ファイル一覧</a></li>
+    <hr>
+    <li><a class="sec" href="#step1">1. API クライアント追加</a></li>
+    <li><a class="sub" href="#step1-model">レスポンスモデル定義</a></li>
+    <li><a class="sub" href="#step1-repo">Repository メソッド追加</a></li>
+    <hr>
+    <li><a class="sec" href="#step2">2. 状態管理（Notifier）追加</a></li>
+    <li><a class="sub" href="#step2-ts">TimeseriesNotifier</a></li>
+    <li><a class="sub" href="#step2-tl">TimelineNotifier</a></li>
+    <hr>
+    <li><a class="sec" href="#step3">3. FarmTimeseriesTab 実装</a></li>
+    <li><a class="sub" href="#step3-chart">折れ線グラフ</a></li>
+    <li><a class="sub" href="#step3-overlay">作業ログ縦線オーバーレイ</a></li>
+    <hr>
+    <li><a class="sec" href="#step4">4. FarmTimelineTab 実装</a></li>
+    <li><a class="sub" href="#step4-card">測定結果カード</a></li>
+    <li><a class="sub" href="#step4-wl">作業ログカード</a></li>
+    <hr>
+    <li><a class="sec" href="#step5">5. FarmDetailProvider 拡張</a></li>
+    <li><a class="sec" href="#step6">6. 動作確認（ローカル）</a></li>
+    <li><a class="sec" href="#step7">7. commit → PR → CI/CD</a></li>
+    <li><a class="sec" href="#step8">8. 実機確認</a></li>
+    <li><a class="sec" href="#dod">✓ 完了条件</a></li>
+  </ul>
+</nav>
+
+<!-- ======== Main ======== -->
+<main class="main">
+
+<div class="cover">
+  <span class="badge">Phase 5 / timeseries &amp; timeline tabs</span>
+  <h1>時系列タブ / タイムラインタブ — 実装手順書</h1>
+  <p class="desc">
+    Phase 4 で「準備中」のスタブとして置いた
+    <code>FarmTimeseriesTab</code> と <code>FarmTimelineTab</code> を、
+    Phase 2 で実装したバックエンド API に接続して実データを表示します。
+    既存の <code>ResultsRepository</code> / <code>ResultMapNotifier</code> の
+    パターンに揃えた Notifier を新設し、
+    <strong>折れ線グラフ + 作業ログ縦線オーバーレイ</strong>（時系列）と
+    <strong>測定結果 + 作業ログのカードリスト</strong>（タイムライン）を実装します。
+  </p>
+  <div class="cmeta">
+    <dl><dt>STEP 1〜6</dt><dd>ローカル Flutter 環境で実施</dd></dl>
+    <dl><dt>STEP 7</dt><dd>commit → PR → main マージ → CI/CD</dd></dl>
+    <dl><dt>STEP 8</dt><dd>実機（Android）での動作確認</dd></dl>
+    <dl><dt>ブランチ</dt><dd><code>feature/phase5-timeseries-timeline-tabs</code></dd></dl>
+  </div>
+</div>
+
+<!-- ====== 0. OVERVIEW ====== -->
+<section id="overview">
+  <h2><span class="n">00</span>Phase 5 の全体像 <span class="en">overview</span></h2>
+
+  <h3 id="arch">Phase 4 で判明した既存アーキテクチャの確認（重要）</h3>
+
+  <div class="callout purple">
+    <strong>Phase 4 の実装コメントから確認した実態。これを前提に手順書を書いています。</strong>
+    <ul>
+      <li>ディレクトリ構造: <code>lib/features/farms/presentation/tabs/</code>（feature-first 構成）</li>
+      <li>状態管理: <code>ResultMapNotifier</code> パターンを既存流用 → Phase 5 でも同パターンを踏襲</li>
+      <li>データ取得: <code>ResultsRepository</code> を経由（Dio 直叩きではない）</li>
+      <li>analyze: 既存 info 117件が baseline（Phase 5 で増やさない）</li>
+    </ul>
+  </div>
+
+  <div class="callout teal">
+    <strong>Cursor セッション開始前に、以下のコマンドで既存パターンを把握してから渡してください。</strong>
+    <div class="shell" style="margin-top:8px;">
+<span class="c"># 既存 Notifier / Repository の構造を確認</span>
+<span class="p">$ </span><span class="cmd">find lib/features/farms -name "*.dart" | sort</span>
+<span class="p">$ </span><span class="cmd">grep -rn "class.*Notifier\|class.*Repository" lib/features/farms/ | head -20</span>
+
+<span class="c"># 既存 ResultMapNotifier のフィールド・メソッド名を確認</span>
+<span class="p">$ </span><span class="cmd">grep -n "class ResultMapNotifier\|void \|Future\|AsyncValue" \
+  lib/features/farms/presentation/tabs/farm_map_tab.dart</span>
+
+<span class="c"># 既存の ResultsRepository のメソッド名を確認</span>
+<span class="p">$ </span><span class="cmd">grep -n "Future\|Stream" lib/features/farms/data/results_repository.dart</span>
+<span class="c"># ファイル名が異なる場合は以下で探す</span>
+<span class="p">$ </span><span class="cmd">find lib -name "*repository*" -o -name "*repo*" | grep -v ".dart_tool"</span>
+    </div>
+    これらの結果を Cursor セッション冒頭にそのまま貼り付けてください。
+    Notifier のスーパークラス（<code>ChangeNotifier</code> / <code>StateNotifier</code> / <code>AsyncNotifier</code> 等）
+    と Provider の種類を揃えることが特に重要です。
+  </div>
+
+  <h3>Phase 5 で実装する機能の全体像</h3>
+  <table>
+    <thead><tr><th>機能</th><th>接続 API</th><th>状態</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><strong>時系列タブ</strong><br>折れ線グラフ（平均値推移）+ min/max バンド + 作業ログ縦線</td>
+        <td><code>GET /api/farms/{id}/results/timeseries?parameter=CEC</code></td>
+        <td><span class="tag new">スタブ → 実装</span></td>
+      </tr>
+      <tr>
+        <td><strong>タイムラインタブ</strong><br>測定結果カード（CEC平均・delta）+ 作業ログカードの混合リスト</td>
+        <td><code>GET /api/farms/{id}/timeline</code></td>
+        <td><span class="tag new">スタブ → 実装</span></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3>利用するバックエンド API（Phase 2 実装済み）の仕様確認</h3>
+
+  <div class="api-box">
+    <div class="api-header">
+      <span class="api-method get">GET</span>
+      <span class="api-path">/api/farms/{farmId}/results/timeseries</span>
+      <span class="api-use">時系列タブ用</span>
+    </div>
+    <div class="api-body">
+      <h4>クエリパラメータ</h4>
+      <p><code>parameter</code>: <code>CEC</code> / <code>CaO</code> / <code>K2O</code> / <code>MgO</code>（デフォルト: CEC）</p>
+      <h4>レスポンス構造</h4>
+<pre><span class="fn">GET /api/farms/{id}/results/timeseries?parameter=CEC</span>{
+  <span class="st">"parameter"</span>: <span class="st">"CEC"</span>,
+  <span class="st">"unit"</span>: <span class="st">"me/100g"</span>,
+  <span class="st">"points"</span>: [
+    { <span class="st">"date"</span>: <span class="st">"2026-02-05"</span>, <span class="st">"avg"</span>: <span class="nm">21.1</span>, <span class="st">"min"</span>: <span class="nm">19.8</span>, <span class="st">"max"</span>: <span class="nm">22.6</span>, <span class="st">"count"</span>: <span class="nm">5</span> },
+    { <span class="st">"date"</span>: <span class="st">"2026-03-28"</span>, <span class="st">"avg"</span>: <span class="nm">24.3</span>, <span class="st">"min"</span>: <span class="nm">22.4</span>, <span class="st">"max"</span>: <span class="nm">25.6</span>, <span class="st">"count"</span>: <span class="nm">6</span> }
+  ],
+  <span class="st">"work_logs"</span>: [
+    { <span class="st">"date"</span>: <span class="st">"2026-03-16"</span>, <span class="st">"work_type"</span>: <span class="st">"fertilization"</span>, <span class="st">"title"</span>: <span class="st">"NK化成 20kg"</span> }
+  ]
+}</pre>
+      <p><strong>points</strong> は日付昇順。<strong>work_logs</strong> はグラフ上の縦線座標として使う。</p>
+    </div>
+  </div>
+
+  <div class="api-box">
+    <div class="api-header">
+      <span class="api-method get">GET</span>
+      <span class="api-path">/api/farms/{farmId}/timeline</span>
+      <span class="api-use">タイムラインタブ用</span>
+    </div>
+    <div class="api-body">
+      <h4>レスポンス構造</h4>
+<pre><span class="fn">GET /api/farms/{id}/timeline</span>{
+  <span class="st">"items"</span>: [
+    {
+      <span class="st">"type"</span>: <span class="st">"measurement"</span>,
+      <span class="st">"date"</span>: <span class="st">"2026-03-28"</span>,
+      <span class="st">"count_points"</span>: <span class="nm">6</span>,
+      <span class="st">"values"</span>: {
+        <span class="st">"CEC"</span>: { <span class="st">"avg"</span>: <span class="nm">24.3</span>, <span class="st">"min"</span>: <span class="nm">22.4</span>, <span class="st">"max"</span>: <span class="nm">25.6</span>, <span class="st">"unit"</span>: <span class="st">"me/100g"</span> },
+        <span class="st">"CaO"</span>: { <span class="st">"avg"</span>: <span class="nm">142.1</span>, <span class="st">"min"</span>: <span class="nm">130.0</span>, <span class="st">"max"</span>: <span class="nm">155.2</span>, <span class="st">"unit"</span>: <span class="st">"mg/100g"</span> }
+      },
+      <span class="st">"delta"</span>: { <span class="st">"CEC"</span>: <span class="nm">3.1</span> }
+    },
+    {
+      <span class="st">"type"</span>: <span class="st">"work_log"</span>,
+      <span class="st">"date"</span>: <span class="st">"2026-03-16"</span>,
+      <span class="st">"work_type"</span>: <span class="st">"fertilization"</span>,
+      <span class="st">"title"</span>: <span class="st">"NK化成 20kg"</span>,
+      <span class="st">"detail"</span>: <span class="kw">null</span>,
+      <span class="st">"amount_value"</span>: <span class="nm">20.0</span>,
+      <span class="st">"amount_unit"</span>: <span class="st">"kg"</span>
+    }
+  ]
+}</pre>
+      <p>
+        <strong>items</strong> は日付降順（新しい順）。<code>type</code> で <code>"measurement"</code> / <code>"work_log"</code> を判別。<br>
+        <code>values</code> には存在するパラメータ（CEC は常に、CaO/K2O/MgO はモデル実装済みの場合のみ）が含まれる。<br>
+        <code>delta.CEC</code> は直前測定との CEC 平均差分（最初の測定は <code>null</code>）。
+      </p>
+    </div>
+  </div>
+
+  <h3 id="prereq">前提確認</h3>
+  <div class="steps">
+    <div class="step">
+      <div class="snum chk">✓</div>
+      <div class="sbody">
+        <h4>Phase 4 完了・main マージ済みを確認してブランチ作成</h4>
+        <span class="sloc">ターミナル / ローカル</span>
+        <div class="shell">
+<span class="p">$ </span><span class="cmd">git checkout main && git pull origin main</span>
+<span class="p">$ </span><span class="cmd">git log --oneline -3</span>
+<span class="c"># Phase 4 のコミット（FarmListScreen / FarmDetailScreen）が含まれること</span>
+
+<span class="p">$ </span><span class="cmd">git checkout -b feature/phase5-timeseries-timeline-tabs</span>
+        </div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="snum chk">✓</div>
+      <div class="sbody">
+        <h4>スタブファイルが存在することを確認</h4>
+        <span class="sloc">ターミナル / ローカル</span>
+        <div class="shell">
+<span class="p">$ </span><span class="cmd">ls lib/features/farms/presentation/tabs/</span>
+<span class="c"># farm_map_tab.dart        ← 実装済み（触らない）</span>
+<span class="c"># farm_timeseries_tab.dart ← Phase 5 で実装</span>
+<span class="c"># farm_timeline_tab.dart   ← Phase 5 で実装</span>
+        </div>
+        <div class="callout warn">
+          <strong>ディレクトリパスが異なる場合。</strong>
+          Phase 4 実装コメントに記載された <code>lib/features/farms/presentation/tabs/</code> が実際のパスです。
+          <code>find lib/features -name "farm_map_tab.dart"</code> で確認してください。
+        </div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="snum chk">✓</div>
+      <div class="sbody">
+        <h4>グラフ描画パッケージの確認・追加</h4>
+        <span class="sloc">pubspec.yaml / ターミナル</span>
+        <p>
+          時系列の折れ線グラフに <code>fl_chart</code> を使います。
+          既存の <code>pubspec.yaml</code> に含まれているか確認し、なければ追加します。
+        </p>
+        <div class="shell">
+<span class="c"># fl_chart が既に入っているか確認</span>
+<span class="p">$ </span><span class="cmd">grep "fl_chart" pubspec.yaml</span>
+
+<span class="c"># なければ追加してから pub get</span>
+<span class="p">$ </span><span class="cmd">flutter pub add fl_chart</span>
+<span class="p">$ </span><span class="cmd">flutter pub get</span>
+        </div>
+        <div class="callout info">
+          <strong><code>fl_chart</code> 以外のグラフライブラリが既に使われている場合。</strong>
+          <code>grep -rn "import.*chart\|import.*plot" lib/</code> で確認してください。
+          既存のグラフライブラリがあればそちらを優先して使うよう Cursor に指示してください。
+          <code>fl_chart</code> は折れ線グラフ（<code>LineChart</code>）と
+          縦線オーバーレイ（<code>ExtraLinesData</code>）が標準で使えるため推奨しています。
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <h3 id="files">作成・編集ファイル一覧</h3>
+  <div class="filetree">
+lib/features/farms/
+├── <span class="d">data/</span>
+│   └── <span class="mf">results_repository.dart    （timeseries / timeline の2メソッドを追加）</span>
+├── <span class="d">domain/</span>（モデル定義。既存パスに合わせる）
+│   ├── <span class="nf">timeseries_result.dart     （時系列レスポンスモデル）</span>
+│   └── <span class="nf">timeline_item.dart         （タイムラインアイテムモデル）</span>
+└── <span class="d">presentation/</span>
+    ├── <span class="d">providers/</span>（または notifiers/ 等。既存パスに合わせる）
+    │   ├── <span class="nf">timeseries_notifier.dart   （時系列タブ用 Notifier）</span>
+    │   └── <span class="nf">timeline_notifier.dart     （タイムラインタブ用 Notifier）</span>
+    └── <span class="d">tabs/</span>
+        ├── <span class="rf">farm_map_tab.dart           （変更なし）</span>
+        ├── <span class="mf">farm_timeseries_tab.dart   （スタブ → 実装）</span>
+        └── <span class="mf">farm_timeline_tab.dart     （スタブ → 実装）</span>
+  </div>
+
+  <div class="callout note">
+    <strong>モデル・Notifier の配置場所は既存パターンに完全に合わせてください。</strong>
+    <code>domain/</code> / <code>data/</code> / <code>presentation/</code> の分割は一例です。
+    <code>find lib/features/farms -name "*.dart" | sort</code> の結果を見て、
+    既存のクラスがどのディレクトリに置かれているかを Cursor に伝えてください。
+  </div>
+</section>
+
+<!-- ====== STEP 1: API Client ====== -->
+<section id="step1">
+  <h2><span class="n">01</span>レスポンスモデル定義と Repository 拡張 <span class="en">models &amp; repository</span></h2>
+
+  <div class="steps">
+    <div class="step" id="step1-model">
+      <div class="snum">1</div>
+      <div class="sbody">
+        <h4>時系列レスポンスモデルを定義</h4>
+        <span class="sloc">lib/features/farms/domain/timeseries_result.dart（新規作成）</span>
+        <p>配置先は既存モデルクラスが置かれているディレクトリに合わせてください。</p>
+<pre><span class="fn">timeseries_result.dart  — API レスポンスを Dart オブジェクトにマッピング</span><span class="cm">/// GET /api/farms/{id}/results/timeseries のレスポンス全体</span>
+<span class="kw">class</span> <span class="cl">TimeseriesResult</span> {
+  <span class="kw">final</span> <span class="cl">String</span>              parameter;
+  <span class="kw">final</span> <span class="cl">String</span>?             unit;
+  <span class="kw">final</span> <span class="cl">List</span>&lt;<span class="cl">TimeseriesPoint</span>&gt; points;    <span class="cm">// 日付昇順</span>
+  <span class="kw">final</span> <span class="cl">List</span>&lt;<span class="cl">WorkLogMark</span>&gt;    workLogs;  <span class="cm">// グラフ上の縦線</span>
+
+  <span class="kw">const</span> <span class="cl">TimeseriesResult</span>({
+    required <span class="kw">this</span>.parameter,
+    <span class="kw">this</span>.unit,
+    required <span class="kw">this</span>.points,
+    required <span class="kw">this</span>.workLogs,
+  });
+
+  <span class="kw">factory</span> <span class="cl">TimeseriesResult</span>.fromJson(<span class="cl">Map</span>&lt;<span class="cl">String</span>, <span class="kw">dynamic</span>&gt; json) =&gt;
+      <span class="cl">TimeseriesResult</span>(
+        parameter: json[<span class="st">'parameter'</span>] <span class="kw">as</span> <span class="cl">String</span>,
+        unit:      json[<span class="st">'unit'</span>]      <span class="kw">as</span> <span class="cl">String</span>?,
+        points: (json[<span class="st">'points'</span>] <span class="kw">as</span> <span class="cl">List</span>)
+            .map((e) =&gt; <span class="cl">TimeseriesPoint</span>.fromJson(e <span class="kw">as</span> <span class="cl">Map</span>&lt;<span class="cl">String</span>, <span class="kw">dynamic</span>&gt;))
+            .toList(),
+        workLogs: (json[<span class="st">'work_logs'</span>] <span class="kw">as</span> <span class="cl">List</span>)
+            .map((e) =&gt; <span class="cl">WorkLogMark</span>.fromJson(e <span class="kw">as</span> <span class="cl">Map</span>&lt;<span class="cl">String</span>, <span class="kw">dynamic</span>&gt;))
+            .toList(),
+      );
+}
+
+<span class="cm">/// 測定日ごとの集計値（avg / min / max / count）</span>
+<span class="kw">class</span> <span class="cl">TimeseriesPoint</span> {
+  <span class="kw">final</span> <span class="cl">String</span> date;
+  <span class="kw">final</span> <span class="kw">double</span> avg;
+  <span class="kw">final</span> <span class="kw">double</span> min;
+  <span class="kw">final</span> <span class="kw">double</span> max;
+  <span class="kw">final</span> <span class="kw">int</span>    count;
+
+  <span class="kw">const</span> <span class="cl">TimeseriesPoint</span>({
+    required <span class="kw">this</span>.date, required <span class="kw">this</span>.avg,
+    required <span class="kw">this</span>.min,  required <span class="kw">this</span>.max, required <span class="kw">this</span>.count,
+  });
+
+  <span class="kw">factory</span> <span class="cl">TimeseriesPoint</span>.fromJson(<span class="cl">Map</span>&lt;<span class="cl">String</span>, <span class="kw">dynamic</span>&gt; json) =&gt; <span class="cl">TimeseriesPoint</span>(
+    date:  json[<span class="st">'date'</span>]  <span class="kw">as</span> <span class="cl">String</span>,
+    avg:   (json[<span class="st">'avg'</span>]   <span class="kw">as</span> <span class="kw">num</span>).toDouble(),
+    min:   (json[<span class="st">'min'</span>]   <span class="kw">as</span> <span class="kw">num</span>).toDouble(),
+    max:   (json[<span class="st">'max'</span>]   <span class="kw">as</span> <span class="kw">num</span>).toDouble(),
+    count: json[<span class="st">'count'</span>] <span class="kw">as</span> <span class="kw">int</span>,
+  );
+}
+
+<span class="cm">/// 折れ線グラフの縦線用（作業ログのタイミング）</span>
+<span class="kw">class</span> <span class="cl">WorkLogMark</span> {
+  <span class="kw">final</span> <span class="cl">String</span> date;
+  <span class="kw">final</span> <span class="cl">String</span> workType; <span class="cm">// 'fertilization' | 'tillage' | etc.</span>
+  <span class="kw">final</span> <span class="cl">String</span>? title;
+
+  <span class="kw">const</span> <span class="cl">WorkLogMark</span>({required <span class="kw">this</span>.date, required <span class="kw">this</span>.workType, <span class="kw">this</span>.title});
+
+  <span class="kw">factory</span> <span class="cl">WorkLogMark</span>.fromJson(<span class="cl">Map</span>&lt;<span class="cl">String</span>, <span class="kw">dynamic</span>&gt; json) =&gt; <span class="cl">WorkLogMark</span>(
+    date:     json[<span class="st">'date'</span>]      <span class="kw">as</span> <span class="cl">String</span>,
+    workType: json[<span class="st">'work_type'</span>] <span class="kw">as</span> <span class="cl">String</span>,
+    title:    json[<span class="st">'title'</span>]     <span class="kw">as</span> <span class="cl">String</span>?,
+  );
+}</pre>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="snum">2</div>
+      <div class="sbody">
+        <h4>タイムラインアイテムモデルを定義</h4>
+        <span class="sloc">lib/features/farms/domain/timeline_item.dart（新規作成）</span>
+<pre><span class="fn">timeline_item.dart  — タイムライン API レスポンスの1アイテム（Union型で表現）</span><span class="cm">/// items 配列の1要素の基底。type で判別する。</span>
+<span class="kw">sealed class</span> <span class="cl">TimelineItem</span> {
+  <span class="kw">final</span> <span class="cl">String</span> date;
+  <span class="kw">final</span> <span class="cl">String</span> type;
+  <span class="kw">const</span> <span class="cl">TimelineItem</span>({required <span class="kw">this</span>.date, required <span class="kw">this</span>.type});
+
+  <span class="kw">factory</span> <span class="cl">TimelineItem</span>.fromJson(<span class="cl">Map</span>&lt;<span class="cl">String</span>, <span class="kw">dynamic</span>&gt; json) {
+    <span class="kw">return switch</span> (json[<span class="st">'type'</span>] <span class="kw">as</span> <span class="cl">String</span>) {
+      <span class="st">'measurement'</span> =&gt; <span class="cl">MeasurementItem</span>.fromJson(json),
+      <span class="st">'work_log'</span>    =&gt; <span class="cl">WorkLogItem</span>.fromJson(json),
+      _             =&gt; <span class="kw">throw</span> <span class="cl">ArgumentError</span>(<span class="st">'unknown type: ${json["type"]}'</span>),
+    };
+  }
+}
+
+<span class="cm">/// type = "measurement" のアイテム</span>
+<span class="kw">final class</span> <span class="cl">MeasurementItem</span> <span class="kw">extends</span> <span class="cl">TimelineItem</span> {
+  <span class="kw">final</span> <span class="kw">int</span>                           countPoints;
+  <span class="kw">final</span> <span class="cl">Map</span>&lt;<span class="cl">String</span>, <span class="cl">ParameterStat</span>&gt;    values;  <span class="cm">// キー: 'CEC' | 'CaO' | 'K2O' | 'MgO'</span>
+  <span class="kw">final</span> <span class="kw">double</span>?                        deltaCec; <span class="cm">// null = 最初の測定</span>
+
+  <span class="kw">const</span> <span class="cl">MeasurementItem</span>({
+    required <span class="kw">super</span>.date,
+    required <span class="kw">this</span>.countPoints,
+    required <span class="kw">this</span>.values,
+    <span class="kw">this</span>.deltaCec,
+  }) : <span class="kw">super</span>(type: <span class="st">'measurement'</span>);
+
+  <span class="kw">factory</span> <span class="cl">MeasurementItem</span>.fromJson(<span class="cl">Map</span>&lt;<span class="cl">String</span>, <span class="kw">dynamic</span>&gt; json) {
+    <span class="kw">final</span> valuesRaw = json[<span class="st">'values'</span>] <span class="kw">as</span> <span class="cl">Map</span>&lt;<span class="cl">String</span>, <span class="kw">dynamic</span>&gt;? ?? {};
+    <span class="kw">final</span> delta     = json[<span class="st">'delta'</span>]  <span class="kw">as</span> <span class="cl">Map</span>&lt;<span class="cl">String</span>, <span class="kw">dynamic</span>&gt;? ?? {};
+    <span class="kw">return</span> <span class="cl">MeasurementItem</span>(
+      date:        json[<span class="st">'date'</span>]         <span class="kw">as</span> <span class="cl">String</span>,
+      countPoints: json[<span class="st">'count_points'</span>] <span class="kw">as</span> <span class="kw">int</span>,
+      values: valuesRaw.map((k, v) =&gt;
+          <span class="cl">MapEntry</span>(k, <span class="cl">ParameterStat</span>.fromJson(v <span class="kw">as</span> <span class="cl">Map</span>&lt;<span class="cl">String</span>, <span class="kw">dynamic</span>&gt;))),
+      deltaCec: (delta[<span class="st">'CEC'</span>] <span class="kw">as</span> <span class="kw">num</span>?)?.toDouble(),
+    );
+  }
+}
+
+<span class="cm">/// avg / min / max / unit を持つ集計値</span>
+<span class="kw">class</span> <span class="cl">ParameterStat</span> {
+  <span class="kw">final</span> <span class="kw">double</span> avg, min, max;
+  <span class="kw">final</span> <span class="cl">String</span>? unit;
+  <span class="kw">const</span> <span class="cl">ParameterStat</span>({required <span class="kw">this</span>.avg, required <span class="kw">this</span>.min, required <span class="kw">this</span>.max, <span class="kw">this</span>.unit});
+  <span class="kw">factory</span> <span class="cl">ParameterStat</span>.fromJson(<span class="cl">Map</span>&lt;<span class="cl">String</span>, <span class="kw">dynamic</span>&gt; j) =&gt; <span class="cl">ParameterStat</span>(
+    avg:  (j[<span class="st">'avg'</span>] <span class="kw">as</span> <span class="kw">num</span>).toDouble(),
+    min:  (j[<span class="st">'min'</span>] <span class="kw">as</span> <span class="kw">num</span>).toDouble(),
+    max:  (j[<span class="st">'max'</span>] <span class="kw">as</span> <span class="kw">num</span>).toDouble(),
+    unit:  j[<span class="st">'unit'</span>] <span class="kw">as</span> <span class="cl">String</span>?,
+  );
+}
+
+<span class="cm">/// type = "work_log" のアイテム</span>
+<span class="kw">final class</span> <span class="cl">WorkLogItem</span> <span class="kw">extends</span> <span class="cl">TimelineItem</span> {
+  <span class="kw">final</span> <span class="cl">String</span>  workType;
+  <span class="kw">final</span> <span class="cl">String</span>? title;
+  <span class="kw">final</span> <span class="cl">String</span>? detail;
+  <span class="kw">final</span> <span class="kw">double</span>? amountValue;
+  <span class="kw">final</span> <span class="cl">String</span>? amountUnit;
+
+  <span class="kw">const</span> <span class="cl">WorkLogItem</span>({
+    required <span class="kw">super</span>.date,
+    required <span class="kw">this</span>.workType,
+    <span class="kw">this</span>.title, <span class="kw">this</span>.detail, <span class="kw">this</span>.amountValue, <span class="kw">this</span>.amountUnit,
+  }) : <span class="kw">super</span>(type: <span class="st">'work_log'</span>);
+
+  <span class="kw">factory</span> <span class="cl">WorkLogItem</span>.fromJson(<span class="cl">Map</span>&lt;<span class="cl">String</span>, <span class="kw">dynamic</span>&gt; json) =&gt; <span class="cl">WorkLogItem</span>(
+    date:        json[<span class="st">'date'</span>]         <span class="kw">as</span> <span class="cl">String</span>,
+    workType:    json[<span class="st">'work_type'</span>]    <span class="kw">as</span> <span class="cl">String</span>,
+    title:       json[<span class="st">'title'</span>]        <span class="kw">as</span> <span class="cl">String</span>?,
+    detail:      json[<span class="st">'detail'</span>]       <span class="kw">as</span> <span class="cl">String</span>?,
+    amountValue: (json[<span class="st">'amount_value'</span>] <span class="kw">as</span> <span class="kw">num</span>?)?.toDouble(),
+    amountUnit:  json[<span class="st">'amount_unit'</span>]  <span class="kw">as</span> <span class="cl">String</span>?,
+  );
+}</pre>
+
+        <div class="callout info">
+          <strong><code>sealed class</code> / <code>final class</code> について。</strong>
+          Dart 3.0+ の機能です。プロジェクトの <code>pubspec.yaml</code> の
+          <code>sdk: '&gt;=3.0.0'</code> であれば使えます。
+          古いバージョンの場合は <code>abstract class</code> + <code>if (item is MeasurementItem)</code>
+          での判別に変えてください。
+          <code>dart --version</code> で確認できます。
+        </div>
+      </div>
+    </div>
+
+    <div class="step" id="step1-repo">
+      <div class="snum">3</div>
+      <div class="sbody">
+        <h4>ResultsRepository に2メソッドを追加</h4>
+        <span class="sloc">lib/features/farms/data/results_repository.dart（既存ファイルを編集）</span>
+        <p>
+          既存の <code>ResultsRepository</code>（または相当するクラス）を開き、
+          末尾に以下の2メソッドを追記します。
+          既存の <code>_dio</code> / <code>_client</code> などの HTTP クライアントインスタンス変数名に合わせてください。
+        </p>
+<pre><span class="fn">ResultsRepository に追記する2メソッド</span>  <span class="cm">/// GET /api/farms/{farmId}/results/timeseries?parameter={param}
+  /// 時系列タブ用: 測定日ごとの平均/min/max + 作業ログ縦線</span>
+  <span class="kw">Future</span>&lt;<span class="cl">TimeseriesResult</span>&gt; fetchTimeseries(
+    <span class="kw">int</span> farmId, {
+    <span class="cl">String</span> parameter = <span class="st">'CEC'</span>,
+  }) <span class="kw">async</span> {
+    <span class="kw">final</span> res = <span class="kw">await</span> _dio.get(
+      <span class="st">'/api/farms/$farmId/results/timeseries'</span>,
+      queryParameters: {<span class="st">'parameter'</span>: parameter},
+    );
+    <span class="kw">return</span> <span class="cl">TimeseriesResult</span>.fromJson(res.data <span class="kw">as</span> <span class="cl">Map</span>&lt;<span class="cl">String</span>, <span class="kw">dynamic</span>&gt;);
+  }
+
+  <span class="cm">/// GET /api/farms/{farmId}/timeline
+  /// タイムラインタブ用: 測定結果 + 作業ログを日付降順でマージ</span>
+  <span class="kw">Future</span>&lt;<span class="cl">List</span>&lt;<span class="cl">TimelineItem</span>&gt;&gt; fetchTimeline(<span class="kw">int</span> farmId) <span class="kw">async</span> {
+    <span class="kw">final</span> res  = <span class="kw">await</span> _dio.get(<span class="st">'/api/farms/$farmId/timeline'</span>);
+    <span class="kw">final</span> list = res.data[<span class="st">'items'</span>] <span class="kw">as</span> <span class="cl">List</span>;
+    <span class="kw">return</span> list
+        .map((e) =&gt; <span class="cl">TimelineItem</span>.fromJson(e <span class="kw">as</span> <span class="cl">Map</span>&lt;<span class="cl">String</span>, <span class="kw">dynamic</span>&gt;))
+        .toList();
+  }</pre>
+
+        <div class="callout warn">
+          <strong>レスポンスのトップレベルラッパーを確認してください。</strong>
+          timeseries は <code>res.data</code> 直接（<code>parameter</code> / <code>points</code> / <code>work_logs</code> キー）、
+          timeline は <code>res.data['items']</code> です。
+          既存の他メソッドでどのようにラッパーを外しているか確認して合わせてください。
+          <code>grep -A5 "Future.*fetch" lib/features/farms/data/results_repository.dart | head -30</code>
+          で既存パターンを確認できます。
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ====== STEP 2: Notifiers ====== -->
+<section id="step2">
+  <h2><span class="n">02</span>状態管理 Notifier の追加 <span class="en">notifiers</span></h2>
+
+  <p>
+    <code>ResultMapNotifier</code> と同じスーパークラス・パターンで実装します。
+    Cursor に渡す前に <code>ResultMapNotifier</code> のスーパークラスを確認してください。
+  </p>
+  <div class="callout teal">
+    <strong>スーパークラスの確認コマンド。</strong>
+    <div class="shell" style="margin-top:8px;">
+<span class="p">$ </span><span class="cmd">grep -n "class ResultMapNotifier\|extends\|with" \
+  lib/features/farms/presentation/tabs/farm_map_tab.dart | head -5</span>
+    </div>
+    以下のどれかが返ってきます：<br>
+    • <code>extends ChangeNotifier</code> → 以降のコードをそのまま使用<br>
+    • <code>extends StateNotifier</code> → <code>state</code> プロパティを使う Riverpod パターン<br>
+    • <code>extends AsyncNotifier</code> → Riverpod v2 パターン<br>
+    いずれの場合も<strong>既存の Notifier と同じパターンに揃えてください</strong>。
+    以降のコード例は <code>ChangeNotifier</code> ベースで書いています。
+  </div>
+
+  <div class="steps">
+    <div class="step" id="step2-ts">
+      <div class="snum">4</div>
+      <div class="sbody">
+        <h4>TimeseriesNotifier を新規作成</h4>
+        <span class="sloc">lib/features/farms/presentation/providers/timeseries_notifier.dart（新規作成）</span>
+<pre><span class="fn">timeseries_notifier.dart  — ChangeNotifier ベースの例</span><span class="kw">import</span> <span class="st">'package:flutter/foundation.dart'</span>;
+<span class="kw">import</span> <span class="st">'../../data/results_repository.dart'</span>;  <span class="cm">// 実際のパスに合わせる</span>
+<span class="kw">import</span> <span class="st">'../../domain/timeseries_result.dart'</span>;
+
+<span class="kw">class</span> <span class="cl">TimeseriesNotifier</span> <span class="kw">extends</span> <span class="cl">ChangeNotifier</span> {
+  <span class="kw">final</span> <span class="kw">int</span>               _farmId;
+  <span class="kw">final</span> <span class="cl">ResultsRepository</span> _repo;
+
+  <span class="cl">TimeseriesNotifier</span>({required <span class="kw">int</span> farmId, required <span class="cl">ResultsRepository</span> repo})
+      : _farmId = farmId, _repo = repo;
+
+  <span class="cm">// ── 公開状態 ─────────────────────────────────────────────</span>
+  <span class="cl">String</span>           selectedParam = <span class="st">'CEC'</span>;
+  <span class="cl">TimeseriesResult</span>? data;
+  <span class="kw">bool</span>             isLoading = <span class="kw">false</span>;
+  <span class="cl">String</span>?          error;
+
+  <span class="cm">/// 画面初期化時に呼ぶ</span>
+  <span class="kw">Future</span>&lt;<span class="kw">void</span>&gt; init() =&gt; _load();
+
+  <span class="cm">/// パラメータ切替（タブ切替ボタンから呼ぶ）</span>
+  <span class="kw">Future</span>&lt;<span class="kw">void</span>&gt; selectParam(<span class="cl">String</span> param) <span class="kw">async</span> {
+    <span class="kw">if</span> (selectedParam == param) <span class="kw">return</span>;
+    selectedParam = param;
+    <span class="kw">await</span> _load();
+  }
+
+  <span class="kw">Future</span>&lt;<span class="kw">void</span>&gt; _load() <span class="kw">async</span> {
+    isLoading = <span class="kw">true</span>;
+    error     = <span class="kw">null</span>;
+    notifyListeners();
+    <span class="kw">try</span> {
+      data = <span class="kw">await</span> _repo.fetchTimeseries(_farmId, parameter: selectedParam);
+    } <span class="kw">catch</span> (e) {
+      error = e.toString();
+    } <span class="kw">finally</span> {
+      isLoading = <span class="kw">false</span>;
+      notifyListeners();
+    }
+  }
+}</pre>
+      </div>
+    </div>
+
+    <div class="step" id="step2-tl">
+      <div class="snum">5</div>
+      <div class="sbody">
+        <h4>TimelineNotifier を新規作成</h4>
+        <span class="sloc">lib/features/farms/presentation/providers/timeline_notifier.dart（新規作成）</span>
+<pre><span class="fn">timeline_notifier.dart</span><span class="kw">import</span> <span class="st">'package:flutter/foundation.dart'</span>;
+<span class="kw">import</span> <span class="st">'../../data/results_repository.dart'</span>;
+<span class="kw">import</span> <span class="st">'../../domain/timeline_item.dart'</span>;
+
+<span class="kw">class</span> <span class="cl">TimelineNotifier</span> <span class="kw">extends</span> <span class="cl">ChangeNotifier</span> {
+  <span class="kw">final</span> <span class="kw">int</span>               _farmId;
+  <span class="kw">final</span> <span class="cl">ResultsRepository</span> _repo;
+
+  <span class="cl">TimelineNotifier</span>({required <span class="kw">int</span> farmId, required <span class="cl">ResultsRepository</span> repo})
+      : _farmId = farmId, _repo = repo;
+
+  <span class="cl">List</span>&lt;<span class="cl">TimelineItem</span>&gt; items     = [];
+  <span class="kw">bool</span>               isLoading = <span class="kw">false</span>;
+  <span class="cl">String</span>?            error;
+
+  <span class="kw">Future</span>&lt;<span class="kw">void</span>&gt; init() =&gt; _load();
+
+  <span class="kw">Future</span>&lt;<span class="kw">void</span>&gt; _load() <span class="kw">async</span> {
+    isLoading = <span class="kw">true</span>;
+    error     = <span class="kw">null</span>;
+    notifyListeners();
+    <span class="kw">try</span> {
+      items = <span class="kw">await</span> _repo.fetchTimeline(_farmId);
+    } <span class="kw">catch</span> (e) {
+      error = e.toString();
+    } <span class="kw">finally</span> {
+      isLoading = <span class="kw">false</span>;
+      notifyListeners();
+    }
+  }
+}</pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ====== STEP 3: TimeseriesTab ====== -->
+<section id="step3">
+  <h2><span class="n">03</span>FarmTimeseriesTab の実装 <span class="en">timeseries tab</span></h2>
+
+  <div class="steps">
+    <div class="step" id="step3-chart">
+      <div class="snum">6</div>
+      <div class="sbody">
+        <h4>farm_timeseries_tab.dart をスタブから実装へ置き換え</h4>
+        <span class="sloc">lib/features/farms/presentation/tabs/farm_timeseries_tab.dart（スタブ → 実装）</span>
+
+        <p>画面の構成要素：</p>
+        <ul>
+          <li>パラメータ切替チップ（CEC / CaO / K2O / MgO）</li>
+          <li>最新値の大きな数値表示（「圃場平均 XX.X me/100g」）</li>
+          <li>折れ線グラフ（avg ライン + min/max の半透明バンド + 作業ログ縦線）</li>
+          <li>グラフ下部に凡例（平均ライン / ばらつき / 作業タイミング）</li>
+        </ul>
+
+        <div class="chart-mockup">
+平均 24.1 me/100g   ← 最新値
+
+  26┤         ●
+  24┤  ●─────  ←avg
+  22┤        │
+  20┤  ↑min/maxバンド（薄い緑）
+     2/5  3/10  3/16  3/28
+              ↑
+           縦破線（施肥）
+</div>
+
+<pre><span class="fn">lib/features/farms/presentation/tabs/farm_timeseries_tab.dart</span><span class="kw">import</span> <span class="st">'package:fl_chart/fl_chart.dart'</span>;
+<span class="kw">import</span> <span class="st">'package:flutter/material.dart'</span>;
+<span class="kw">import</span> <span class="st">'package:provider/provider.dart'</span>;
+<span class="kw">import</span> <span class="st">'../providers/timeseries_notifier.dart'</span>;
+<span class="kw">import</span> <span class="st">'../../domain/timeseries_result.dart'</span>;
+<span class="kw">import</span> <span class="st">'../../data/results_repository.dart'</span>;
+
+<span class="kw">class</span> <span class="cl">FarmTimeseriesTab</span> <span class="kw">extends</span> <span class="cl">StatelessWidget</span> {
+  <span class="kw">const</span> <span class="cl">FarmTimeseriesTab</span>({<span class="kw">super</span>.key, required <span class="kw">this</span>.farmId});
+  <span class="kw">final</span> <span class="kw">int</span> farmId;
+
+  <span class="kw">static const</span> _params = [<span class="st">'CEC'</span>, <span class="st">'CaO'</span>, <span class="st">'K2O'</span>, <span class="st">'MgO'</span>];
+
+  <span class="kw">@override</span>
+  <span class="cl">Widget</span> build(<span class="cl">BuildContext</span> context) {
+    <span class="kw">return</span> <span class="wg">ChangeNotifierProvider</span>(
+      create: (_) =&gt; <span class="cl">TimeseriesNotifier</span>(
+        farmId: farmId,
+        repo: context.read&lt;<span class="cl">ResultsRepository</span>&gt;(),
+      )..init(),
+      child: <span class="kw">const</span> <span class="cl">_TimeseriesView</span>(),
+    );
+  }
+}
+
+<span class="kw">class</span> <span class="cl">_TimeseriesView</span> <span class="kw">extends</span> <span class="cl">StatelessWidget</span> {
+  <span class="kw">const</span> <span class="cl">_TimeseriesView</span>();
+
+  <span class="kw">@override</span>
+  <span class="cl">Widget</span> build(<span class="cl">BuildContext</span> context) {
+    <span class="kw">final</span> n = context.watch&lt;<span class="cl">TimeseriesNotifier</span>&gt;();
+
+    <span class="kw">if</span> (n.isLoading) <span class="kw">return const</span> <span class="wg">Center</span>(child: <span class="wg">CircularProgressIndicator</span>());
+    <span class="kw">if</span> (n.error != <span class="kw">null</span>)
+      <span class="kw">return</span> <span class="wg">Center</span>(child: <span class="wg">Text</span>(<span class="st">'エラー: ${n.error}'</span>));
+    <span class="kw">if</span> (n.data == <span class="kw">null</span> || n.data!.points.isEmpty)
+      <span class="kw">return const</span> <span class="wg">Center</span>(child: <span class="wg">Text</span>(<span class="st">'測定データがありません'</span>));
+
+    <span class="kw">final</span> d = n.data!;
+
+    <span class="kw">return</span> <span class="wg">Column</span>(children: [
+      <span class="cm">// ── パラメータ切替チップ ───────────────────────────────</span>
+      <span class="wg">Padding</span>(
+        padding: <span class="kw">const</span> <span class="wg">EdgeInsets</span>.symmetric(horizontal: <span class="nm">12</span>, vertical: <span class="nm">8</span>),
+        child: <span class="wg">SingleChildScrollView</span>(
+          scrollDirection: <span class="wg">Axis</span>.horizontal,
+          child: <span class="wg">Row</span>(
+            children: [<span class="st">'CEC'</span>, <span class="st">'CaO'</span>, <span class="st">'K2O'</span>, <span class="st">'MgO'</span>].map((p) =&gt; <span class="wg">Padding</span>(
+              padding: <span class="kw">const</span> <span class="wg">EdgeInsets</span>.only(right: <span class="nm">8</span>),
+              child: <span class="wg">ChoiceChip</span>(
+                label: <span class="wg">Text</span>(p),
+                selected: n.selectedParam == p,
+                selectedColor: <span class="kw">const</span> <span class="wg">Color</span>(<span class="nm">0xFF2E5C39</span>),
+                labelStyle: <span class="wg">TextStyle</span>(
+                    color: n.selectedParam == p ? <span class="wg">Colors</span>.white : <span class="wg">Colors</span>.black87),
+                onSelected: (_) =&gt; n.selectParam(p),
+              ),
+            )).toList(),
+          ),
+        ),
+      ),
+
+      <span class="cm">// ── 最新値の大きな表示 ─────────────────────────────────</span>
+      <span class="wg">Padding</span>(
+        padding: <span class="kw">const</span> <span class="wg">EdgeInsets</span>.symmetric(horizontal: <span class="nm">16</span>, vertical: <span class="nm">4</span>),
+        child: <span class="wg">Row</span>(children: [
+          <span class="wg">Column</span>(crossAxisAlignment: <span class="wg">CrossAxisAlignment</span>.start, children: [
+            <span class="wg">Text</span>(<span class="st">'圃場平均（${n.selectedParam}）'</span>,
+                style: <span class="wg">TextStyle</span>(fontSize: <span class="nm">12</span>, color: <span class="wg">Colors</span>.grey[<span class="nm">600</span>])),
+            <span class="wg">RichText</span>(text: <span class="wg">TextSpan</span>(
+              style: <span class="wg">DefaultTextStyle</span>.of(context).style,
+              children: [
+                <span class="wg">TextSpan</span>(
+                  text: d.points.last.avg.toStringAsFixed(<span class="nm">1</span>),
+                  style: <span class="kw">const</span> <span class="wg">TextStyle</span>(fontSize: <span class="nm">32</span>, fontWeight: <span class="wg">FontWeight</span>.bold),
+                ),
+                <span class="wg">TextSpan</span>(
+                  text: <span class="st">' ${d.unit ?? ""}'</span>,
+                  style: <span class="wg">TextStyle</span>(fontSize: <span class="nm">14</span>, color: <span class="wg">Colors</span>.grey[<span class="nm">600</span>]),
+                ),
+              ],
+            )),
+          ]),
+        ]),
+      ),
+
+      <span class="cm">// ── 折れ線グラフ ──────────────────────────────────────</span>
+      <span class="wg">Expanded</span>(
+        child: <span class="wg">Padding</span>(
+          padding: <span class="kw">const</span> <span class="wg">EdgeInsets</span>.fromLTRB(<span class="nm">8</span>, <span class="nm">0</span>, <span class="nm">16</span>, <span class="nm">8</span>),
+          child: <span class="cl">_TimeseriesChart</span>(data: d),
+        ),
+      ),
+
+      <span class="cm">// ── 凡例 ──────────────────────────────────────────────</span>
+      <span class="wg">Padding</span>(
+        padding: <span class="kw">const</span> <span class="wg">EdgeInsets</span>.fromLTRB(<span class="nm">16</span>, <span class="nm">0</span>, <span class="nm">16</span>, <span class="nm">12</span>),
+        child: <span class="wg">Row</span>(children: [
+          _legendItem(<span class="wg">Colors</span>.green.shade700, <span class="st">'平均'</span>),
+          <span class="kw">const</span> <span class="wg">SizedBox</span>(width: <span class="nm">16</span>),
+          _legendItem(<span class="wg">Colors</span>.green.shade100, <span class="st">'ばらつき'</span>),
+          <span class="kw">const</span> <span class="wg">SizedBox</span>(width: <span class="nm">16</span>),
+          _legendItem(<span class="wg">Colors</span>.orange, <span class="st">'作業タイミング'</span>, dashed: <span class="kw">true</span>),
+        ]),
+      ),
+    ]);
+  }
+
+  <span class="cl">Widget</span> _legendItem(<span class="cl">Color</span> c, <span class="cl">String</span> label, {<span class="kw">bool</span> dashed = <span class="kw">false</span>}) =&gt; <span class="wg">Row</span>(children: [
+    <span class="wg">Container</span>(width: <span class="nm">20</span>, height: <span class="nm">3</span>,
+        decoration: <span class="wg">BoxDecoration</span>(color: c,
+            borderRadius: <span class="wg">BorderRadius</span>.circular(<span class="nm">2</span>))),
+    <span class="kw">const</span> <span class="wg">SizedBox</span>(width: <span class="nm">6</span>),
+    <span class="wg">Text</span>(label, style: <span class="kw">const</span> <span class="wg">TextStyle</span>(fontSize: <span class="nm">12</span>)),
+  ]);
+}
+
+<span class="cm">// ── fl_chart 折れ線グラフ ─────────────────────────────────────</span>
+<span class="kw">class</span> <span class="cl">_TimeseriesChart</span> <span class="kw">extends</span> <span class="cl">StatelessWidget</span> {
+  <span class="kw">const</span> <span class="cl">_TimeseriesChart</span>({required <span class="kw">this</span>.data});
+  <span class="kw">final</span> <span class="cl">TimeseriesResult</span> data;
+
+  <span class="kw">@override</span>
+  <span class="cl">Widget</span> build(<span class="cl">BuildContext</span> context) {
+    <span class="kw">final</span> pts    = data.points;
+    <span class="kw">final</span> labels = pts.map((p) =&gt; p.date.substring(<span class="nm">5</span>)).toList(); <span class="cm">// "MM/DD"</span>
+
+    <span class="cm">// avg の折れ線</span>
+    <span class="kw">final</span> avgSpots = pts.indexed
+        .map(((i, p)) =&gt; <span class="cl">FlSpot</span>(i.toDouble(), p.avg))
+        .toList();
+
+    <span class="cm">// min/max バンド（fl_chart の BetweenBarsData を使用）</span>
+    <span class="kw">final</span> minSpots = pts.indexed
+        .map(((i, p)) =&gt; <span class="cl">FlSpot</span>(i.toDouble(), p.min))
+        .toList();
+    <span class="kw">final</span> maxSpots = pts.indexed
+        .map(((i, p)) =&gt; <span class="cl">FlSpot</span>(i.toDouble(), p.max))
+        .toList();
+
+    <span class="cm">// 作業ログ縦線 X 座標を特定（日付がpoints内に存在する場合）</span>
+    <span class="kw">final</span> dateIndex = {
+      <span class="kw">for</span> (<span class="kw">var</span> i = <span class="nm">0</span>; i &lt; pts.length; i++) pts[i].date: i.toDouble()
+    };
+    <span class="kw">final</span> extraLines = data.workLogs
+        .where((w) =&gt; dateIndex.containsKey(w.date))
+        .map((w) =&gt; <span class="cl">VerticalLine</span>(
+          x:          dateIndex[w.date]!,
+          color:      <span class="wg">Colors</span>.orange.withValues(alpha: <span class="nm">0.7</span>),
+          strokeWidth: <span class="nm">1.5</span>,
+          dashArray:  [<span class="nm">5</span>, <span class="nm">3</span>],
+          label: <span class="cl">VerticalLineLabel</span>(
+            show:  <span class="kw">true</span>,
+            alignment: <span class="cl">Alignment</span>.topRight,
+            style: <span class="kw">const</span> <span class="wg">TextStyle</span>(fontSize: <span class="nm">9</span>, color: <span class="wg">Colors</span>.orange),
+            labelResolver: (_) =&gt; w.workType == <span class="st">'fertilization'</span> ? <span class="st">'施肥'</span>
+                : w.workType == <span class="st">'tillage'</span> ? <span class="st">'耕うん'</span> : <span class="st">'作業'</span>,
+          ),
+        ))
+        .toList();
+
+    <span class="kw">return</span> <span class="wg">LineChart</span>(
+      <span class="cl">LineChartData</span>(
+        extraLinesData: <span class="cl">ExtraLinesData</span>(verticalLines: extraLines),
+        lineBarsData: [
+          <span class="cm">// max ライン（バンド上辺、非表示用）</span>
+          <span class="cl">LineChartBarData</span>(
+            spots: maxSpots, color: <span class="wg">Colors</span>.transparent,
+            dotData: <span class="kw">const</span> <span class="cl">FlDotData</span>(show: <span class="kw">false</span>),
+          ),
+          <span class="cm">// min ライン（バンド下辺、非表示用）</span>
+          <span class="cl">LineChartBarData</span>(
+            spots: minSpots, color: <span class="wg">Colors</span>.transparent,
+            dotData: <span class="kw">const</span> <span class="cl">FlDotData</span>(show: <span class="kw">false</span>),
+            belowBarData: <span class="cl">BarAreaData</span>(show: <span class="kw">false</span>),
+          ),
+          <span class="cm">// avg ライン（メイン）</span>
+          <span class="cl">LineChartBarData</span>(
+            spots: avgSpots,
+            isCurved: <span class="kw">true</span>,
+            color: <span class="wg">Colors</span>.green.shade700,
+            barWidth: <span class="nm">2.5</span>,
+            dotData: <span class="cl">FlDotData</span>(
+              getDotPainter: (_, __, ___, ____) =&gt; <span class="cl">FlDotCirclePainter</span>(
+                radius: <span class="nm">4</span>, color: <span class="wg">Colors</span>.green.shade700,
+                strokeColor: <span class="wg">Colors</span>.white, strokeWidth: <span class="nm">1.5</span>,
+              ),
+            ),
+            belowBarData: <span class="cl">BarAreaData</span>(show: <span class="kw">false</span>),
+          ),
+        ],
+        betweenBarsData: [
+          <span class="cl">BetweenBarsData</span>(
+            fromIndex: <span class="nm">0</span>, toIndex: <span class="nm">1</span>, <span class="cm">// max と min の間をバンドで塗る</span>
+            color: <span class="wg">Colors</span>.green.shade100.withValues(alpha: <span class="nm">0.5</span>),
+          ),
+        ],
+        titlesData: <span class="cl">FlTitlesData</span>(
+          bottomTitles: <span class="cl">AxisTitles</span>(
+            sideTitles: <span class="cl">SideTitles</span>(
+              showTitles: <span class="kw">true</span>,
+              interval: <span class="nm">1</span>,
+              getTitlesWidget: (v, _) {
+                <span class="kw">final</span> i = v.toInt();
+                <span class="kw">if</span> (i &lt; <span class="nm">0</span> || i &gt;= labels.length) <span class="kw">return const</span> <span class="wg">SizedBox</span>.shrink();
+                <span class="kw">return</span> <span class="wg">Text</span>(labels[i], style: <span class="kw">const</span> <span class="wg">TextStyle</span>(fontSize: <span class="nm">10</span>));
+              },
+            ),
+          ),
+          topTitles:   <span class="kw">const</span> <span class="cl">AxisTitles</span>(sideTitles: <span class="cl">SideTitles</span>(showTitles: <span class="kw">false</span>)),
+          rightTitles: <span class="kw">const</span> <span class="cl">AxisTitles</span>(sideTitles: <span class="cl">SideTitles</span>(showTitles: <span class="kw">false</span>)),
+        ),
+        gridData:    <span class="kw">const</span> <span class="cl">FlGridData</span>(show: <span class="kw">true</span>),
+        borderData:  <span class="cl">FlBorderData</span>(show: <span class="kw">false</span>),
+      ),
+    );
+  }
+}</pre>
+
+        <div class="callout note">
+          <strong>作業ログの縦線が points の日付と一致しない場合。</strong>
+          バックエンドの time series API は <code>work_logs</code> を測定日と独立して返します。
+          作業日が測定日のいずれとも一致しない場合（施肥日 = 測定しない日）は
+          X 軸に整数インデックスを使っているため縦線が描けません。
+          その場合は <code>extraLines</code> に追加しないようにフィルタ済みです（<code>dateIndex.containsKey</code>）。
+          将来的に連続した日付 X 軸に対応する場合は X 軸を日付値（epoch）に変えてください。
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ====== STEP 4: TimelineTab ====== -->
+<section id="step4">
+  <h2><span class="n">04</span>FarmTimelineTab の実装 <span class="en">timeline tab</span></h2>
+
+  <div class="steps">
+    <div class="step" id="step4-card">
+      <div class="snum">7</div>
+      <div class="sbody">
+        <h4>farm_timeline_tab.dart をスタブから実装へ置き換え</h4>
+        <span class="sloc">lib/features/farms/presentation/tabs/farm_timeline_tab.dart（スタブ → 実装）</span>
+<pre><span class="fn">lib/features/farms/presentation/tabs/farm_timeline_tab.dart</span><span class="kw">import</span> <span class="st">'package:flutter/material.dart'</span>;
+<span class="kw">import</span> <span class="st">'package:provider/provider.dart'</span>;
+<span class="kw">import</span> <span class="st">'../providers/timeline_notifier.dart'</span>;
+<span class="kw">import</span> <span class="st">'../../domain/timeline_item.dart'</span>;
+<span class="kw">import</span> <span class="st">'../../data/results_repository.dart'</span>;
+
+<span class="kw">class</span> <span class="cl">FarmTimelineTab</span> <span class="kw">extends</span> <span class="cl">StatelessWidget</span> {
+  <span class="kw">const</span> <span class="cl">FarmTimelineTab</span>({<span class="kw">super</span>.key, required <span class="kw">this</span>.farmId});
+  <span class="kw">final</span> <span class="kw">int</span> farmId;
+
+  <span class="kw">@override</span>
+  <span class="cl">Widget</span> build(<span class="cl">BuildContext</span> context) {
+    <span class="kw">return</span> <span class="wg">ChangeNotifierProvider</span>(
+      create: (_) =&gt; <span class="cl">TimelineNotifier</span>(
+        farmId: farmId,
+        repo: context.read&lt;<span class="cl">ResultsRepository</span>&gt;(),
+      )..init(),
+      child: <span class="kw">const</span> <span class="cl">_TimelineView</span>(),
+    );
+  }
+}
+
+<span class="kw">class</span> <span class="cl">_TimelineView</span> <span class="kw">extends</span> <span class="cl">StatelessWidget</span> {
+  <span class="kw">const</span> <span class="cl">_TimelineView</span>();
+
+  <span class="kw">@override</span>
+  <span class="cl">Widget</span> build(<span class="cl">BuildContext</span> context) {
+    <span class="kw">final</span> n = context.watch&lt;<span class="cl">TimelineNotifier</span>&gt;();
+
+    <span class="kw">if</span> (n.isLoading) <span class="kw">return const</span> <span class="wg">Center</span>(child: <span class="wg">CircularProgressIndicator</span>());
+    <span class="kw">if</span> (n.error != <span class="kw">null</span>)
+      <span class="kw">return</span> <span class="wg">Center</span>(child: <span class="wg">Text</span>(<span class="st">'エラー: ${n.error}'</span>));
+    <span class="kw">if</span> (n.items.isEmpty)
+      <span class="kw">return const</span> <span class="wg">Center</span>(child: <span class="wg">Text</span>(<span class="st">'測定データ・作業ログがありません'</span>));
+
+    <span class="kw">return</span> <span class="wg">ListView</span>.separated(
+      padding: <span class="kw">const</span> <span class="wg">EdgeInsets</span>.all(<span class="nm">12</span>),
+      itemCount: n.items.length,
+      separatorBuilder: (_, __) =&gt; <span class="kw">const</span> <span class="wg">SizedBox</span>(height: <span class="nm">8</span>),
+      itemBuilder: (context, i) {
+        <span class="kw">final</span> item = n.items[i];
+        <span class="kw">return switch</span> (item) {
+          <span class="cl">MeasurementItem</span>() =&gt; <span class="cl">_MeasurementCard</span>(item: item),
+          <span class="cl">WorkLogItem</span>()     =&gt; <span class="cl">_WorkLogCard</span>(item: item),
+        };
+      },
+    );
+  }
+}
+
+<span class="cm">// ── 測定結果カード ──────────────────────────────────────────────</span>
+<span class="kw">class</span> <span class="cl">_MeasurementCard</span> <span class="kw">extends</span> <span class="cl">StatelessWidget</span> {
+  <span class="kw">const</span> <span class="cl">_MeasurementCard</span>({required <span class="kw">this</span>.item});
+  <span class="kw">final</span> <span class="cl">MeasurementItem</span> item;
+
+  <span class="kw">@override</span>
+  <span class="cl">Widget</span> build(<span class="cl">BuildContext</span> context) {
+    <span class="kw">final</span> cec    = item.values[<span class="st">'CEC'</span>];
+    <span class="kw">final</span> delta  = item.deltaCec;
+    <span class="kw">final</span> hasDelta = delta != <span class="kw">null</span>;
+    <span class="kw">final</span> isPlus   = delta != <span class="kw">null</span> && delta &gt;= <span class="nm">0</span>;
+
+    <span class="kw">return</span> <span class="wg">Container</span>(
+      decoration: <span class="wg">BoxDecoration</span>(
+        color: <span class="wg">Colors</span>.white,
+        border: <span class="wg">Border</span>(left: <span class="wg">BorderSide</span>(
+          color: <span class="kw">const</span> <span class="wg">Color</span>(<span class="nm">0xFF2E5C39</span>), width: <span class="nm">4</span>)),
+        boxShadow: [<span class="wg">BoxShadow</span>(
+          color: <span class="wg">Colors</span>.grey.withValues(alpha: <span class="nm">0.1</span>),
+          blurRadius: <span class="nm">4</span>, offset: <span class="kw">const</span> <span class="wg">Offset</span>(<span class="nm">0</span>, <span class="nm">2</span>))],
+      ),
+      padding: <span class="kw">const</span> <span class="wg">EdgeInsets</span>.all(<span class="nm">14</span>),
+      child: <span class="wg">Column</span>(crossAxisAlignment: <span class="wg">CrossAxisAlignment</span>.start, children: [
+        <span class="cm">// ヘッダ行</span>
+        <span class="wg">Row</span>(children: [
+          <span class="wg">Text</span>(<span class="st">'測定結果'</span>,
+              style: <span class="kw">const</span> <span class="wg">TextStyle</span>(fontWeight: <span class="wg">FontWeight</span>.bold, fontSize: <span class="nm">13</span>)),
+          <span class="kw">const</span> <span class="wg">Spacer</span>(),
+          <span class="wg">Text</span>(<span class="st">'${item.date} ${item.countPoints}点測定'</span>,
+              style: <span class="wg">TextStyle</span>(fontSize: <span class="nm">12</span>, color: <span class="wg">Colors</span>.grey[<span class="nm">600</span>])),
+        ]),
+        <span class="kw">const</span> <span class="wg">SizedBox</span>(height: <span class="nm">8</span>),
+        <span class="cm">// CEC 平均値 + 効果</span>
+        <span class="wg">Row</span>(crossAxisAlignment: <span class="wg">CrossAxisAlignment</span>.end, children: [
+          <span class="wg">Column</span>(crossAxisAlignment: <span class="wg">CrossAxisAlignment</span>.start, children: [
+            <span class="wg">Text</span>(<span class="st">'CEC平均（圃場）'</span>,
+                style: <span class="wg">TextStyle</span>(fontSize: <span class="nm">11</span>, color: <span class="wg">Colors</span>.grey[<span class="nm">600</span>])),
+            <span class="wg">Text</span>(
+              cec != <span class="kw">null</span> ? <span class="st">'${cec.avg.toStringAsFixed(1)} ${cec.unit ?? ""}'</span> : <span class="st">'—'</span>,
+              style: <span class="kw">const</span> <span class="wg">TextStyle</span>(fontSize: <span class="nm">22</span>, fontWeight: <span class="wg">FontWeight</span>.bold),
+            ),
+          ]),
+          <span class="kw">const</span> <span class="wg">SizedBox</span>(width: <span class="nm">16</span>),
+          <span class="kw">if</span> (hasDelta)
+            <span class="wg">Container</span>(
+              padding: <span class="kw">const</span> <span class="wg">EdgeInsets</span>.symmetric(horizontal: <span class="nm">8</span>, vertical: <span class="nm">4</span>),
+              decoration: <span class="wg">BoxDecoration</span>(
+                color: isPlus ? <span class="wg">Colors</span>.green.shade50 : <span class="wg">Colors</span>.red.shade50,
+                borderRadius: <span class="wg">BorderRadius</span>.circular(<span class="nm">4</span>),
+              ),
+              child: <span class="wg">Text</span>(
+                <span class="st">'${isPlus ? "+" : ""}${delta!.toStringAsFixed(1)}'</span>,
+                style: <span class="wg">TextStyle</span>(
+                  color: isPlus ? <span class="wg">Colors</span>.green.shade700 : <span class="wg">Colors</span>.red.shade700,
+                  fontWeight: <span class="wg">FontWeight</span>.bold,
+                  fontSize: <span class="nm">14</span>,
+                ),
+              ),
+            ),
+        ]),
+        <span class="kw">const</span> <span class="wg">SizedBox</span>(height: <span class="nm">6</span>),
+        <span class="cm">// CaO / K2O / MgO のミニ表示</span>
+        <span class="wg">Wrap</span>(spacing: <span class="nm">12</span>, children: [<span class="st">'CaO'</span>, <span class="st">'K2O'</span>, <span class="st">'MgO'</span>].map((k) {
+          <span class="kw">final</span> s = item.values[k];
+          <span class="kw">return</span> <span class="wg">Text</span>(
+            <span class="st">'$k ${s != null ? s.avg.toStringAsFixed(1) : "—"}'</span>,
+            style: <span class="wg">TextStyle</span>(fontSize: <span class="nm">12</span>, color: <span class="wg">Colors</span>.grey[<span class="nm">700</span>]),
+          );
+        }).toList()),
+      ]),
+    );
+  }
+}
+
+<span class="cm">// ── 作業ログカード ─────────────────────────────────────────────</span>
+<span class="kw">class</span> <span class="cl">_WorkLogCard</span> <span class="kw">extends</span> <span class="cl">StatelessWidget</span> {
+  <span class="kw">const</span> <span class="cl">_WorkLogCard</span>({required <span class="kw">this</span>.item});
+  <span class="kw">final</span> <span class="cl">WorkLogItem</span> item;
+
+  <span class="cm">// 作業種別ごとのアクセントカラー</span>
+  <span class="kw">static const</span> _colors = &lt;<span class="cl">String</span>, <span class="cl">Color</span>&gt;{
+    <span class="st">'fertilization'</span>: <span class="wg">Color</span>(<span class="nm">0xFFB85C00</span>),  <span class="cm">// 施肥: オレンジ</span>
+    <span class="st">'tillage'</span>:       <span class="wg">Color</span>(<span class="nm">0xFF7A4525</span>),  <span class="cm">// 耕うん: 茶</span>
+    <span class="st">'pesticide'</span>:     <span class="wg">Color</span>(<span class="nm">0xFF5A2D82</span>),  <span class="cm">// 農薬: 紫</span>
+    <span class="st">'harvest'</span>:       <span class="wg">Color</span>(<span class="nm">0xFFB8860B</span>),  <span class="cm">// 収穫: 黄</span>
+    <span class="st">'other'</span>:         <span class="wg">Color</span>(<span class="nm">0xFF6B7E68</span>),  <span class="cm">// その他: グレー</span>
+  };
+  <span class="kw">static const</span> _labels = &lt;<span class="cl">String</span>, <span class="cl">String</span>&gt;{
+    <span class="st">'fertilization'</span>: <span class="st">'施肥'</span>,
+    <span class="st">'tillage'</span>:       <span class="st">'耕うん'</span>,
+    <span class="st">'pesticide'</span>:     <span class="st">'農薬'</span>,
+    <span class="st">'harvest'</span>:       <span class="st">'収穫'</span>,
+    <span class="st">'other'</span>:         <span class="st">'その他'</span>,
+  };
+
+  <span class="kw">@override</span>
+  <span class="cl">Widget</span> build(<span class="cl">BuildContext</span> context) {
+    <span class="kw">final</span> color = _colors[item.workType] ?? <span class="kw">const</span> <span class="wg">Color</span>(<span class="nm">0xFF6B7E68</span>);
+    <span class="kw">final</span> label = _labels[item.workType] ?? item.workType;
+
+    <span class="kw">return</span> <span class="wg">Container</span>(
+      decoration: <span class="wg">BoxDecoration</span>(
+        color: <span class="wg">Colors</span>.white,
+        border: <span class="wg">Border</span>(left: <span class="wg">BorderSide</span>(color: color, width: <span class="nm">4</span>)),
+        boxShadow: [<span class="wg">BoxShadow</span>(
+          color: <span class="wg">Colors</span>.grey.withValues(alpha: <span class="nm">0.1</span>),
+          blurRadius: <span class="nm">4</span>, offset: <span class="kw">const</span> <span class="wg">Offset</span>(<span class="nm">0</span>, <span class="nm">2</span>))],
+      ),
+      padding: <span class="kw">const</span> <span class="wg">EdgeInsets</span>.all(<span class="nm">12</span>),
+      child: <span class="wg">Row</span>(children: [
+        <span class="cm">// 作業種別バッジ</span>
+        <span class="wg">Container</span>(
+          padding: <span class="kw">const</span> <span class="wg">EdgeInsets</span>.symmetric(horizontal: <span class="nm">8</span>, vertical: <span class="nm">4</span>),
+          decoration: <span class="wg">BoxDecoration</span>(
+            color: color.withValues(alpha: <span class="nm">0.12</span>),
+            borderRadius: <span class="wg">BorderRadius</span>.circular(<span class="nm">4</span>),
+          ),
+          child: <span class="wg">Text</span>(label,
+              style: <span class="wg">TextStyle</span>(color: color, fontWeight: <span class="wg">FontWeight</span>.bold, fontSize: <span class="nm">12</span>)),
+        ),
+        <span class="kw">const</span> <span class="wg">SizedBox</span>(width: <span class="nm">10</span>),
+        <span class="wg">Expanded</span>(child: <span class="wg">Column</span>(
+          crossAxisAlignment: <span class="wg">CrossAxisAlignment</span>.start,
+          children: [
+            <span class="kw">if</span> (item.title != <span class="kw">null</span>)
+              <span class="wg">Text</span>(item.title!,
+                  style: <span class="kw">const</span> <span class="wg">TextStyle</span>(fontWeight: <span class="wg">FontWeight</span>.w600, fontSize: <span class="nm">13</span>)),
+            <span class="kw">if</span> (item.detail != <span class="kw">null</span>)
+              <span class="wg">Text</span>(item.detail!,
+                  style: <span class="wg">TextStyle</span>(fontSize: <span class="nm">12</span>, color: <span class="wg">Colors</span>.grey[<span class="nm">600</span>])),
+            <span class="kw">if</span> (item.amountValue != <span class="kw">null</span>)
+              <span class="wg">Text</span>(<span class="st">'${item.amountValue} ${item.amountUnit ?? ""}'</span>,
+                  style: <span class="wg">TextStyle</span>(fontSize: <span class="nm">12</span>, color: <span class="wg">Colors</span>.grey[<span class="nm">600</span>])),
+          ],
+        )),
+        <span class="wg">Text</span>(item.date.substring(<span class="nm">5</span>),  <span class="cm">// "MM/DD" 表示</span>
+            style: <span class="wg">TextStyle</span>(fontSize: <span class="nm">12</span>, color: <span class="wg">Colors</span>.grey[<span class="nm">500</span>])),
+      ]),
+    );
+  }
+}</pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ====== STEP 5: FarmDetailScreen 拡張 ====== -->
+<section id="step5">
+  <h2><span class="n">05</span>FarmDetailScreen への farmId 受け渡し確認 <span class="en">wire-up</span></h2>
+
+  <div class="steps">
+    <div class="step">
+      <div class="snum">8</div>
+      <div class="sbody">
+        <h4>FarmTimeseriesTab / FarmTimelineTab に farmId を渡していることを確認</h4>
+        <span class="sloc">lib/features/farms/presentation/farm_detail_screen.dart（既存ファイルを確認・編集）</span>
+        <p>
+          Phase 4 で実装した <code>FarmDetailScreen</code> の <code>TabBarView</code> 内で、
+          スタブは引数なしでインスタンス化されていました。
+          今回 <code>FarmTimeseriesTab</code> / <code>FarmTimelineTab</code> が <code>farmId</code> を
+          required 引数として持つため、<code>FarmDetailScreen</code> 側で <code>farmId</code> を渡すように修正します。
+        </p>
+<pre><span class="fn">FarmDetailScreen の TabBarView 部分を修正</span><span class="cm">// 変更前（Phase 4 スタブ時代）</span>
+<span class="cl">TabBarView</span>(
+  children: [
+    <span class="kw">const</span> <span class="wg">FarmMapTab</span>(),
+    <span class="kw">const</span> <span class="cl">FarmTimeseriesTab</span>(),  <span class="cm">// ← スタブは引数なし</span>
+    <span class="kw">const</span> <span class="cl">FarmTimelineTab</span>(),   <span class="cm">// ← スタブは引数なし</span>
+  ],
+)
+
+<span class="cm">// 変更後（farmId を渡す）</span>
+<span class="cl">TabBarView</span>(
+  children: [
+    <span class="kw">const</span> <span class="wg">FarmMapTab</span>(),
+    <span class="cl">FarmTimeseriesTab</span>(farmId: widget.farmId),  <span class="cm">// ← farmId を追加</span>
+    <span class="cl">FarmTimelineTab</span>(farmId: widget.farmId),    <span class="cm">// ← farmId を追加</span>
+  ],
+)</pre>
+        <div class="callout">
+          <strong>FarmMapTab への farmId の渡し方が既に異なる場合。</strong>
+          Phase 4 実装では <code>ResultMapNotifier</code> が <code>FarmDetailProvider</code> 経由で
+          farmId を受け取っている可能性があります。
+          その場合は <code>FarmTimeseriesTab</code> / <code>FarmTimelineTab</code> も同じ方法で
+          farmId を取得するよう合わせてください（<code>context.read&lt;FarmDetailProvider&gt;().farmId</code> など）。
+          <code>grep -n "farmId\|farm_id" lib/features/farms/presentation/farm_detail_screen.dart</code>
+          で確認してください。
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ====== STEP 6: 動作確認 ====== -->
+<section id="step6">
+  <h2><span class="n">06</span>動作確認（ローカル） <span class="en">local check</span></h2>
+
+  <div class="steps">
+    <div class="step">
+      <div class="snum">9</div>
+      <div class="sbody">
+        <h4>flutter analyze でエラー件数を確認</h4>
+        <span class="sloc">ターミナル / ローカル</span>
+        <div class="shell">
+<span class="p">$ </span><span class="cmd">flutter analyze 2>&1 | tail -5</span>
+<span class="c"># baseline: 117 issues found（Phase 4 時点）</span>
+<span class="c"># 今回追加したファイルに error / warning がないことを確認</span>
+<span class="c"># info が若干増えても今回追加分でなければ許容</span>
+        </div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="snum">10</div>
+      <div class="sbody">
+        <h4>エミュレーター or 実機で起動して各タブを確認</h4>
+        <span class="sloc">Android エミュレーター or 実機</span>
+        <div class="shell">
+<span class="p">$ </span><span class="cmd">flutter run</span>
+        </div>
+        <table>
+          <thead><tr><th>確認項目</th><th>期待動作</th></tr></thead>
+          <tbody>
+            <tr><td>圃場詳細 → 時系列タブをタップ</td><td>「準備中」スタブが消えて、ローディングインジケータが出る</td></tr>
+            <tr><td>時系列グラフの表示</td><td>折れ線グラフ（avg ライン + 薄い min/max バンド）が描画される</td></tr>
+            <tr><td>時系列グラフの横軸</td><td>測定日（MM/DD 形式）が表示される</td></tr>
+            <tr><td>作業ログ縦線（作業ログがある場合）</td><td>測定日と一致する日付にオレンジ点線が表示される</td></tr>
+            <tr><td>パラメータ切替チップ</td><td>チップをタップするとローディングが走り、グラフが更新される</td></tr>
+            <tr><td>最新値の大きな表示</td><td>「圃場平均 XX.X me/100g」が表示される</td></tr>
+            <tr><td>圃場詳細 → タイムラインタブをタップ</td><td>「準備中」スタブが消えて、カードリストが表示される</td></tr>
+            <tr><td>タイムラインの順序</td><td>日付降順（新しい順）で表示される</td></tr>
+            <tr><td>測定結果カード</td><td>左に緑のアクセントボーダー。日付・点数・CEC平均値・delta（+/-）が表示される</td></tr>
+            <tr><td>delta の色</td><td>プラスは緑、マイナスは赤のバッジで表示される</td></tr>
+            <tr><td>作業ログカード</td><td>作業種別ごとのアクセントカラー（施肥=オレンジ等）で表示される</td></tr>
+            <tr><td>データが0件の場合</td><td>「測定データ・作業ログがありません」が表示される</td></tr>
+            <tr><td>マップタブは変化なし</td><td>Phase 4 時点の動作が維持されている</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ====== STEP 7: PR & CI/CD ====== -->
+<section id="step7">
+  <h2><span class="n">07</span>commit → PR → main マージ <span class="en">deploy</span></h2>
+
+  <div class="steps">
+    <div class="step">
+      <div class="snum">11</div>
+      <div class="sbody">
+        <h4>変更をコミットして push</h4>
+        <span class="sloc">ターミナル / ローカル</span>
+        <div class="shell">
+<span class="p">$ </span><span class="cmd">git add -A</span>
+<span class="p">$ </span><span class="cmd">git diff --cached --stat</span>
+<span class="c"># 新規: timeseries_result.dart / timeline_item.dart</span>
+<span class="c">#       timeseries_notifier.dart / timeline_notifier.dart</span>
+<span class="c"># 変更: results_repository.dart / farm_timeseries_tab.dart / farm_timeline_tab.dart</span>
+<span class="c">#       farm_detail_screen.dart (farmId 受け渡し修正)</span>
+
+<span class="p">$ </span><span class="cmd">git commit -m "feat: implement timeseries and timeline tabs (Phase 5)"</span>
+<span class="p">$ </span><span class="cmd">git push origin feature/phase5-timeseries-timeline-tabs</span>
+        </div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="snum">12</div>
+      <div class="sbody">
+        <h4>GitHub でプルリクエストを作成してマージ</h4>
+        <span class="sloc">GitHub Web UI</span>
+        <ol>
+          <li>「Compare &amp; pull request」をクリック</li>
+          <li>PR タイトル: <code>feat: implement timeseries and timeline tabs (Phase 5)</code></li>
+          <li>PR 本文に記載：
+            <ul>
+              <li>作成・変更ファイルの一覧</li>
+              <li><code>flutter analyze</code> の info 件数（117件から増えていないこと）</li>
+              <li>時系列グラフ・タイムラインカードの動作確認スクリーンショット（可能なら）</li>
+            </ul>
+          </li>
+          <li><strong>Squash and merge</strong> で main にマージ</li>
+          <li>feature ブランチを GitHub 上で削除</li>
+        </ol>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ====== STEP 8: 実機確認 ====== -->
+<section id="step8">
+  <h2><span class="n">08</span>実機デプロイ後の確認 <span class="en">device check</span></h2>
+
+  <div class="steps">
+    <div class="step">
+      <div class="snum">13</div>
+      <div class="sbody">
+        <h4>実機で APK をインストールして最終確認</h4>
+        <span class="sloc">ターミナル + Android 実機</span>
+        <div class="shell">
+<span class="p">$ </span><span class="cmd">flutter build apk --debug && flutter install</span>
+        </div>
+        <p>以下を重点確認します。</p>
+        <ul>
+          <li>本番 API（<code>https://api.hm-admin.com</code>）から時系列・タイムラインデータが取得できること</li>
+          <li>実際に <code>completed</code> 状態の測定データが複数日ある圃場で折れ線グラフが描画されること</li>
+          <li>Phase 1 で登録した作業ログがある圃場でタイムラインカードが混在して表示されること</li>
+          <li>delta（効果）の値が正しく表示されること（直前測定との差分）</li>
+          <li>CaO/K2O/MgO のモデルが未実装の場合、タイムラインカードの補助行に「—」が表示されること</li>
+          <li>マップタブが Phase 4 時点と変わらず動作していること</li>
+        </ul>
+        <div class="callout info">
+          <strong>時系列グラフに点が1つしかない場合。</strong>
+          1点では折れ線が描画されず点だけになります（fl_chart の仕様）。
+          これは正常動作です。2点以上の測定データがある圃場でテストしてください。
+          1点の場合は「グラフに線は引けませんが、点と最新値表示は正常か」を確認してください。
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ====== DoD ====== -->
+<section id="dod">
+  <h2><span class="n">✓</span>完了条件チェックリスト <span class="en">definition of done</span></h2>
+
+  <p style="font-size:13px;color:var(--ink3);margin-bottom:16px;">
+    <span class="tag l">L</span> ローカル確認 &nbsp;
+    <span class="tag ci">CI</span> PR &amp; CI/CD 確認 &nbsp;
+    <span class="tag e">E</span> 実機デプロイ後確認
+  </p>
+
+  <ul class="dod-list">
+    <li>
+      <span class="tag l">L</span> <code>flutter analyze</code> の info 件数が Phase 4 時点（117件）から増えていない
+      <span class="dc">確認: flutter analyze 2>&amp;1 | tail -5</span>
+    </li>
+    <li>
+      <span class="tag l">L</span> 時系列タブで折れ線グラフ（avg + min/max バンド）が表示される
+    </li>
+    <li>
+      <span class="tag l">L</span> 時系列タブでパラメータ切替チップが動作し、ローディング後にグラフが更新される
+    </li>
+    <li>
+      <span class="tag l">L</span> 時系列タブの最新値（「圃場平均 XX.X」）が表示される
+    </li>
+    <li>
+      <span class="tag l">L</span> タイムラインタブで測定結果カードと作業ログカードが日付降順に混在して表示される
+    </li>
+    <li>
+      <span class="tag l">L</span> delta が正のときは緑、負のときは赤のバッジで表示される
+    </li>
+    <li>
+      <span class="tag l">L</span> データが0件のとき、両タブとも「データなし」メッセージが表示される（クラッシュしない）
+    </li>
+    <li>
+      <span class="tag l">L</span> マップタブが Phase 4 時点と変わらず動作している
+    </li>
+    <li>
+      <span class="tag ci">CI</span> feature ブランチが main にマージされ、CI が success（緑）になっている
+    </li>
+    <li>
+      <span class="tag ci">CI</span> feature ブランチが GitHub 上で削除されている
+    </li>
+    <li>
+      <span class="tag e">E</span> 実機で本番 API から時系列・タイムラインデータが正常に取得・表示される
+    </li>
+    <li>
+      <span class="tag e">E</span> 実機で作業ログがある圃場でタイムラインに作業ログカードが表示される
+    </li>
+  </ul>
+
+  <div class="callout info" style="margin-top:24px;">
+    <strong>Phase 6（作業記録入力）への引き継ぎ。</strong>
+    Phase 5 完了後、タイムラインに作業ログカードが表示されることを確認してから
+    Phase 6 の Cursor セッションを開始してください。
+    Phase 6 では「+作業記録」ボタンから <code>WorkLogEditScreen</code> を開き、
+    タイムラインタブに反映される CRUD フロー（入力 → POST /api/v1/farms/{id}/work-logs → タイムライン再取得）を実装します。
+  </div>
+</section>
+
+</main>
+</div>
+</body>
+</html>

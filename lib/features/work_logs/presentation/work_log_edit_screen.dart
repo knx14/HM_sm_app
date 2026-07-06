@@ -107,15 +107,11 @@ class WorkLogEditScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 8),
                 Expanded(
-                  child: notifier.isSaving
-                      ? const Center(child: CircularProgressIndicator())
-                      : switch (notifier.step) {
-                          0 => _WorkTypeStep(
-                            scrollController: scrollController,
-                          ),
-                          1 => _DetailStep(scrollController: scrollController),
-                          _ => _ConfirmStep(scrollController: scrollController),
-                        },
+                  child: switch (notifier.step) {
+                    0 => _WorkTypeStep(scrollController: scrollController),
+                    1 => _DetailStep(scrollController: scrollController),
+                    _ => _ConfirmStep(scrollController: scrollController),
+                  },
                 ),
               ],
             ),
@@ -447,13 +443,28 @@ class _ConfirmStep extends StatelessWidget {
             const SizedBox(width: 12),
             Expanded(
               child: FilledButton.icon(
-                onPressed: () async {
-                  await notifier.save();
-                  if (!context.mounted || !notifier.isSaveComplete) return;
-                  Navigator.pop(context, true);
-                },
-                icon: const Icon(Icons.save_outlined),
-                label: Text(notifier.isEditMode ? '更新' : '保存'),
+                onPressed: notifier.isSaving || notifier.isSaveComplete
+                    ? null
+                    : () async {
+                        await notifier.save();
+                        if (!context.mounted || !notifier.isSaveComplete) {
+                          return;
+                        }
+                        Navigator.pop(context, true);
+                      },
+                icon: notifier.isSaving
+                    ? const SizedBox.square(
+                        dimension: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.save_outlined),
+                label: Text(
+                  notifier.isSaving
+                      ? '保存中...'
+                      : notifier.isEditMode
+                      ? '更新'
+                      : '保存',
+                ),
               ),
             ),
           ],

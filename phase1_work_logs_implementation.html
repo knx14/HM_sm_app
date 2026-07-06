@@ -1,0 +1,1553 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1.0" />
+<title>HenryMonitor Phase 1 実装手順書 — work_logs CRUD</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&family=Noto+Serif+JP:wght@700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #f9f8f3;
+  --paper: #ffffff;
+  --ink: #1a2318;
+  --ink-2: #3d4f3a;
+  --ink-3: #6b7e68;
+  --line: #dbd6c4;
+  --line-soft: #eae6d6;
+  --leaf: #2e5c39;
+  --leaf-light: #4a8459;
+  --leaf-pale: #e2ede4;
+  --soil: #7a4525;
+  --soil-pale: #f2e8e0;
+  --amber: #b85c00;
+  --amber-pale: #fef0d8;
+  --red: #b02020;
+  --red-pale: #fce4e4;
+  --blue: #1a4f7a;
+  --blue-pale: #ddeaf5;
+  --code-bg: #1e2a1c;
+  --code-fg: #d4e8cc;
+  --code-comment: #6a8f68;
+  --code-key: #7dd3a8;
+  --code-str: #f7c07a;
+  --code-num: #7ec8e3;
+  --code-class: #e8d07a;
+  --step-line: #b0c8b0;
+}
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  margin: 0; padding: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: "Noto Sans JP", sans-serif;
+  font-size: 14.5px;
+  line-height: 1.8;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── Layout ── */
+.layout { display: flex; min-height: 100vh; }
+
+/* ── Sidebar TOC ── */
+.toc {
+  width: 240px;
+  flex-shrink: 0;
+  background: var(--ink);
+  color: #c8d8c4;
+  padding: 28px 0 40px;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
+}
+.toc-logo {
+  padding: 0 20px 20px;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+  margin-bottom: 16px;
+}
+.toc-logo .proj { font-size: 11px; letter-spacing: 0.18em; color: #7a9a76; text-transform: uppercase; }
+.toc-logo .phase { font-family: "Noto Serif JP", serif; font-size: 17px; color: #e8f0e4; font-weight: 700; margin-top: 4px; }
+.toc-logo .sub { font-size: 11px; color: #7a9a76; margin-top: 2px; }
+
+.toc ul { list-style: none; margin: 0; padding: 0; }
+.toc li a {
+  display: block;
+  padding: 7px 20px;
+  font-size: 12.5px;
+  color: #a8c4a4;
+  text-decoration: none;
+  transition: background 0.15s, color 0.15s;
+  border-left: 3px solid transparent;
+}
+.toc li a:hover { background: rgba(255,255,255,0.06); color: #e8f0e4; border-left-color: var(--leaf-light); }
+.toc li a.section-link { font-weight: 700; color: #c4dcc0; font-size: 12px; letter-spacing: 0.05em; margin-top: 6px; }
+.toc li a.sub-link { padding-left: 32px; font-size: 12px; }
+
+/* ── Main content ── */
+.main {
+  flex: 1;
+  padding: 48px 56px 100px;
+  max-width: 860px;
+}
+
+/* ── Cover ── */
+.cover {
+  background: var(--paper);
+  border: 1px solid var(--line);
+  padding: 40px 44px;
+  position: relative;
+  overflow: hidden;
+  margin-bottom: 52px;
+}
+.cover::after {
+  content: "";
+  position: absolute; top: 0; left: 0; right: 0; height: 5px;
+  background: linear-gradient(90deg, var(--leaf) 0%, var(--leaf-light) 60%, var(--amber) 100%);
+}
+.cover .phase-badge {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 11px; letter-spacing: 0.2em;
+  background: var(--leaf-pale); color: var(--leaf);
+  padding: 3px 10px; border-radius: 2px; text-transform: uppercase;
+  display: inline-block; margin-bottom: 14px;
+}
+.cover h1 {
+  font-family: "Noto Serif JP", serif;
+  font-size: 28px; font-weight: 700;
+  margin: 0 0 8px; line-height: 1.35;
+}
+.cover .desc { color: var(--ink-2); font-size: 14px; margin: 0 0 24px; }
+.cover-meta { display: flex; gap: 28px; flex-wrap: wrap; border-top: 1px solid var(--line-soft); padding-top: 18px; }
+.cover-meta-item dt { font-family: "JetBrains Mono", monospace; font-size: 10px; letter-spacing: 0.15em; text-transform: uppercase; color: var(--ink-3); margin: 0 0 3px; }
+.cover-meta-item dd { margin: 0; font-size: 13px; font-weight: 500; }
+
+/* ── Sections ── */
+section { margin-bottom: 56px; }
+h2 {
+  font-family: "Noto Serif JP", serif;
+  font-size: 22px; font-weight: 700;
+  margin: 0 0 20px; padding: 14px 18px;
+  background: var(--ink); color: #e8f0e4;
+  display: flex; align-items: center; gap: 14px;
+}
+h2 .h2-num { font-family: "JetBrains Mono", monospace; font-size: 12px; color: var(--leaf-light); letter-spacing: 0.1em; }
+h2 .h2-en { font-family: "JetBrains Mono", monospace; font-size: 10px; color: #6a9a66; letter-spacing: 0.2em; text-transform: uppercase; margin-left: auto; }
+h3 { font-size: 16px; font-weight: 700; margin: 32px 0 10px; padding-bottom: 7px; border-bottom: 2px solid var(--leaf-pale); color: var(--leaf); }
+h4 { font-size: 14px; font-weight: 700; margin: 20px 0 8px; color: var(--ink-2); }
+
+p { margin: 0 0 12px; }
+ul, ol { margin: 0 0 12px; padding-left: 20px; }
+li { margin-bottom: 5px; }
+strong { color: var(--ink); }
+a { color: var(--leaf); }
+
+/* ── Step blocks ── */
+.steps { position: relative; padding-left: 0; }
+
+.step {
+  display: grid;
+  grid-template-columns: 52px 1fr;
+  gap: 0 20px;
+  margin-bottom: 8px;
+  position: relative;
+}
+.step::before {
+  content: "";
+  position: absolute;
+  left: 25px; top: 52px; bottom: -8px;
+  width: 2px;
+  background: var(--step-line);
+}
+.step:last-child::before { display: none; }
+
+.step-num {
+  width: 52px; height: 52px;
+  border-radius: 50%;
+  background: var(--leaf);
+  color: #fff;
+  display: flex; align-items: center; justify-content: center;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 14px; font-weight: 700;
+  flex-shrink: 0;
+  position: relative; z-index: 1;
+  align-self: start;
+  margin-top: 12px;
+}
+.step-num.warn { background: var(--amber); }
+.step-num.check { background: var(--blue); }
+
+.step-body {
+  background: var(--paper);
+  border: 1px solid var(--line);
+  padding: 18px 22px 16px;
+  margin-bottom: 0;
+}
+.step-body h4 { margin-top: 0; font-size: 15px; color: var(--ink); }
+.step-body p:last-child { margin-bottom: 0; }
+.step-body ul:last-child { margin-bottom: 0; }
+
+.step-location {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 10.5px; letter-spacing: 0.12em;
+  text-transform: uppercase; color: var(--ink-3);
+  background: var(--bg); border: 1px solid var(--line-soft);
+  padding: 2px 8px; border-radius: 2px;
+  display: inline-block; margin-bottom: 8px;
+}
+
+/* ── Code ── */
+pre {
+  background: var(--code-bg);
+  color: var(--code-fg);
+  padding: 16px 18px;
+  border-radius: 3px;
+  overflow-x: auto;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 12.5px;
+  line-height: 1.7;
+  margin: 10px 0 12px;
+  position: relative;
+}
+pre .filename {
+  display: block;
+  font-size: 10px; letter-spacing: 0.1em;
+  color: #6a8f68; margin-bottom: 10px; border-bottom: 1px solid rgba(255,255,255,0.06); padding-bottom: 8px;
+}
+pre .cm { color: var(--code-comment); }
+pre .kw { color: var(--code-key); }
+pre .st { color: var(--code-str); }
+pre .nm { color: var(--code-num); }
+pre .cl { color: var(--code-class); }
+pre .ar { color: #c8a0e8; }
+
+code {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 12.5px;
+  background: #edeadc;
+  color: var(--soil);
+  padding: 1px 5px; border-radius: 2px;
+}
+
+/* Shell command style */
+.shell {
+  background: #0e1a0c;
+  color: #b8e0b0;
+  padding: 14px 18px;
+  border-radius: 3px;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 12.5px;
+  line-height: 1.7;
+  margin: 10px 0 12px;
+  border-left: 3px solid var(--leaf-light);
+  overflow-x: auto;
+}
+.shell .prompt { color: #5a9a56; user-select: none; }
+.shell .comment { color: #4a7048; }
+.shell .cmd { color: #d4f0cc; }
+
+/* ── Callouts ── */
+.callout {
+  padding: 12px 16px;
+  margin: 12px 0;
+  font-size: 13.5px;
+  border-left: 4px solid var(--leaf);
+  background: var(--leaf-pale);
+}
+.callout.warn { border-color: var(--amber); background: var(--amber-pale); }
+.callout.danger { border-color: var(--red); background: var(--red-pale); }
+.callout.info { border-color: var(--blue); background: var(--blue-pale); }
+.callout strong { display: block; margin-bottom: 3px; }
+
+/* ── Tables ── */
+table { border-collapse: collapse; width: 100%; margin: 10px 0 14px; font-size: 13px; }
+th, td { padding: 8px 12px; border-bottom: 1px solid var(--line-soft); text-align: left; vertical-align: top; }
+th { background: var(--leaf-pale); font-weight: 700; font-size: 11.5px; letter-spacing: 0.04em; border-bottom: 2px solid var(--leaf); color: var(--leaf); }
+tr:hover td { background: #f6f3e8; }
+
+/* ── Tags ── */
+.tag {
+  display: inline-block;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 10px; font-weight: 700;
+  letter-spacing: 0.08em; text-transform: uppercase;
+  padding: 2px 7px; border-radius: 2px; vertical-align: middle; margin: 0 2px;
+}
+.tag.new { background: var(--leaf-pale); color: var(--leaf); }
+.tag.mod { background: var(--blue-pale); color: var(--blue); }
+.tag.cmd { background: #1e2a1c; color: #7dd3a8; }
+.tag.file { background: var(--soil-pale); color: var(--soil); }
+
+/* ── File tree ── */
+.filetree {
+  background: var(--paper);
+  border: 1px solid var(--line);
+  padding: 16px 20px;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 12.5px;
+  line-height: 1.8;
+  margin: 10px 0 14px;
+}
+.filetree .dir { color: var(--leaf); font-weight: 700; }
+.filetree .new-file { color: var(--amber); }
+.filetree .new-file::after { content: " ← NEW"; font-size: 10px; color: var(--amber); opacity: 0.7; }
+.filetree .mod-file { color: var(--blue); }
+.filetree .mod-file::after { content: " ← EDIT"; font-size: 10px; color: var(--blue); opacity: 0.7; }
+
+/* ── DoD checklist ── */
+.dod-list { list-style: none; padding-left: 0; }
+.dod-list li {
+  padding: 10px 14px 10px 40px;
+  position: relative;
+  border-bottom: 1px solid var(--line-soft);
+  font-size: 13.5px;
+}
+.dod-list li::before {
+  content: "☐";
+  position: absolute; left: 12px;
+  color: var(--leaf); font-size: 16px; line-height: 1;
+  top: 12px;
+}
+.dod-list li:last-child { border-bottom: none; }
+.dod-list li .dod-cmd { display: block; margin-top: 3px; font-size: 12px; color: var(--ink-3); }
+
+/* ── Responsive ── */
+@media (max-width: 900px) {
+  .layout { display: block; }
+  .toc { width: 100%; height: auto; position: static; }
+  .main { padding: 28px 20px 64px; }
+}
+</style>
+</head>
+<body>
+<div class="layout">
+
+<!-- ======== TOC Sidebar ======== -->
+<nav class="toc">
+  <div class="toc-logo">
+    <div class="proj">HenryMonitor</div>
+    <div class="phase">Phase 1</div>
+    <div class="sub">work_logs CRUD 実装</div>
+  </div>
+  <ul>
+    <li><a class="section-link" href="#overview">0. 作業フロー全体像</a></li>
+    <li><a class="sub-link" href="#prereq">事前チェック（ローカル）</a></li>
+    <li><a class="sub-link" href="#files">作成・編集ファイル一覧</a></li>
+
+    <li><a class="section-link" href="#step1">1. Migration</a></li>
+    <li><a class="sub-link" href="#step1-create">ファイル生成・編集</a></li>
+    <li><a class="sub-link" href="#step1-run">ローカル DB で確認</a></li>
+
+    <li><a class="section-link" href="#step2">2. Model &amp; Enum</a></li>
+    <li><a class="sub-link" href="#step2-enum">WorkType Enum</a></li>
+    <li><a class="sub-link" href="#step2-model">WorkLog Model</a></li>
+    <li><a class="sub-link" href="#step2-farm">Farm Model 追記</a></li>
+
+    <li><a class="section-link" href="#step3">3. Policy</a></li>
+    <li><a class="section-link" href="#step4">4. FormRequest</a></li>
+    <li><a class="section-link" href="#step5">5. Controller</a></li>
+    <li><a class="section-link" href="#step6">6. Route 登録</a></li>
+    <li><a class="section-link" href="#step7">7. Feature テスト（ローカル）</a></li>
+    <li><a class="sub-link" href="#step7-factory">Factory 作成</a></li>
+    <li><a class="sub-link" href="#step7-run">テスト実行</a></li>
+
+    <li><a class="section-link" href="#step8">8. commit → PR → main マージ</a></li>
+    <li><a class="sub-link" href="#step8-commit">コミット &amp; push</a></li>
+    <li><a class="sub-link" href="#step8-pr">PR 作成 &amp; マージ</a></li>
+    <li><a class="sub-link" href="#step8-cicd">CI/CD 完了確認</a></li>
+
+    <li><a class="section-link" href="#step9">9. EC2 デプロイ後確認</a></li>
+    <li><a class="sub-link" href="#step9-table">テーブル &amp; ルート確認</a></li>
+    <li><a class="sub-link" href="#step9-curl">curl スモークテスト</a></li>
+
+    <li><a class="section-link" href="#dod">✓ 完了条件チェックリスト</a></li>
+  </ul>
+</nav>
+
+<!-- ======== Main ======== -->
+<main class="main">
+
+<div class="cover">
+  <span class="phase-badge">Phase 1 / work_logs</span>
+  <h1>作業ログ CRUD — 実装手順書</h1>
+  <p class="desc">
+    DB マイグレーション・Model・Policy・Controller・Route・テストまでを、
+    この手順書の順番通りに実施すればすべて完了するように設計されています。
+    <strong>ファイルの作成・テストはローカル Docker 環境で行い、main マージ時の CI/CD によって本番 RDS へのマイグレーションが自動実行されます。</strong>
+    マージ後は EC2 上でも動作確認を行います。
+  </p>
+  <div class="cover-meta">
+    <dl class="cover-meta-item"><dt>STEP 1〜7</dt><dd>ローカル Docker 環境で実施</dd></dl>
+    <dl class="cover-meta-item"><dt>STEP 8</dt><dd>commit → PR → main マージ → CI/CD 自動デプロイ</dd></dl>
+    <dl class="cover-meta-item"><dt>STEP 9</dt><dd>EC2 上でデプロイ後確認</dd></dl>
+    <dl class="cover-meta-item"><dt>ブランチ</dt><dd><code>feature/phase1-work-logs</code>（作成済み）</dd></dl>
+  </div>
+</div>
+
+<!-- ====== 0. OVERVIEW ====== -->
+<section id="overview">
+  <h2><span class="h2-num">00</span>作業フロー全体像 <span class="h2-en">overview</span></h2>
+
+  <div class="callout info">
+    <strong>3段階で進めます。</strong>
+    ① ローカル Docker で全ファイル作成・migrate・テスト（STEP 1〜7）→
+    ② commit して PR 作成、main マージ後に CI/CD が EC2 へ自動デプロイ・migrate（STEP 8）→
+    ③ EC2 上でテーブル存在確認 + curl スモークテスト（STEP 9）。
+    EC2 上では <strong>テストコマンドは実行しません</strong>（本番 RDS の誤消去リスク回避）。
+  </div>
+
+  <table>
+    <thead><tr><th>STEP</th><th>作業場所</th><th>内容</th></tr></thead>
+    <tbody>
+      <tr><td>1〜7</td><td><strong>ローカル Docker</strong></td><td>Migration / Model / Policy / Controller / Route / テスト</td></tr>
+      <tr><td>8</td><td><strong>GitHub + CI/CD</strong></td><td>commit → PR → main マージ → GitHub Actions が EC2 デプロイ &amp; <code>php artisan migrate --force</code> を自動実行</td></tr>
+      <tr><td>9</td><td><strong>EC2（SSH）+ ローカル端末</strong></td><td>テーブル存在確認・ルート確認・curl スモークテスト（POST/GET/PATCH/DELETE/401）</td></tr>
+    </tbody>
+  </table>
+
+  <h3 id="prereq">事前チェック（ローカルで Cursor 作業を始める前に確認）</h3>
+
+  <div class="steps">
+    <div class="step">
+      <div class="step-num check">✓</div>
+      <div class="step-body">
+        <h4>ブランチの確認（作成済みであることを確認）</h4>
+        <span class="step-location">ターミナル / ローカル</span>
+        <div class="shell">
+<span class="prompt">$ </span><span class="cmd">git branch</span>
+<span class="comment"># * feature/phase1-work-logs と表示されれば OK（作成済み）</span>
+
+<span class="comment"># もし main にいる場合はブランチを切り替える</span>
+<span class="prompt">$ </span><span class="cmd">git checkout feature/phase1-work-logs</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num check">✓</div>
+      <div class="step-body">
+        <h4>ローカル Docker コンテナの起動確認</h4>
+        <span class="step-location">ターミナル / ローカル</span>
+        <div class="shell">
+<span class="prompt">$ </span><span class="cmd">docker compose ps</span>
+<span class="comment"># nginx, php-fpm コンテナが Up 状態であることを確認</span>
+
+<span class="prompt">$ </span><span class="cmd">docker compose exec php-fpm php artisan --version</span>
+<span class="comment"># Laravel Framework 12.x.x と表示されれば OK</span>
+        </div>
+        <div class="callout warn">
+          <strong>コンテナ名について。</strong>
+          <code>php-fpm</code> はサービス名の例です。<code>docker compose ps</code> で表示される実際のサービス名に読み替えてください。
+          以降、<code>docker compose exec php-fpm</code> は「ローカルの php-fpm コンテナ内での実行」を意味します。
+        </div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num check">✓</div>
+      <div class="step-body">
+        <h4>ローカル DB 接続の確認</h4>
+        <span class="step-location">ターミナル / ローカル</span>
+        <p>ローカルの <code>.env</code> が MySQL（ローカル Docker の MySQL）を向いていることを確認します。</p>
+        <div class="shell">
+<span class="prompt">$ </span><span class="cmd">cat .env | grep DB_</span>
+<span class="comment"># DB_HOST=mysql（または 127.0.0.1）などローカル DB を向いていることを確認</span>
+<span class="comment"># DB_HOST が本番RDSのアドレスになっている場合は必ずローカル用に切り替えること</span>
+
+<span class="prompt">$ </span><span class="cmd">docker compose exec php-fpm php artisan db:show</span>
+<span class="comment"># farms / uploads 等の既存テーブルが見えることを確認</span>
+        </div>
+        <div class="callout danger">
+          <strong>本番 RDS を直接向いていないか必ず確認。</strong>
+          ローカル <code>.env</code> の <code>DB_HOST</code> が本番 RDS（<code>hm-admin-app-db2.cpwk42kw0c6c.ap-northeast-1.rds.amazonaws.com</code>）のままになっていると、
+          ローカルの migrate が本番 DB に対して実行されてしまいます。
+          ローカル開発用の MySQL を向いているか必ず確認してください。
+        </div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num check">✓</div>
+      <div class="step-body">
+        <h4>既存テストがローカルで通っているかの確認</h4>
+        <span class="step-location">ターミナル / ローカル</span>
+        <div class="shell">
+<span class="prompt">$ </span><span class="cmd">docker compose exec php-fpm php artisan test</span>
+<span class="comment"># 全テスト PASS を確認してから作業開始。FAIL があれば先に直す。</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <h3 id="files">作成・編集ファイル一覧</h3>
+  <p>この Phase で新規作成・編集するファイルの全体像です。</p>
+  <div class="filetree">
+app/
+├── <span class="dir">Enums/</span>
+│   └── <span class="new-file">WorkType.php</span>
+├── <span class="dir">Http/</span>
+│   ├── <span class="dir">Controllers/Api/</span>
+│   │   └── <span class="new-file">WorkLogController.php</span>
+│   └── <span class="dir">Requests/</span>
+│       ├── <span class="new-file">StoreWorkLogRequest.php</span>
+│       └── <span class="new-file">UpdateWorkLogRequest.php</span>
+├── <span class="dir">Models/</span>
+│   ├── <span class="mod-file">Farm.php</span>
+│   └── <span class="new-file">WorkLog.php</span>
+└── <span class="dir">Policies/</span>
+    └── <span class="new-file">WorkLogPolicy.php</span>
+database/
+└── <span class="dir">migrations/</span>
+    └── <span class="new-file">xxxx_xx_xx_create_work_logs_table.php</span>
+routes/
+└── <span class="mod-file">api.php</span>
+tests/
+└── <span class="dir">Feature/</span>
+    └── <span class="new-file">WorkLogApiTest.php</span>
+  </div>
+</section>
+
+<!-- ====== STEP 1: Migration ====== -->
+<section id="step1">
+  <h2><span class="h2-num">01</span>Migration の作成とローカル確認 <span class="h2-en">migration</span></h2>
+
+  <div class="callout info">
+    <strong>migrate の実行タイミング。</strong>
+    ローカルでは「SQL の確認」と「テスト通過」を目的として migrate します。
+    本番 RDS への適用は <strong>CI/CD が main マージ後に自動実行</strong>するため、EC2 に入って手動で migrate する必要はありません。
+  </div>
+
+  <div class="steps">
+    <div class="step" id="step1-create">
+      <div class="step-num">1</div>
+      <div class="step-body">
+        <h4>artisan で migration ファイルを生成</h4>
+        <span class="step-location">ターミナル / ローカル</span>
+        <div class="shell">
+<span class="prompt">$ </span><span class="cmd">docker compose exec php-fpm php artisan make:migration create_work_logs_table</span>
+<span class="comment"># database/migrations/YYYY_MM_DD_hhmmss_create_work_logs_table.php が生成される</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">2</div>
+      <div class="step-body">
+        <h4>生成されたファイルを以下の内容に書き換える</h4>
+        <span class="step-location">database/migrations/xxxx_create_work_logs_table.php</span>
+<pre><span class="filename">database/migrations/xxxx_xx_xx_xxxxxx_create_work_logs_table.php</span><span class="cl">&lt;?php</span>
+
+<span class="kw">use</span> Illuminate\Database\Migrations\Migration;
+<span class="kw">use</span> Illuminate\Database\Schema\Blueprint;
+<span class="kw">use</span> Illuminate\Support\Facades\Schema;
+
+<span class="kw">return new class</span> <span class="kw">extends</span> <span class="cl">Migration</span>
+{
+    <span class="kw">public function</span> <span class="nm">up</span>(): <span class="kw">void</span>
+    {
+        Schema::create(<span class="st">'work_logs'</span>, <span class="kw">function</span> (<span class="cl">Blueprint</span> $table) {
+            $table-&gt;id();
+
+            $table-&gt;foreignId(<span class="st">'farm_id'</span>)
+                  -&gt;constrained(<span class="st">'farms'</span>)
+                  -&gt;cascadeOnDelete();
+
+            <span class="cm">// 'fertilization' | 'tillage' | 'pesticide' | 'harvest' | 'other'</span>
+            $table-&gt;string(<span class="st">'work_type'</span>, <span class="nm">32</span>);
+
+            $table-&gt;date(<span class="st">'work_date'</span>);
+
+            <span class="cm">// 例: 'NK化成 20kg', '深さ15cm トラクター'</span>
+            $table-&gt;string(<span class="st">'title'</span>, <span class="nm">128</span>)-&gt;nullable();
+
+            <span class="cm">// 自由記述</span>
+            $table-&gt;text(<span class="st">'detail'</span>)-&gt;nullable();
+
+            <span class="cm">// 例: 20.0</span>
+            $table-&gt;decimal(<span class="st">'amount_value'</span>, <span class="nm">10</span>, <span class="nm">2</span>)-&gt;nullable();
+
+            <span class="cm">// 'kg', 'L', 'cm' など</span>
+            $table-&gt;string(<span class="st">'amount_unit'</span>, <span class="nm">16</span>)-&gt;nullable();
+
+            <span class="cm">// 'whole' | 'partial'（将来拡張用）</span>
+            $table-&gt;string(<span class="st">'scope'</span>, <span class="nm">16</span>)-&gt;default(<span class="st">'whole'</span>);
+
+            $table-&gt;timestamps();
+
+            $table-&gt;index([<span class="st">'farm_id'</span>, <span class="st">'work_date'</span>], <span class="st">'idx_work_logs_farm_date'</span>);
+        });
+    }
+
+    <span class="kw">public function</span> <span class="nm">down</span>(): <span class="kw">void</span>
+    {
+        Schema::dropIfExists(<span class="st">'work_logs'</span>);
+    }
+};</pre>
+      </div>
+    </div>
+
+    <div class="step" id="step1-run">
+      <div class="step-num">3</div>
+      <div class="step-body">
+        <h4>ローカルで migrate を実行して SQL と構造を確認</h4>
+        <span class="step-location">ターミナル / ローカル</span>
+        <div class="shell">
+<span class="comment"># まず --pretend で生成される SQL を目視確認（実際には何も変更しない）</span>
+<span class="prompt">$ </span><span class="cmd">docker compose exec php-fpm php artisan migrate --pretend</span>
+<span class="comment"># CREATE TABLE `work_logs` ... の SQL が表示されれば OK</span>
+
+<span class="comment"># ローカル DB に対して実際に migrate を実行</span>
+<span class="prompt">$ </span><span class="cmd">docker compose exec php-fpm php artisan migrate</span>
+<span class="comment"># INFO  Running migrations. と表示されテーブルが作成される</span>
+
+<span class="comment"># カラム構造を確認</span>
+<span class="prompt">$ </span><span class="cmd">docker compose exec php-fpm php artisan db:table work_logs</span>
+<span class="comment"># farm_id / work_type / work_date / title / ... が一覧表示されれば成功</span>
+        </div>
+        <div class="callout">
+          <strong>ロールバックの確認もしておくと安心。</strong>
+          <code>php artisan migrate:rollback</code> → <code>php artisan migrate</code> で
+          up/down が正しく動くことを確認しておくと、本番適用後のトラブル時に対応しやすくなります。
+        </div>
+        <div class="callout info">
+          <strong>本番 RDS への migrate は CI/CD が行います。</strong>
+          ここでのローカル migrate はあくまで SQL の確認とテスト実行用です。
+          EC2 に SSH して手動で <code>migrate</code> コマンドを叩く必要はありません。
+          main ブランチへのマージ後、GitHub Actions が自動的に
+          <code>php artisan migrate --force</code> を本番 RDS に対して実行します。
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ====== STEP 2: Model & Enum ====== -->
+<section id="step2">
+  <h2><span class="h2-num">02</span>Enum・Model の作成 <span class="h2-en">model</span></h2>
+
+  <div class="steps">
+    <div class="step" id="step2-enum">
+      <div class="step-num">4</div>
+      <div class="step-body">
+        <h4>WorkType Enum を作成</h4>
+        <span class="step-location">app/Enums/WorkType.php（新規作成） / ローカル</span>
+        <p><code>app/Enums/</code> ディレクトリが存在しない場合は作成してください。</p>
+        <div class="shell">
+<span class="prompt">$ </span><span class="cmd">mkdir -p app/Enums</span>
+        </div>
+<pre><span class="filename">app/Enums/WorkType.php</span><span class="cl">&lt;?php</span>
+
+<span class="kw">namespace</span> App\Enums;
+
+<span class="kw">enum</span> <span class="cl">WorkType</span>: <span class="kw">string</span>
+{
+    <span class="kw">case</span> Fertilization = <span class="st">'fertilization'</span>;  <span class="cm">// 施肥</span>
+    <span class="kw">case</span> Tillage       = <span class="st">'tillage'</span>;        <span class="cm">// 耕うん</span>
+    <span class="kw">case</span> Pesticide     = <span class="st">'pesticide'</span>;      <span class="cm">// 農薬</span>
+    <span class="kw">case</span> Harvest       = <span class="st">'harvest'</span>;        <span class="cm">// 収穫</span>
+    <span class="kw">case</span> Other         = <span class="st">'other'</span>;          <span class="cm">// その他</span>
+
+    <span class="cm">/** UI表示用の日本語ラベル */</span>
+    <span class="kw">public function</span> <span class="nm">label</span>(): <span class="kw">string</span>
+    {
+        <span class="kw">return match</span>(<span class="kw">$this</span>) {
+            <span class="kw">self</span>::Fertilization =&gt; <span class="st">'施肥'</span>,
+            <span class="kw">self</span>::Tillage       =&gt; <span class="st">'耕うん'</span>,
+            <span class="kw">self</span>::Pesticide     =&gt; <span class="st">'農薬'</span>,
+            <span class="kw">self</span>::Harvest       =&gt; <span class="st">'収穫'</span>,
+            <span class="kw">self</span>::Other         =&gt; <span class="st">'その他'</span>,
+        };
+    }
+}</pre>
+      </div>
+    </div>
+
+    <div class="step" id="step2-model">
+      <div class="step-num">5</div>
+      <div class="step-body">
+        <h4>WorkLog Model を作成</h4>
+        <span class="step-location">app/Models/WorkLog.php（新規作成）</span>
+<pre><span class="filename">app/Models/WorkLog.php</span><span class="cl">&lt;?php</span>
+
+<span class="kw">namespace</span> App\Models;
+
+<span class="kw">use</span> App\Enums\WorkType;
+<span class="kw">use</span> Illuminate\Database\Eloquent\Model;
+<span class="kw">use</span> Illuminate\Database\Eloquent\Relations\BelongsTo;
+
+<span class="kw">class</span> <span class="cl">WorkLog</span> <span class="kw">extends</span> <span class="cl">Model</span>
+{
+    <span class="kw">protected</span> $fillable = [
+        <span class="st">'farm_id'</span>,
+        <span class="st">'work_type'</span>,
+        <span class="st">'work_date'</span>,
+        <span class="st">'title'</span>,
+        <span class="st">'detail'</span>,
+        <span class="st">'amount_value'</span>,
+        <span class="st">'amount_unit'</span>,
+        <span class="st">'scope'</span>,
+    ];
+
+    <span class="kw">protected</span> $casts = [
+        <span class="st">'work_date'</span>     =&gt; <span class="st">'date'</span>,
+        <span class="st">'amount_value'</span>  =&gt; <span class="st">'decimal:2'</span>,
+        <span class="st">'work_type'</span>     =&gt; WorkType::<span class="kw">class</span>,
+    ];
+
+    <span class="kw">public function</span> <span class="nm">farm</span>(): <span class="cl">BelongsTo</span>
+    {
+        <span class="kw">return</span> <span class="kw">$this</span>-&gt;belongsTo(<span class="cl">Farm</span>::<span class="kw">class</span>);
+    }
+}</pre>
+      </div>
+    </div>
+
+    <div class="step" id="step2-farm">
+      <div class="step-num">6</div>
+      <div class="step-body">
+        <h4>Farm Model に <code>workLogs()</code> リレーションを追記</h4>
+        <span class="step-location">app/Models/Farm.php（既存ファイルを編集）</span>
+        <p>既存の <code>Farm.php</code> を開き、<code>use</code> 宣言と <code>workLogs()</code> メソッドを追加してください。</p>
+<pre><span class="filename">app/Models/Farm.php に追記する内容</span><span class="cm">// use 宣言のブロックに追加</span>
+<span class="kw">use</span> Illuminate\Database\Eloquent\Relations\HasMany;
+
+<span class="cm">// ...既存コード...</span>
+
+<span class="cm">// クラス内に以下を追加（既存の他リレーション定義の末尾に追記）</span>
+<span class="kw">public function</span> <span class="nm">workLogs</span>(): <span class="cl">HasMany</span>
+{
+    <span class="kw">return</span> <span class="kw">$this</span>-&gt;hasMany(<span class="cl">WorkLog</span>::<span class="kw">class</span>)
+                -&gt;orderBy(<span class="st">'work_date'</span>, <span class="st">'desc'</span>);
+}</pre>
+        <div class="callout info">
+          <strong>既存コードを壊さないために。</strong>
+          Farm.php の <code>use</code> ブロックや既存メソッドの間に挿入する形になります。
+          既存の <code>uploads()</code> や <code>analysisResults()</code> などのリレーションはそのまま残してください。
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ====== STEP 3: Policy ====== -->
+<section id="step3">
+  <h2><span class="h2-num">03</span>Policy の作成 <span class="h2-en">policy</span></h2>
+
+  <div class="steps">
+    <div class="step">
+      <div class="step-num">7</div>
+      <div class="step-body">
+        <h4>artisan で Policy を生成してから編集</h4>
+        <span class="step-location">ターミナル / ローカル → app/Policies/WorkLogPolicy.php</span>
+        <div class="shell">
+<span class="prompt">$ </span><span class="cmd">docker compose exec php-fpm php artisan make:policy WorkLogPolicy</span>
+        </div>
+        <p>生成された <code>app/Policies/WorkLogPolicy.php</code> を以下の内容に書き換えます。</p>
+<pre><span class="filename">app/Policies/WorkLogPolicy.php</span><span class="cl">&lt;?php</span>
+
+<span class="kw">namespace</span> App\Policies;
+
+<span class="kw">use</span> App\Models\AppUser;
+<span class="kw">use</span> App\Models\Farm;
+<span class="kw">use</span> App\Models\WorkLog;
+
+<span class="kw">class</span> <span class="cl">WorkLogPolicy</span>
+{
+    <span class="cm">/**
+     * 作業ログ一覧の閲覧は、その圃場の所有者のみ許可。
+     */</span>
+    <span class="kw">public function</span> <span class="nm">viewAny</span>(<span class="cl">AppUser</span> $user, <span class="cl">Farm</span> $farm): <span class="kw">bool</span>
+    {
+        <span class="kw">return</span> $farm-&gt;app_user_id === $user-&gt;id;
+    }
+
+    <span class="cm">/**
+     * 作業ログ作成は、その圃場の所有者のみ許可。
+     */</span>
+    <span class="kw">public function</span> <span class="nm">create</span>(<span class="cl">AppUser</span> $user, <span class="cl">Farm</span> $farm): <span class="kw">bool</span>
+    {
+        <span class="kw">return</span> $farm-&gt;app_user_id === $user-&gt;id;
+    }
+
+    <span class="cm">/**
+     * 作業ログ更新・削除は、その WorkLog が属する圃場の所有者のみ許可。
+     */</span>
+    <span class="kw">public function</span> <span class="nm">update</span>(<span class="cl">AppUser</span> $user, <span class="cl">WorkLog</span> $workLog): <span class="kw">bool</span>
+    {
+        <span class="kw">return</span> $workLog-&gt;farm-&gt;app_user_id === $user-&gt;id;
+    }
+
+    <span class="kw">public function</span> <span class="nm">delete</span>(<span class="cl">AppUser</span> $user, <span class="cl">WorkLog</span> $workLog): <span class="kw">bool</span>
+    {
+        <span class="kw">return</span> $workLog-&gt;farm-&gt;app_user_id === $user-&gt;id;
+    }
+}</pre>
+        <div class="callout">
+          <strong><code>AppUser</code> について。</strong>
+          モバイル API の認証ユーザーは <code>App\Models\AppUser</code> です（<code>App\Models\User</code> とは別物）。
+          Cognito JWT ミドルウェアが <code>auth()->user()</code> に <code>AppUser</code> をセットしている前提で書いています。
+          既存の認証ミドルウェアの実装に応じて型を調整してください。
+        </div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">8</div>
+      <div class="step-body">
+        <h4>AuthServiceProvider に Policy を登録</h4>
+        <span class="step-location">app/Providers/AuthServiceProvider.php（既存ファイルを編集）</span>
+        <p>既存の <code>$policies</code> 配列に以下を追加します。</p>
+<pre><span class="filename">app/Providers/AuthServiceProvider.php（$policies 配列に追記）</span><span class="kw">use</span> App\Models\WorkLog;
+<span class="kw">use</span> App\Policies\WorkLogPolicy;
+
+<span class="cm">// $policies 配列に追加</span>
+<span class="kw">protected</span> $policies = [
+    <span class="cm">// ... 既存の登録 ...</span>
+    <span class="cl">WorkLog</span>::<span class="kw">class</span> =&gt; <span class="cl">WorkLogPolicy</span>::<span class="kw">class</span>,
+];</pre>
+        <div class="callout info">
+          <strong>Laravel 12 では AuthServiceProvider が存在しない場合があります。</strong>
+          その場合は <code>AppServiceProvider::boot()</code> 内で
+          <code>Gate::policy(WorkLog::class, WorkLogPolicy::class);</code> を追記してください。
+          (<code>use Illuminate\Support\Facades\Gate;</code> も追加)
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ====== STEP 4: FormRequest ====== -->
+<section id="step4">
+  <h2><span class="h2-num">04</span>FormRequest の作成 <span class="h2-en">request</span></h2>
+
+  <div class="steps">
+    <div class="step">
+      <div class="step-num">9</div>
+      <div class="step-body">
+        <h4>StoreWorkLogRequest を生成して編集</h4>
+        <span class="step-location">ターミナル / ローカル → app/Http/Requests/StoreWorkLogRequest.php</span>
+        <div class="shell">
+<span class="prompt">$ </span><span class="cmd">docker compose exec php-fpm php artisan make:request StoreWorkLogRequest</span>
+        </div>
+<pre><span class="filename">app/Http/Requests/StoreWorkLogRequest.php</span><span class="cl">&lt;?php</span>
+
+<span class="kw">namespace</span> App\Http\Requests;
+
+<span class="kw">use</span> App\Enums\WorkType;
+<span class="kw">use</span> Illuminate\Foundation\Http\FormRequest;
+<span class="kw">use</span> Illuminate\Validation\Rules\Enum;
+
+<span class="kw">class</span> <span class="cl">StoreWorkLogRequest</span> <span class="kw">extends</span> <span class="cl">FormRequest</span>
+{
+    <span class="kw">public function</span> <span class="nm">authorize</span>(): <span class="kw">bool</span>
+    {
+        <span class="cm">// Controller 側で Policy を使うので、ここは true で OK</span>
+        <span class="kw">return true</span>;
+    }
+
+    <span class="kw">public function</span> <span class="nm">rules</span>(): <span class="kw">array</span>
+    {
+        <span class="kw">return</span> [
+            <span class="st">'work_type'</span>    =&gt; [<span class="st">'required'</span>, <span class="kw">new</span> Enum(WorkType::<span class="kw">class</span>)],
+            <span class="st">'work_date'</span>    =&gt; [<span class="st">'required'</span>, <span class="st">'date'</span>, <span class="st">'date_format:Y-m-d'</span>],
+            <span class="st">'title'</span>        =&gt; [<span class="st">'nullable'</span>, <span class="st">'string'</span>, <span class="st">'max:128'</span>],
+            <span class="st">'detail'</span>       =&gt; [<span class="st">'nullable'</span>, <span class="st">'string'</span>],
+            <span class="st">'amount_value'</span> =&gt; [<span class="st">'nullable'</span>, <span class="st">'numeric'</span>, <span class="st">'min:0'</span>],
+            <span class="st">'amount_unit'</span>  =&gt; [<span class="st">'nullable'</span>, <span class="st">'string'</span>, <span class="st">'max:16'</span>],
+            <span class="st">'scope'</span>        =&gt; [<span class="st">'nullable'</span>, <span class="st">'in:whole,partial'</span>],
+        ];
+    }
+}</pre>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">10</div>
+      <div class="step-body">
+        <h4>UpdateWorkLogRequest を生成して編集</h4>
+        <span class="step-location">ターミナル / ローカル → app/Http/Requests/UpdateWorkLogRequest.php</span>
+        <div class="shell">
+<span class="prompt">$ </span><span class="cmd">docker compose exec php-fpm php artisan make:request UpdateWorkLogRequest</span>
+        </div>
+<pre><span class="filename">app/Http/Requests/UpdateWorkLogRequest.php</span><span class="cl">&lt;?php</span>
+
+<span class="kw">namespace</span> App\Http\Requests;
+
+<span class="kw">use</span> App\Enums\WorkType;
+<span class="kw">use</span> Illuminate\Foundation\Http\FormRequest;
+<span class="kw">use</span> Illuminate\Validation\Rules\Enum;
+
+<span class="kw">class</span> <span class="cl">UpdateWorkLogRequest</span> <span class="kw">extends</span> <span class="cl">FormRequest</span>
+{
+    <span class="kw">public function</span> <span class="nm">authorize</span>(): <span class="kw">bool</span>
+    {
+        <span class="kw">return true</span>;
+    }
+
+    <span class="kw">public function</span> <span class="nm">rules</span>(): <span class="kw">array</span>
+    {
+        <span class="cm">// PATCH なので全フィールド nullable (sometimes)</span>
+        <span class="kw">return</span> [
+            <span class="st">'work_type'</span>    =&gt; [<span class="st">'sometimes'</span>, <span class="kw">new</span> Enum(WorkType::<span class="kw">class</span>)],
+            <span class="st">'work_date'</span>    =&gt; [<span class="st">'sometimes'</span>, <span class="st">'date'</span>, <span class="st">'date_format:Y-m-d'</span>],
+            <span class="st">'title'</span>        =&gt; [<span class="st">'sometimes'</span>, <span class="st">'nullable'</span>, <span class="st">'string'</span>, <span class="st">'max:128'</span>],
+            <span class="st">'detail'</span>       =&gt; [<span class="st">'sometimes'</span>, <span class="st">'nullable'</span>, <span class="st">'string'</span>],
+            <span class="st">'amount_value'</span> =&gt; [<span class="st">'sometimes'</span>, <span class="st">'nullable'</span>, <span class="st">'numeric'</span>, <span class="st">'min:0'</span>],
+            <span class="st">'amount_unit'</span>  =&gt; [<span class="st">'sometimes'</span>, <span class="st">'nullable'</span>, <span class="st">'string'</span>, <span class="st">'max:16'</span>],
+            <span class="st">'scope'</span>        =&gt; [<span class="st">'sometimes'</span>, <span class="st">'in:whole,partial'</span>],
+        ];
+    }
+}</pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ====== STEP 5: Controller ====== -->
+<section id="step5">
+  <h2><span class="h2-num">05</span>Controller の作成 <span class="h2-en">controller</span></h2>
+
+  <div class="steps">
+    <div class="step">
+      <div class="step-num">11</div>
+      <div class="step-body">
+        <h4>WorkLogController を新規作成</h4>
+        <span class="step-location">app/Http/Controllers/Api/WorkLogController.php（新規作成） / ローカル</span>
+        <p>artisan で生成してから編集します。</p>
+        <div class="shell">
+<span class="prompt">$ </span><span class="cmd">docker compose exec php-fpm php artisan make:controller Api/WorkLogController</span>
+        </div>
+<pre><span class="filename">app/Http/Controllers/Api/WorkLogController.php</span><span class="cl">&lt;?php</span>
+
+<span class="kw">namespace</span> App\Http\Controllers\Api;
+
+<span class="kw">use</span> App\Http\Controllers\Controller;
+<span class="kw">use</span> App\Http\Requests\StoreWorkLogRequest;
+<span class="kw">use</span> App\Http\Requests\UpdateWorkLogRequest;
+<span class="kw">use</span> App\Models\Farm;
+<span class="kw">use</span> App\Models\WorkLog;
+<span class="kw">use</span> Illuminate\Http\JsonResponse;
+
+<span class="kw">class</span> <span class="cl">WorkLogController</span> <span class="kw">extends</span> <span class="cl">Controller</span>
+{
+    <span class="cm">/**
+     * GET /api/v1/farms/{farm}/work-logs
+     * 圃場に紐づく作業ログ一覧（work_date 降順）
+     */</span>
+    <span class="kw">public function</span> <span class="nm">index</span>(<span class="cl">Farm</span> $farm): <span class="cl">JsonResponse</span>
+    {
+        <span class="kw">$this</span>-&gt;authorize(<span class="st">'viewAny'</span>, [<span class="cl">WorkLog</span>::<span class="kw">class</span>, $farm]);
+
+        $logs = $farm-&gt;workLogs()-&gt;get();
+
+        <span class="kw">return</span> response()-&gt;json([<span class="st">'data'</span> =&gt; $logs]);
+    }
+
+    <span class="cm">/**
+     * POST /api/v1/farms/{farm}/work-logs
+     * 作業ログ作成
+     */</span>
+    <span class="kw">public function</span> <span class="nm">store</span>(
+        <span class="cl">StoreWorkLogRequest</span> $request,
+        <span class="cl">Farm</span> $farm
+    ): <span class="cl">JsonResponse</span> {
+        <span class="kw">$this</span>-&gt;authorize(<span class="st">'create'</span>, [<span class="cl">WorkLog</span>::<span class="kw">class</span>, $farm]);
+
+        $log = $farm-&gt;workLogs()-&gt;create($request-&gt;validated());
+
+        <span class="kw">return</span> response()-&gt;json([<span class="st">'data'</span> =&gt; $log], <span class="nm">201</span>);
+    }
+
+    <span class="cm">/**
+     * PATCH /api/v1/work-logs/{workLog}
+     * 作業ログ更新
+     */</span>
+    <span class="kw">public function</span> <span class="nm">update</span>(
+        <span class="cl">UpdateWorkLogRequest</span> $request,
+        <span class="cl">WorkLog</span> $workLog
+    ): <span class="cl">JsonResponse</span> {
+        <span class="kw">$this</span>-&gt;authorize(<span class="st">'update'</span>, $workLog);
+
+        $workLog-&gt;update($request-&gt;validated());
+
+        <span class="kw">return</span> response()-&gt;json([<span class="st">'data'</span> =&gt; $workLog->fresh()]);
+    }
+
+    <span class="cm">/**
+     * DELETE /api/v1/work-logs/{workLog}
+     * 作業ログ削除
+     */</span>
+    <span class="kw">public function</span> <span class="nm">destroy</span>(<span class="cl">WorkLog</span> $workLog): <span class="cl">JsonResponse</span>
+    {
+        <span class="kw">$this</span>-&gt;authorize(<span class="st">'delete'</span>, $workLog);
+
+        $workLog-&gt;delete();
+
+        <span class="kw">return</span> response()-&gt;json(<span class="kw">null</span>, <span class="nm">204</span>);
+    }
+}</pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ====== STEP 6: Routes ====== -->
+<section id="step6">
+  <h2><span class="h2-num">06</span>Route 登録 <span class="h2-en">routes</span></h2>
+
+  <div class="steps">
+    <div class="step">
+      <div class="step-num">12</div>
+      <div class="step-body">
+        <h4>routes/api.php に作業ログルートを追加</h4>
+        <span class="step-location">routes/api.php（既存ファイルを編集） / ローカル</span>
+        <p>
+          既存の <code>/api/v1/farms</code> ルートグループを探してください。
+          Cognito JWT ミドルウェアが適用されているグループ（<code>middleware</code> 指定のあるもの）の内側に追記します。
+        </p>
+<pre><span class="filename">routes/api.php — 追記内容</span><span class="cm">// ファイル上部に use を追加</span>
+<span class="kw">use</span> App\Http\Controllers\Api\WorkLogController;
+
+<span class="cm">// ─────────────────────────────────────────────────────
+// 既存の Cognito JWT ミドルウェアグループの中に以下を追加
+// 例: Route::middleware(['cognito.jwt'])->group(function () {
+// ─────────────────────────────────────────────────────</span>
+
+<span class="cm">// 作業ログ: 圃場に属するログの一覧・作成</span>
+Route::get(
+    <span class="st">'v1/farms/{farm}/work-logs'</span>,
+    [<span class="cl">WorkLogController</span>::<span class="kw">class</span>, <span class="st">'index'</span>]
+);
+Route::post(
+    <span class="st">'v1/farms/{farm}/work-logs'</span>,
+    [<span class="cl">WorkLogController</span>::<span class="kw">class</span>, <span class="st">'store'</span>]
+);
+
+<span class="cm">// 作業ログ: 個別の更新・削除</span>
+Route::patch(
+    <span class="st">'v1/work-logs/{workLog}'</span>,
+    [<span class="cl">WorkLogController</span>::<span class="kw">class</span>, <span class="st">'update'</span>]
+);
+Route::delete(
+    <span class="st">'v1/work-logs/{workLog}'</span>,
+    [<span class="cl">WorkLogController</span>::<span class="kw">class</span>, <span class="st">'destroy'</span>]
+);</pre>
+        <div class="callout warn">
+          <strong>既存のミドルウェアグループを確認。</strong>
+          既存の <code>/api/v1/farms</code> や <code>/api/v1/me</code> ルートが
+          どの <code>middleware</code> グループに属しているかを確認し、
+          <strong>同じグループの内側に</strong>追記してください。
+          グループの外に書いてしまうと認証が適用されません。
+        </div>
+
+        <h4>ルートの確認</h4>
+        <div class="shell">
+<span class="prompt">$ </span><span class="cmd">docker compose exec php-fpm php artisan route:list --path=v1/work-logs</span>
+<span class="prompt">$ </span><span class="cmd">docker compose exec php-fpm php artisan route:list --path=v1/farms</span>
+<span class="comment"># 4本のルート（GET/POST/PATCH/DELETE）が表示されることを確認</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ====== STEP 7: Tests ====== -->
+<section id="step7">
+  <h2><span class="h2-num">07</span>Feature テストの作成・実行（ローカル） <span class="h2-en">tests</span></h2>
+
+  <div class="callout info">
+    <strong>テストはローカルでのみ実行します。</strong>
+    EC2 の本番 RDS には <code>RefreshDatabase</code> トレイトによるデータ全消去リスクがあるため、
+    EC2 上ではテストを実行しません。ローカルで全 PASS を確認してから PR を作成してください。
+  </div>
+
+  <div class="steps">
+    <div class="step" id="step7-factory">
+      <div class="step-num">13</div>
+      <div class="step-body">
+        <h4>テストファイルを生成</h4>
+        <span class="step-location">ターミナル / ローカル</span>
+        <div class="shell">
+<span class="prompt">$ </span><span class="cmd">docker compose exec php-fpm php artisan make:test WorkLogApiTest</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">14</div>
+      <div class="step-body">
+        <h4>テストの内容を実装</h4>
+        <span class="step-location">tests/Feature/WorkLogApiTest.php / ローカル</span>
+        <p>
+          生成された <code>WorkLogApiTest.php</code> を以下に置き換えます。
+          認証ヘルパーは既存テストクラスを参考に合わせてください
+          （例: <code>actingAsAppUser()</code> など既存のトレイトがある場合はそれを使用）。
+        </p>
+<pre><span class="filename">tests/Feature/WorkLogApiTest.php</span><span class="cl">&lt;?php</span>
+
+<span class="kw">namespace</span> Tests\Feature;
+
+<span class="kw">use</span> App\Models\AppUser;
+<span class="kw">use</span> App\Models\Farm;
+<span class="kw">use</span> App\Models\WorkLog;
+<span class="kw">use</span> Illuminate\Foundation\Testing\RefreshDatabase;
+<span class="kw">use</span> Tests\TestCase;
+
+<span class="kw">class</span> <span class="cl">WorkLogApiTest</span> <span class="kw">extends</span> <span class="cl">TestCase</span>
+{
+    <span class="kw">use</span> RefreshDatabase;
+
+    <span class="cm">// ─── ヘルパー ─────────────────────────────────────</span>
+
+    <span class="cm">/**
+     * AppUser を作成して認証済みの状態にする。
+     * ※既存プロジェクトに認証ヘルパーがある場合はそちらを使用。
+     */</span>
+    <span class="kw">private function</span> <span class="nm">authAs</span>(<span class="cl">AppUser</span> $user): static
+    {
+        <span class="cm">// 例: JWT を使っているなら actingAs($user, 'api') など</span>
+        <span class="cm">// 既存テストの認証方式に合わせて変更してください</span>
+        <span class="kw">return</span> <span class="kw">$this</span>-&gt;actingAs($user, <span class="st">'api'</span>);
+    }
+
+    <span class="kw">private function</span> <span class="nm">makeUserWithFarm</span>(): <span class="kw">array</span>
+    {
+        $user = <span class="cl">AppUser</span>::factory()-&gt;create();
+        $farm = <span class="cl">Farm</span>::factory()-&gt;create([<span class="st">'app_user_id'</span> =&gt; $user-&gt;id]);
+        <span class="kw">return</span> [$user, $farm];
+    }
+
+    <span class="kw">private function</span> <span class="nm">validPayload</span>(): <span class="kw">array</span>
+    {
+        <span class="kw">return</span> [
+            <span class="st">'work_type'</span>    =&gt; <span class="st">'fertilization'</span>,
+            <span class="st">'work_date'</span>    =&gt; <span class="st">'2026-03-16'</span>,
+            <span class="st">'title'</span>        =&gt; <span class="st">'NK化成 20kg'</span>,
+            <span class="st">'amount_value'</span> =&gt; <span class="nm">20.0</span>,
+            <span class="st">'amount_unit'</span>  =&gt; <span class="st">'kg'</span>,
+        ];
+    }
+
+    <span class="cm">// ─── 認証・認可 ───────────────────────────────────</span>
+
+    <span class="kw">public function</span> <span class="nm">test_unauthenticated_request_returns_401</span>(): <span class="kw">void</span>
+    {
+        [, $farm] = <span class="kw">$this</span>-&gt;makeUserWithFarm();
+
+        <span class="kw">$this</span>-&gt;getJson(<span class="st">"/api/v1/farms/{$farm->id}/work-logs"</span>)
+             -&gt;assertStatus(<span class="nm">401</span>);
+    }
+
+    <span class="kw">public function</span> <span class="nm">test_another_users_farm_returns_403</span>(): <span class="kw">void</span>
+    {
+        [$owner, $farm] = <span class="kw">$this</span>-&gt;makeUserWithFarm();
+        $other = <span class="cl">AppUser</span>::factory()-&gt;create();
+
+        <span class="kw">$this</span>-&gt;authAs($other)
+             -&gt;getJson(<span class="st">"/api/v1/farms/{$farm->id}/work-logs"</span>)
+             -&gt;assertStatus(<span class="nm">403</span>);
+    }
+
+    <span class="cm">// ─── 一覧 ─────────────────────────────────────────</span>
+
+    <span class="kw">public function</span> <span class="nm">test_index_returns_own_work_logs</span>(): <span class="kw">void</span>
+    {
+        [$user, $farm] = <span class="kw">$this</span>-&gt;makeUserWithFarm();
+        <span class="cl">WorkLog</span>::factory()-&gt;count(<span class="nm">3</span>)-&gt;create([<span class="st">'farm_id'</span> =&gt; $farm-&gt;id]);
+
+        <span class="kw">$this</span>-&gt;authAs($user)
+             -&gt;getJson(<span class="st">"/api/v1/farms/{$farm->id}/work-logs"</span>)
+             -&gt;assertStatus(<span class="nm">200</span>)
+             -&gt;assertJsonCount(<span class="nm">3</span>, <span class="st">'data'</span>);
+    }
+
+    <span class="cm">// ─── 作成 ─────────────────────────────────────────</span>
+
+    <span class="kw">public function</span> <span class="nm">test_store_creates_work_log</span>(): <span class="kw">void</span>
+    {
+        [$user, $farm] = <span class="kw">$this</span>-&gt;makeUserWithFarm();
+
+        <span class="kw">$this</span>-&gt;authAs($user)
+             -&gt;postJson(<span class="st">"/api/v1/farms/{$farm->id}/work-logs"</span>, <span class="kw">$this</span>-&gt;validPayload())
+             -&gt;assertStatus(<span class="nm">201</span>)
+             -&gt;assertJsonPath(<span class="st">'data.work_type'</span>, <span class="st">'fertilization'</span>)
+             -&gt;assertJsonPath(<span class="st">'data.title'</span>, <span class="st">'NK化成 20kg'</span>);
+
+        <span class="kw">$this</span>-&gt;assertDatabaseHas(<span class="st">'work_logs'</span>, [
+            <span class="st">'farm_id'</span>   =&gt; $farm-&gt;id,
+            <span class="st">'work_type'</span> =&gt; <span class="st">'fertilization'</span>,
+        ]);
+    }
+
+    <span class="kw">public function</span> <span class="nm">test_store_fails_with_invalid_work_type</span>(): <span class="kw">void</span>
+    {
+        [$user, $farm] = <span class="kw">$this</span>-&gt;makeUserWithFarm();
+        $payload = <span class="kw">$this</span>-&gt;validPayload();
+        $payload[<span class="st">'work_type'</span>] = <span class="st">'invalid_type'</span>;
+
+        <span class="kw">$this</span>-&gt;authAs($user)
+             -&gt;postJson(<span class="st">"/api/v1/farms/{$farm->id}/work-logs"</span>, $payload)
+             -&gt;assertStatus(<span class="nm">422</span>)
+             -&gt;assertJsonValidationErrors([<span class="st">'work_type'</span>]);
+    }
+
+    <span class="kw">public function</span> <span class="nm">test_store_fails_with_missing_required_fields</span>(): <span class="kw">void</span>
+    {
+        [$user, $farm] = <span class="kw">$this</span>-&gt;makeUserWithFarm();
+
+        <span class="kw">$this</span>-&gt;authAs($user)
+             -&gt;postJson(<span class="st">"/api/v1/farms/{$farm->id}/work-logs"</span>, [])
+             -&gt;assertStatus(<span class="nm">422</span>)
+             -&gt;assertJsonValidationErrors([<span class="st">'work_type'</span>, <span class="st">'work_date'</span>]);
+    }
+
+    <span class="cm">// ─── 更新 ─────────────────────────────────────────</span>
+
+    <span class="kw">public function</span> <span class="nm">test_update_modifies_work_log</span>(): <span class="kw">void</span>
+    {
+        [$user, $farm] = <span class="kw">$this</span>-&gt;makeUserWithFarm();
+        $log = <span class="cl">WorkLog</span>::factory()-&gt;create([
+            <span class="st">'farm_id'</span> =&gt; $farm-&gt;id, <span class="st">'title'</span> =&gt; <span class="st">'Before'</span>
+        ]);
+
+        <span class="kw">$this</span>-&gt;authAs($user)
+             -&gt;patchJson(<span class="st">"/api/v1/work-logs/{$log->id}"</span>, [<span class="st">'title'</span> =&gt; <span class="st">'After'</span>])
+             -&gt;assertStatus(<span class="nm">200</span>)
+             -&gt;assertJsonPath(<span class="st">'data.title'</span>, <span class="st">'After'</span>);
+    }
+
+    <span class="kw">public function</span> <span class="nm">test_update_by_another_user_returns_403</span>(): <span class="kw">void</span>
+    {
+        [, $farm] = <span class="kw">$this</span>-&gt;makeUserWithFarm();
+        $log = <span class="cl">WorkLog</span>::factory()-&gt;create([<span class="st">'farm_id'</span> =&gt; $farm-&gt;id]);
+        $other = <span class="cl">AppUser</span>::factory()-&gt;create();
+
+        <span class="kw">$this</span>-&gt;authAs($other)
+             -&gt;patchJson(<span class="st">"/api/v1/work-logs/{$log->id}"</span>, [<span class="st">'title'</span> =&gt; <span class="st">'Hack'</span>])
+             -&gt;assertStatus(<span class="nm">403</span>);
+    }
+
+    <span class="cm">// ─── 削除 ─────────────────────────────────────────</span>
+
+    <span class="kw">public function</span> <span class="nm">test_destroy_deletes_work_log</span>(): <span class="kw">void</span>
+    {
+        [$user, $farm] = <span class="kw">$this</span>-&gt;makeUserWithFarm();
+        $log = <span class="cl">WorkLog</span>::factory()-&gt;create([<span class="st">'farm_id'</span> =&gt; $farm-&gt;id]);
+
+        <span class="kw">$this</span>-&gt;authAs($user)
+             -&gt;deleteJson(<span class="st">"/api/v1/work-logs/{$log->id}"</span>)
+             -&gt;assertStatus(<span class="nm">204</span>);
+
+        <span class="kw">$this</span>-&gt;assertDatabaseMissing(<span class="st">'work_logs'</span>, [<span class="st">'id'</span> =&gt; $log-&gt;id]);
+    }
+}</pre>
+
+        <div class="callout warn">
+          <strong>Factory が必要です。</strong>
+          テストで <code>WorkLog::factory()</code> を使うため、
+          <code>database/factories/WorkLogFactory.php</code> を作成してください（次ステップ）。
+          AppUser と Farm の Factory は既存のものを使います。
+        </div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">15</div>
+      <div class="step-body">
+        <h4>WorkLogFactory を作成</h4>
+        <span class="step-location">ターミナル / ローカル → database/factories/WorkLogFactory.php</span>
+        <div class="shell">
+<span class="prompt">$ </span><span class="cmd">docker compose exec php-fpm php artisan make:factory WorkLogFactory --model=WorkLog</span>
+        </div>
+<pre><span class="filename">database/factories/WorkLogFactory.php</span><span class="cl">&lt;?php</span>
+
+<span class="kw">namespace</span> Database\Factories;
+
+<span class="kw">use</span> App\Enums\WorkType;
+<span class="kw">use</span> App\Models\Farm;
+<span class="kw">use</span> Illuminate\Database\Eloquent\Factories\Factory;
+
+<span class="kw">class</span> <span class="cl">WorkLogFactory</span> <span class="kw">extends</span> <span class="cl">Factory</span>
+{
+    <span class="kw">public function</span> <span class="nm">definition</span>(): <span class="kw">array</span>
+    {
+        <span class="kw">return</span> [
+            <span class="st">'farm_id'</span>      =&gt; <span class="cl">Farm</span>::factory(),
+            <span class="st">'work_type'</span>    =&gt; <span class="kw">$this</span>-&gt;faker-&gt;randomElement(WorkType::cases())-&gt;value,
+            <span class="st">'work_date'</span>    =&gt; <span class="kw">$this</span>-&gt;faker-&gt;dateTimeBetween(<span class="st">'-6 months'</span>, <span class="st">'now'</span>)-&gt;format(<span class="st">'Y-m-d'</span>),
+            <span class="st">'title'</span>        =&gt; <span class="kw">$this</span>-&gt;faker-&gt;sentence(<span class="nm">3</span>),
+            <span class="st">'detail'</span>       =&gt; <span class="kw">$this</span>-&gt;faker-&gt;optional()-&gt;paragraph(),
+            <span class="st">'amount_value'</span> =&gt; <span class="kw">$this</span>-&gt;faker-&gt;optional()-&gt;randomFloat(<span class="nm">1</span>, <span class="nm">1</span>, <span class="nm">100</span>),
+            <span class="st">'amount_unit'</span>  =&gt; <span class="kw">$this</span>-&gt;faker-&gt;optional()-&gt;randomElement([<span class="st">'kg'</span>, <span class="st">'L'</span>, <span class="st">'cm'</span>]),
+            <span class="st">'scope'</span>        =&gt; <span class="st">'whole'</span>,
+        ];
+    }
+}</pre>
+
+        <div class="callout">
+          <strong>WorkLog Model に <code>HasFactory</code> トレイトの追加。</strong>
+          <code>app/Models/WorkLog.php</code> の先頭に
+          <code>use Illuminate\Database\Eloquent\Factories\HasFactory;</code> と
+          クラス内に <code>use HasFactory;</code> を追加してください。
+        </div>
+      </div>
+    </div>
+
+    <div class="step" id="step7-run">
+      <div class="step-num">16</div>
+      <div class="step-body">
+        <h4>テストをローカルで実行して全 PASS を確認</h4>
+        <span class="step-location">ターミナル / ローカル Docker</span>
+        <div class="shell">
+<span class="comment"># WorkLogApiTest のみ実行</span>
+<span class="prompt">$ </span><span class="cmd">docker compose exec php-fpm php artisan test --filter=WorkLogApiTest</span>
+<span class="comment"># 全10件 PASS することを確認</span>
+
+<span class="comment"># 全テストを実行して既存テストが壊れていないことを確認</span>
+<span class="prompt">$ </span><span class="cmd">docker compose exec php-fpm php artisan test</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ====== STEP 8: PR & Merge ====== -->
+<section id="step8">
+  <h2><span class="h2-num">08</span>commit → PR 作成 → main マージ → CI/CD デプロイ <span class="h2-en">deploy</span></h2>
+
+  <div class="steps">
+    <div class="step" id="step8-commit">
+      <div class="step-num">17</div>
+      <div class="step-body">
+        <h4>変更をコミットして feature ブランチを push</h4>
+        <span class="step-location">ターミナル / ローカル</span>
+        <div class="shell">
+<span class="comment"># 変更をすべてステージング</span>
+<span class="prompt">$ </span><span class="cmd">git add -A</span>
+
+<span class="comment"># 差分を確認（意図しないファイルが含まれていないか）</span>
+<span class="prompt">$ </span><span class="cmd">git diff --cached --stat</span>
+
+<span class="comment"># コミット</span>
+<span class="prompt">$ </span><span class="cmd">git commit -m "feat: add work_logs table and CRUD API (Phase 1)"</span>
+
+<span class="comment"># リモートに push</span>
+<span class="prompt">$ </span><span class="cmd">git push origin feature/phase1-work-logs</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="step" id="step8-pr">
+      <div class="step-num">18</div>
+      <div class="step-body">
+        <h4>GitHub でプルリクエストを作成してマージ</h4>
+        <span class="step-location">GitHub Web UI</span>
+        <ol>
+          <li>GitHub の当該リポジトリを開き、<strong>「Compare &amp; pull request」</strong> をクリック。</li>
+          <li>PR タイトル: <code>feat: add work_logs table and CRUD API (Phase 1)</code></li>
+          <li>PR 本文に以下を記載：
+            <ul>
+              <li>作成・変更ファイルの一覧（前掲のファイルツリーを貼り付け）</li>
+              <li><code>php artisan test</code> のローカル PASS スクリーンショット</li>
+            </ul>
+          </li>
+          <li>レビュー後（またはセルフレビュー後）、<strong>Squash and merge</strong> で main にマージ。</li>
+          <li>マージ後、<strong>feature ブランチを GitHub 上で削除</strong>（"Delete branch" ボタン）。</li>
+        </ol>
+      </div>
+    </div>
+
+    <div class="step" id="step8-cicd">
+      <div class="step-num">19</div>
+      <div class="step-body">
+        <h4>GitHub Actions（CI/CD）の完了を確認</h4>
+        <span class="step-location">GitHub → Actions タブ</span>
+        <p>main へのマージをトリガーに以下のジョブが自動実行されます。</p>
+        <table>
+          <thead><tr><th>CI/CD ステップ</th><th>内容</th></tr></thead>
+          <tbody>
+            <tr><td>1. Docker ビルド</td><td>最新コードのイメージを ECR へ push</td></tr>
+            <tr><td>2. EC2 デプロイ</td><td>EC2 に SSH して <code>docker compose down/up</code></td></tr>
+            <tr><td>3. <strong>migrate 自動実行</strong></td><td><code>php artisan migrate --force</code> → 本番 RDS に <code>work_logs</code> テーブルが作成される</td></tr>
+          </tbody>
+        </table>
+        <div class="shell">
+<span class="comment"># Actions タブで最新のワークフローが緑（success）になることを確認</span>
+<span class="comment"># 赤（failure）の場合は次のコマンドでログを確認</span>
+        </div>
+        <div class="callout warn">
+          <strong>Actions が赤になった場合。</strong>
+          migrate の失敗が最も多いパターンです。Actions のログを開いて "migrate" のステップを確認してください。
+          必要に応じて EC2 に SSH して <code>docker compose logs php-fpm 2>&amp;1 | tail -50</code> でエラー詳細を確認します。
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ====== STEP 9: EC2 post-deploy verification ====== -->
+<section id="step9">
+  <h2><span class="h2-num">09</span>EC2 デプロイ後の動作確認 <span class="h2-en">smoke test</span></h2>
+
+  <div class="callout danger">
+    <strong>EC2 上で <code>php artisan test</code> は実行しません。</strong>
+    テストの <code>RefreshDatabase</code> トレイトは DB を毎回ロールバックします。
+    EC2 の <code>.env</code> が本番 RDS を向いているため、実行すると<strong>本番データが消えます</strong>。
+    EC2 での確認は「テーブル存在確認・ルート確認・curl スモークテスト」のみ行います。
+  </div>
+
+  <div class="steps">
+    <div class="step" id="step9-table">
+      <div class="step-num">20</div>
+      <div class="step-body">
+        <h4>EC2 に SSH してテーブルとルートを確認</h4>
+        <span class="step-location">ターミナル → EC2 SSH → Docker コンテナ内</span>
+        <div class="shell">
+<span class="comment"># 1. EC2 に SSH</span>
+<span class="prompt">$ </span><span class="cmd">ssh -i ~/.ssh/your-key.pem ec2-user@&lt;EC2のIPアドレス&gt;</span>
+
+<span class="comment"># 2. Laravel プロジェクトのディレクトリへ移動</span>
+<span class="prompt">$ </span><span class="cmd">cd /path/to/laravel-project</span>
+
+<span class="comment"># 3. work_logs テーブルが本番 RDS に存在することを確認</span>
+<span class="prompt">$ </span><span class="cmd">docker compose exec php-fpm php artisan db:table work_logs</span>
+<span class="comment"># id / farm_id / work_type / work_date / ... のカラム一覧が表示されれば migrate 成功</span>
+
+<span class="comment"># 4. 新規 4 ルートが存在することを確認</span>
+<span class="prompt">$ </span><span class="cmd">docker compose exec php-fpm php artisan route:list --path=v1/work-logs</span>
+<span class="comment"># GET / POST / PATCH / DELETE の 4 ルートが表示されること</span>
+        </div>
+        <div class="callout warn">
+          <strong>テーブルが存在しない場合（migrate が走っていない場合）。</strong>
+          GitHub Actions のログで migrate ステップを確認してください。
+          手動で実行が必要な場合は以下で対処します（これは例外対応です）：
+          <code>docker compose exec php-fpm php artisan migrate --force</code>
+        </div>
+      </div>
+    </div>
+
+    <div class="step" id="step9-curl">
+      <div class="step-num">21</div>
+      <div class="step-body">
+        <h4>curl スモークテスト（本番エンドポイント）</h4>
+        <span class="step-location">ターミナル / ローカル端末（SSH から抜けて実施）</span>
+        <p>有効な Cognito アクセストークンと、自分が保有している圃場の ID を使って確認します。
+        テストで作成したデータは最後に DELETE で後片付けします。</p>
+        <div class="shell">
+<span class="comment"># 環境変数をセット</span>
+<span class="prompt">$ </span><span class="cmd">export BASE="https://api.hm-admin.com"</span>
+<span class="prompt">$ </span><span class="cmd">export TOKEN="eyJhbGciOi..."   # Cognito から発行した access_token</span>
+<span class="prompt">$ </span><span class="cmd">export FARM_ID=12               # 自分が保有している圃場 ID</span>
+        </div>
+        <div class="shell">
+<span class="comment"># ① 認証なし → 401 が返ること</span>
+<span class="prompt">$ </span><span class="cmd">curl -s -o /dev/null -w "%{http_code}\n" \
+  "$BASE/api/v1/farms/$FARM_ID/work-logs"</span>
+<span class="comment"># 401 と表示されること</span>
+        </div>
+        <div class="shell">
+<span class="comment"># ② 作成（POST） → 201 + data が返ること</span>
+<span class="prompt">$ </span><span class="cmd">curl -s -X POST "$BASE/api/v1/farms/$FARM_ID/work-logs" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "work_type": "fertilization",
+    "work_date": "2026-05-14",
+    "title": "スモークテスト用データ",
+    "amount_value": 10.0,
+    "amount_unit": "kg"
+  }' | jq '{status: "201 expected", id: .data.id, type: .data.work_type}'</span>
+<span class="comment"># {"status": "201 expected", "id": X, "type": "fertilization"} が返れば OK</span>
+<span class="comment"># 返ってきた id を保存</span>
+<span class="prompt">$ </span><span class="cmd">export WORK_LOG_ID=&lt;上で返ってきた id&gt;</span>
+        </div>
+        <div class="shell">
+<span class="comment"># ③ 一覧取得（GET） → 200 + data 配列が返ること</span>
+<span class="prompt">$ </span><span class="cmd">curl -s "$BASE/api/v1/farms/$FARM_ID/work-logs" \
+  -H "Authorization: Bearer $TOKEN" | jq '.data | length'</span>
+<span class="comment"># 1 以上の数字が返ること</span>
+        </div>
+        <div class="shell">
+<span class="comment"># ④ 更新（PATCH） → 200 + title が変わること</span>
+<span class="prompt">$ </span><span class="cmd">curl -s -X PATCH "$BASE/api/v1/work-logs/$WORK_LOG_ID" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"title": "スモークテスト完了"}' | jq '.data.title'</span>
+<span class="comment"># "スモークテスト完了" が返ること</span>
+        </div>
+        <div class="shell">
+<span class="comment"># ⑤ 削除（DELETE） → 204 が返ること（テストデータの後片付け）</span>
+<span class="prompt">$ </span><span class="cmd">curl -s -o /dev/null -w "%{http_code}\n" \
+  -X DELETE "$BASE/api/v1/work-logs/$WORK_LOG_ID" \
+  -H "Authorization: Bearer $TOKEN"</span>
+<span class="comment"># 204 と表示されること</span>
+        </div>
+        <div class="callout">
+          <strong>5項目すべて OK であれば Phase 1 完了です。</strong>
+          削除した後に GET でも 0 件または正しい件数が返ることを念のため確認してから終了してください。
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ====== DoD ====== -->
+<section id="dod">
+  <h2><span class="h2-num">✓</span>完了条件チェックリスト <span class="h2-en">definition of done</span></h2>
+
+  <p style="font-size:13px; color: var(--ink-3); margin-bottom: 16px;">
+    <span class="tag new">L</span> ローカル確認 &nbsp;
+    <span class="tag mod">CI</span> PR &amp; CI/CD 確認 &nbsp;
+    <span class="tag file">E</span> EC2 デプロイ後確認 &nbsp;の 3 段階です。
+  </p>
+
+  <ul class="dod-list">
+    <li>
+      <span class="tag new">L</span> ローカルで <code>php artisan migrate</code> が正常完了し、<code>work_logs</code> テーブルがローカル DB に存在する
+      <span class="dod-cmd">確認: docker compose exec php-fpm php artisan db:table work_logs</span>
+    </li>
+    <li>
+      <span class="tag new">L</span> ローカルで <code>route:list --path=v1/work-logs</code> に 4 ルートが表示される
+      <span class="dod-cmd">確認: docker compose exec php-fpm php artisan route:list --path=v1/work-logs</span>
+    </li>
+    <li>
+      <span class="tag new">L</span> ローカルで <code>WorkLogApiTest</code> の全テストが PASS する
+      <span class="dod-cmd">確認: docker compose exec php-fpm php artisan test --filter=WorkLogApiTest</span>
+    </li>
+    <li>
+      <span class="tag new">L</span> ローカルで既存の全テストが PASS し続けている（リグレッションなし）
+      <span class="dod-cmd">確認: docker compose exec php-fpm php artisan test</span>
+    </li>
+    <li>
+      <span class="tag mod">CI</span> feature ブランチが GitHub に push されており、PR が作成されている
+    </li>
+    <li>
+      <span class="tag mod">CI</span> main へ squash merge され、GitHub Actions が <strong>success（緑）</strong> で完了している
+    </li>
+    <li>
+      <span class="tag file">E</span> EC2 上の本番 RDS に <code>work_logs</code> テーブルが存在する
+      <span class="dod-cmd">確認（EC2 SSH後）: docker compose exec php-fpm php artisan db:table work_logs</span>
+    </li>
+    <li>
+      <span class="tag file">E</span> 本番エンドポイントへの curl スモークテスト 5 項目（401 / POST-201 / GET-200 / PATCH-200 / DELETE-204）が全件 OK
+    </li>
+    <li>
+      <span class="tag mod">CI</span> feature ブランチが GitHub 上で削除されている
+    </li>
+  </ul>
+
+  <div class="callout info" style="margin-top: 24px;">
+    <strong>Phase 2（時系列・タイムライン API）への引き継ぎ。</strong>
+    Phase 1 完了後、<code>work_logs</code> テーブルが本番 RDS に存在することを前提に、
+    Phase 2 の <code>FarmTimelineService</code> が work_logs を JOIN して timeline を構築します。
+    EC2 上の curl スモークテストまですべて OK を確認してから Phase 2 の Cursor セッションを開始してください。
+  </div>
+</section>
+
+</main>
+</div>
+</body>
+</html>

@@ -3,6 +3,14 @@ allprojects {
         google()
         mavenCentral()
     }
+
+    configurations.all {
+        resolutionStrategy {
+            // amplify_secure_storage requests tink-android with a dynamic range.
+            // Pin it to avoid Maven metadata lookups during Android builds.
+            force("com.google.crypto.tink:tink-android:1.9.0")
+        }
+    }
 }
 
 val newBuildDir: Directory =

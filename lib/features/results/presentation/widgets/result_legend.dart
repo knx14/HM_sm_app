@@ -30,8 +30,12 @@ class ResultLegend extends StatelessWidget {
         : '${fmt.format1OrZero(min)} 〜 ${fmt.format1OrZero(max)}';
 
     final gradient = isCompare
-        ? const LinearGradient(colors: [Color(0xFF1565C0), Colors.white, Color(0xFFC62828)])
-        : const LinearGradient(colors: [Color(0xFFE3F2FD), Color(0xFFC62828)]);
+        ? const LinearGradient(
+            colors: [Color(0xFF1565C0), Colors.white, Color(0xFFC62828)],
+          )
+        : const LinearGradient(
+            colors: [Color(0xFF1565C0), Colors.white, Color(0xFFC62828)],
+          );
 
     final uniform = isCompare ? (deltaMax <= 0) : (max <= min);
 
@@ -48,7 +52,11 @@ class ResultLegend extends StatelessWidget {
         children: [
           Text(
             isCompare ? '${parameter.apiName} 差分' : parameter.apiName,
-            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: cs.onSurface),
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: cs.onSurface,
+            ),
           ),
           const SizedBox(height: 8),
           Container(
@@ -56,16 +64,21 @@ class ResultLegend extends StatelessWidget {
             height: 10,
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(6),
-              color: uniform ? (isCompare ? Colors.white : const Color(0xFF66BB6A)) : null,
+              color: uniform ? Colors.white : null,
               gradient: uniform ? null : gradient,
               border: Border.all(color: cs.outline.withValues(alpha: 0.08)),
             ),
           ),
           const SizedBox(height: 8),
-          Text(label, style: TextStyle(fontSize: 12, color: cs.onSurface.withValues(alpha: 0.8))),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 12,
+              color: cs.onSurface.withValues(alpha: 0.8),
+            ),
+          ),
         ],
       ),
     );
   }
 }
-
