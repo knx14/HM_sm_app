@@ -17,16 +17,22 @@ class Farm {
     this.updatedAt,
   });
 
+  /// 境界未設定の仮登録圃場かどうか（サーバー側 isProvisional() と同じ判定）。
+  bool get isProvisional => boundaryPolygon.isEmpty;
+
   factory Farm.fromJson(Map<String, dynamic> json) {
-    // boundary_polygonの値をdoubleに変換
-    final boundaryPolygonList = (json['boundary_polygon'] as List).map((e) {
-      final map = Map<String, dynamic>.from(e);
-      return {
-        'lat': (map['lat'] as num).toDouble(),
-        'lng': (map['lng'] as num).toDouble(),
-      };
-    }).toList();
-    
+    // APIは境界未設定時に null ではなく空配列 [] を返す
+    final boundaryRaw = json['boundary_polygon'];
+    final boundaryPolygonList = boundaryRaw is List
+        ? boundaryRaw.map((e) {
+            final map = Map<String, dynamic>.from(e as Map);
+            return {
+              'lat': (map['lat'] as num).toDouble(),
+              'lng': (map['lng'] as num).toDouble(),
+            };
+          }).toList()
+        : <Map<String, double>>[];
+
     return Farm(
       id: json['id'] as int,
       farmName: json['farm_name'] as String,
@@ -54,4 +60,3 @@ class Farm {
     };
   }
 }
-

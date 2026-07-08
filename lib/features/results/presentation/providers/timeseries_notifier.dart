@@ -6,60 +6,38 @@ import '../../domain/result_parameter.dart';
 import '../../domain/timeline_item.dart';
 import '../../domain/timeseries_result.dart';
 
-enum TimeseriesRange { all, oneYear, oneMonth }
+enum TimeseriesRange { all, threeYears, oneYear }
 
 extension TimeseriesRangeLabel on TimeseriesRange {
   String get label => switch (this) {
     TimeseriesRange.all => 'すべて',
+    TimeseriesRange.threeYears => '3年間',
     TimeseriesRange.oneYear => '1年間',
-    TimeseriesRange.oneMonth => '1ヶ月',
+  };
+
+  Duration? get duration => switch (this) {
+    TimeseriesRange.all => null,
+    TimeseriesRange.threeYears => const Duration(days: 365 * 3),
+    TimeseriesRange.oneYear => const Duration(days: 365),
   };
 }
 
 class TimeseriesNotifier extends ChangeNotifier {
   TimeseriesNotifier({required this.farmId});
 
-  static const int firstSelectableYear = 2025;
-
   final int farmId;
   final ResultsRepository _repo = ResultsRepository(buildApiClient());
 
   ResultParameter _parameter = ResultParameter.cec;
   TimeseriesRange _selectedRange = TimeseriesRange.all;
-  int _selectedYear = _currentSelectableYear();
-  DateTime _selectedMonth = _currentSelectableMonth();
   TimeseriesResult? _data;
   bool _isLoading = false;
   String? _error;
 
   ResultParameter get parameter => _parameter;
   TimeseriesRange get selectedRange => _selectedRange;
-  int get selectedYear => _selectedYear;
-  DateTime get selectedMonth => _selectedMonth;
-  List<int> get availableYears {
-    final latestYear = _currentSelectableYear();
-    return [
-      for (var year = firstSelectableYear; year <= latestYear; year++) year,
-    ];
-  }
 
-  List<DateTime> get availableMonths {
-    final latest = _currentSelectableMonth();
-    final months = <DateTime>[];
-    var cursor = DateTime(firstSelectableYear);
-    while (!cursor.isAfter(latest)) {
-      months.add(cursor);
-      cursor = DateTime(cursor.year, cursor.month + 1);
-    }
-    return months;
-  }
-
-  String get selectedPeriodLabel => switch (_selectedRange) {
-    TimeseriesRange.all => 'すべて',
-    TimeseriesRange.oneYear => '$_selectedYear年',
-    TimeseriesRange.oneMonth =>
-      '${_selectedMonth.year}年${_selectedMonth.month}月',
-  };
+  String get selectedPeriodLabel => _selectedRange.label;
 
   TimeseriesResult? get data => _data;
   bool get isLoading => _isLoading;
@@ -83,24 +61,6 @@ class TimeseriesNotifier extends ChangeNotifier {
   void setRange(TimeseriesRange range) {
     if (_selectedRange == range) return;
     _selectedRange = range;
-    notifyListeners();
-  }
-
-  void setSelectedYear(int year) {
-    if (_selectedYear == year || !availableYears.contains(year)) return;
-    _selectedYear = year;
-    notifyListeners();
-  }
-
-  void setSelectedMonth(DateTime month) {
-    final normalized = DateTime(month.year, month.month);
-    if (_isSameMonth(_selectedMonth, normalized) ||
-        !availableMonths.any(
-          (available) => _isSameMonth(available, normalized),
-        )) {
-      return;
-    }
-    _selectedMonth = normalized;
     notifyListeners();
   }
 
@@ -171,6 +131,11 @@ class TimeseriesNotifier extends ChangeNotifier {
   List<T> _filterBySelectedRange<T>(List<T> items) {
     if (_selectedRange == TimeseriesRange.all) return items;
 
+    final duration = _selectedRange.duration;
+    if (duration == null) return items;
+
+    final cutoff = DateTime.now().subtract(duration);
+
     return items
         .where((item) {
           final date = switch (item) {
@@ -183,33 +148,8 @@ class TimeseriesNotifier extends ChangeNotifier {
             date.length >= 10 ? date.substring(0, 10) : date,
           );
           if (parsed == null) return false;
-          return switch (_selectedRange) {
-            TimeseriesRange.all => true,
-            TimeseriesRange.oneYear => parsed.year == _selectedYear,
-            TimeseriesRange.oneMonth =>
-              parsed.year == _selectedMonth.year &&
-                  parsed.month == _selectedMonth.month,
-          };
+          return !parsed.isBefore(cutoff);
         })
         .toList(growable: false);
-  }
-
-  static int _currentSelectableYear() {
-    final currentYear = DateTime.now().year;
-    return currentYear < firstSelectableYear
-        ? firstSelectableYear
-        : currentYear;
-  }
-
-  static DateTime _currentSelectableMonth() {
-    final now = DateTime.now();
-    if (now.year < firstSelectableYear) {
-      return DateTime(firstSelectableYear);
-    }
-    return DateTime(now.year, now.month);
-  }
-
-  static bool _isSameMonth(DateTime a, DateTime b) {
-    return a.year == b.year && a.month == b.month;
   }
 }

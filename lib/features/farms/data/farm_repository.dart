@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'package:dio/dio.dart';
 import '../../../core/api/api_client.dart';
 import '../domain/farm.dart';
@@ -69,20 +68,21 @@ class FarmRepository {
   /// [farmName] 圃場名（必須、最大50文字）
   /// [cultivationMethod] 栽培方法
   /// [cropType] 作物種別
-  /// [boundaryPolygon] 境界線データ（必須、最低3点）
+  /// [boundaryPolygon] 境界線データ（任意。省略時は仮登録）
   ///   - 形式: [{'lat': 35.0, 'lng': 139.0}, ...]
   Future<Farm> createFarm({
     required String farmName,
     String? cultivationMethod,
     String? cropType,
-    required List<Map<String, double>> boundaryPolygon,
+    List<Map<String, double>>? boundaryPolygon,
   }) async {
     try {
       // Laravel側のモデルに合わせたリクエストデータ
-      final requestData = <String, dynamic>{
-        'farm_name': farmName,
-        'boundary_polygon': boundaryPolygon,
-      };
+      final requestData = <String, dynamic>{'farm_name': farmName};
+
+      if (boundaryPolygon != null && boundaryPolygon.isNotEmpty) {
+        requestData['boundary_polygon'] = boundaryPolygon;
+      }
 
       // オプショナルなフィールドを追加
       if (cultivationMethod != null && cultivationMethod.isNotEmpty) {
@@ -97,25 +97,13 @@ class FarmRepository {
       print('Request data: $requestData');
 
       // boundary_polygonの形式を確認
-      print('boundary_polygon type: ${boundaryPolygon.runtimeType}');
-      print('boundary_polygon length: ${boundaryPolygon.length}');
-      if (boundaryPolygon.isNotEmpty) {
-        print('boundary_polygon first item: ${boundaryPolygon.first}');
+      if (boundaryPolygon != null) {
+        print('boundary_polygon type: ${boundaryPolygon.runtimeType}');
+        print('boundary_polygon length: ${boundaryPolygon.length}');
+        if (boundaryPolygon.isNotEmpty) {
+          print('boundary_polygon first item: ${boundaryPolygon.first}');
+        }
       }
-
-      // JSONエンコーディングを明示的に行い、正しい形式で送信する
-      final jsonString = jsonEncode(requestData);
-      print('Request data (JSON string): $jsonString');
-
-      // JSON文字列をデコードして確認
-      final decoded = jsonDecode(jsonString);
-      print('Request data (decoded): $decoded');
-      print(
-        'boundary_polygon in decoded (type): ${decoded['boundary_polygon'].runtimeType}',
-      );
-      print(
-        'boundary_polygon in decoded (is List): ${decoded['boundary_polygon'] is List}',
-      );
 
       // JSON文字列として送信（Dioが自動的にJSONエンコードするが、明示的に指定）
       final response = await apiClient.dio.post(
@@ -153,21 +141,22 @@ class FarmRepository {
   /// [farmName] 圃場名（必須、最大50文字）
   /// [cultivationMethod] 栽培方法
   /// [cropType] 作物種別
-  /// [boundaryPolygon] 境界線データ（必須、最低3点）
+  /// [boundaryPolygon] 境界線データ（任意。仮登録更新時は空配列可）
   ///   - 形式: [{'lat': 35.0, 'lng': 139.0}, ...]
   Future<Farm> updateFarm({
     required int farmId,
     required String farmName,
     String? cultivationMethod,
     String? cropType,
-    required List<Map<String, double>> boundaryPolygon,
+    List<Map<String, double>>? boundaryPolygon,
   }) async {
     try {
       // Laravel側のモデルに合わせたリクエストデータ
-      final requestData = <String, dynamic>{
-        'farm_name': farmName,
-        'boundary_polygon': boundaryPolygon,
-      };
+      final requestData = <String, dynamic>{'farm_name': farmName};
+
+      if (boundaryPolygon != null) {
+        requestData['boundary_polygon'] = boundaryPolygon;
+      }
 
       // オプショナルなフィールドを追加
       if (cultivationMethod != null && cultivationMethod.isNotEmpty) {
@@ -183,25 +172,13 @@ class FarmRepository {
       print('Request data: $requestData');
 
       // boundary_polygonの形式を確認
-      print('boundary_polygon type: ${boundaryPolygon.runtimeType}');
-      print('boundary_polygon length: ${boundaryPolygon.length}');
-      if (boundaryPolygon.isNotEmpty) {
-        print('boundary_polygon first item: ${boundaryPolygon.first}');
+      if (boundaryPolygon != null) {
+        print('boundary_polygon type: ${boundaryPolygon.runtimeType}');
+        print('boundary_polygon length: ${boundaryPolygon.length}');
+        if (boundaryPolygon.isNotEmpty) {
+          print('boundary_polygon first item: ${boundaryPolygon.first}');
+        }
       }
-
-      // JSONエンコーディングを明示的に行い、正しい形式で送信する
-      final jsonString = jsonEncode(requestData);
-      print('Request data (JSON string): $jsonString');
-
-      // JSON文字列をデコードして確認
-      final decoded = jsonDecode(jsonString);
-      print('Request data (decoded): $decoded');
-      print(
-        'boundary_polygon in decoded (type): ${decoded['boundary_polygon'].runtimeType}',
-      );
-      print(
-        'boundary_polygon in decoded (is List): ${decoded['boundary_polygon'] is List}',
-      );
 
       // JSON文字列として送信（Dioが自動的にJSONエンコードするが、明示的に指定）
       final response = await apiClient.dio.put(

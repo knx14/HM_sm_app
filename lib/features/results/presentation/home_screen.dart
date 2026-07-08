@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../../core/theme/app_text_styles.dart';
 import '../../../app/routes.dart';
 import '../../auth/data/amplify_auth_service.dart';
 import '../../auth/domain/auth_repository.dart';
@@ -59,9 +60,8 @@ class _HomeScreenState extends State<HomeScreen> {
                     Expanded(
                       child: Text(
                         user.displayName,
-                        style: const TextStyle(
+                        style: AppTextStyles.homeAccountNameStyle(
                           fontWeight: FontWeight.w800,
-                          fontSize: 16,
                         ),
                       ),
                     ),
@@ -260,7 +260,7 @@ class _AccountTile extends StatelessWidget {
                   label,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontWeight: FontWeight.w700),
+                  style: AppTextStyles.homeAccountNameStyle(),
                 ),
               ),
               Icon(
@@ -308,21 +308,15 @@ class _HomeActionButton extends StatelessWidget {
               Text(
                 label,
                 textAlign: TextAlign.center,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 18,
-                  fontWeight: FontWeight.w800,
-                ),
+                style: AppTextStyles.homeActionLabelStyle(),
               ),
               if (subtitle != null) ...[
                 const SizedBox(height: 4),
                 Text(
                   subtitle!,
                   textAlign: TextAlign.center,
-                  style: TextStyle(
+                  style: AppTextStyles.homeActionSubtitleStyle(
                     color: Colors.white.withValues(alpha: 0.82),
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
                   ),
                 ),
               ],
@@ -347,19 +341,12 @@ class _HelpActionButton extends StatelessWidget {
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(16),
-        child: const Row(
+        child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.help_outline, color: Colors.white, size: 24),
-            SizedBox(width: 10),
-            Text(
-              'ヘルプ',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 16,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
+            const Icon(Icons.help_outline, color: Colors.white, size: 24),
+            const SizedBox(width: 10),
+            Text('ヘルプ', style: AppTextStyles.homeActionLabelStyle()),
           ],
         ),
       ),

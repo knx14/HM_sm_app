@@ -3,26 +3,34 @@ import 'package:provider/provider.dart';
 
 import '../../../results/domain/timeline_item.dart';
 import '../../../results/presentation/providers/timeline_notifier.dart';
+import '../../../results/presentation/widgets/farm_record_add_sheet.dart';
 import '../../../work_logs/data/work_log_repository.dart';
 import '../../../work_logs/domain/work_log_entry.dart';
 import '../../../work_logs/presentation/work_log_edit_screen.dart';
 
 class FarmTimelineTab extends StatelessWidget {
-  const FarmTimelineTab({super.key, required this.farmId});
+  const FarmTimelineTab({
+    super.key,
+    required this.farmId,
+    required this.isProvisional,
+  });
 
   final int farmId;
+  final bool isProvisional;
 
   @override
   Widget build(BuildContext context) {
     return ChangeNotifierProvider(
       create: (_) => TimelineNotifier(farmId: farmId)..loadInitial(),
-      child: const _TimelineView(),
+      child: _TimelineView(isProvisional: isProvisional),
     );
   }
 }
 
 class _TimelineView extends StatelessWidget {
-  const _TimelineView();
+  const _TimelineView({required this.isProvisional});
+
+  final bool isProvisional;
 
   @override
   Widget build(BuildContext context) {
@@ -76,26 +84,21 @@ class _TimelineView extends StatelessWidget {
         Positioned(
           right: 16,
           bottom: 16,
-          child: FloatingActionButton.extended(
-            heroTag: 'work_log_fab_${state.farmId}',
+          child: FloatingActionButton(
+            heroTag: 'timeline_add_fab_${state.farmId}',
             backgroundColor: const Color(0xFF2E5C39),
             foregroundColor: Colors.white,
-            onPressed: () => _addWorkLog(context, state),
-            icon: const Icon(Icons.add),
-            label: const Text('作業記録'),
+            onPressed: () => FarmRecordAddActions.handleFabPressed(
+              context: context,
+              farmId: state.farmId,
+              isProvisional: isProvisional,
+              onReload: state.reload,
+            ),
+            child: const Icon(Icons.add),
           ),
         ),
       ],
     );
-  }
-
-  Future<void> _addWorkLog(BuildContext context, TimelineNotifier state) async {
-    final saved = await WorkLogEditScreen.show(context, farmId: state.farmId);
-    if (!saved || !context.mounted) return;
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('作業記録を保存しました')));
-    await state.reload();
   }
 
   Future<void> _editWorkLog(
@@ -574,7 +577,7 @@ class _ErrorState extends StatelessWidget {
 
 String _shortDate(String date) {
   if (date.length >= 10) {
-    return '${date.substring(5, 7)}/${date.substring(8, 10)}';
+    return '${date.substring(0, 4)}/${date.substring(5, 7)}/${date.substring(8, 10)}';
   }
   return date;
 }

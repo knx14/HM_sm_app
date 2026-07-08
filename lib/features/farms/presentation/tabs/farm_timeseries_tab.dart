@@ -6,24 +6,31 @@ import 'package:provider/provider.dart';
 import '../../../results/domain/result_parameter.dart';
 import '../../../results/domain/timeseries_result.dart';
 import '../../../results/presentation/providers/timeseries_notifier.dart';
-import '../../../work_logs/presentation/work_log_edit_screen.dart';
+import '../../../results/presentation/widgets/farm_record_add_sheet.dart';
 
 class FarmTimeseriesTab extends StatelessWidget {
-  const FarmTimeseriesTab({super.key, required this.farmId});
+  const FarmTimeseriesTab({
+    super.key,
+    required this.farmId,
+    required this.isProvisional,
+  });
 
   final int farmId;
+  final bool isProvisional;
 
   @override
   Widget build(BuildContext context) {
     return ChangeNotifierProvider(
       create: (_) => TimeseriesNotifier(farmId: farmId)..loadInitial(),
-      child: const _TimeseriesView(),
+      child: _TimeseriesView(isProvisional: isProvisional),
     );
   }
 }
 
 class _TimeseriesView extends StatelessWidget {
-  const _TimeseriesView();
+  const _TimeseriesView({required this.isProvisional});
+
+  final bool isProvisional;
 
   @override
   Widget build(BuildContext context) {
@@ -44,19 +51,6 @@ class _TimeseriesView extends StatelessWidget {
               _RangeSelector(
                 selected: state.selectedRange,
                 onChanged: context.read<TimeseriesNotifier>().setRange,
-              ),
-              _PeriodSelector(
-                selectedRange: state.selectedRange,
-                selectedYear: state.selectedYear,
-                selectedMonth: state.selectedMonth,
-                availableYears: state.availableYears,
-                availableMonths: state.availableMonths,
-                onYearChanged: context
-                    .read<TimeseriesNotifier>()
-                    .setSelectedYear,
-                onMonthChanged: context
-                    .read<TimeseriesNotifier>()
-                    .setSelectedMonth,
               ),
               if (state.isLoading && data == null)
                 const Expanded(
@@ -85,11 +79,18 @@ class _TimeseriesView extends StatelessWidget {
                     child: ListView(
                       padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
                       children: [
-                        _LatestAverageCard(data: displayData),
+                        _LatestAverageCard(
+                          parameter: displayData.parameter,
+                          unit: displayData.unit,
+                          farmAverage: data.farmAverage,
+                        ),
                         const SizedBox(height: 12),
                         SizedBox(
                           height: 280,
-                          child: _TimeseriesChart(data: displayData),
+                          child: _TimeseriesChart(
+                            data: displayData,
+                            farmAverage: data.farmAverage,
+                          ),
                         ),
                         const SizedBox(height: 12),
                         const _LegendRow(),
@@ -108,29 +109,21 @@ class _TimeseriesView extends StatelessWidget {
         Positioned(
           right: 16,
           bottom: 16,
-          child: FloatingActionButton.extended(
-            heroTag: 'timeseries_work_log_fab_${state.farmId}',
+          child: FloatingActionButton(
+            heroTag: 'timeseries_add_fab_${state.farmId}',
             backgroundColor: const Color(0xFF2E5C39),
             foregroundColor: Colors.white,
-            onPressed: () => _addWorkLog(context, state),
-            icon: const Icon(Icons.add),
-            label: const Text('作業記録'),
+            onPressed: () => FarmRecordAddActions.handleFabPressed(
+              context: context,
+              farmId: state.farmId,
+              isProvisional: isProvisional,
+              onReload: state.reload,
+            ),
+            child: const Icon(Icons.add),
           ),
         ),
       ],
     );
-  }
-
-  Future<void> _addWorkLog(
-    BuildContext context,
-    TimeseriesNotifier state,
-  ) async {
-    final saved = await WorkLogEditScreen.show(context, farmId: state.farmId);
-    if (!saved || !context.mounted) return;
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('作業記録を保存しました')));
-    await state.reload();
   }
 }
 
@@ -197,74 +190,62 @@ class _RangeSelector extends StatelessWidget {
   }
 }
 
-class _PeriodSelector extends StatelessWidget {
-  const _PeriodSelector({
-    required this.selectedRange,
-    required this.selectedYear,
-    required this.selectedMonth,
-    required this.availableYears,
-    required this.availableMonths,
-    required this.onYearChanged,
-    required this.onMonthChanged,
+class _LatestAverageCard extends StatelessWidget {
+  const _LatestAverageCard({
+    required this.parameter,
+    required this.unit,
+    required this.farmAverage,
   });
 
-  final TimeseriesRange selectedRange;
-  final int selectedYear;
-  final DateTime selectedMonth;
-  final List<int> availableYears;
-  final List<DateTime> availableMonths;
-  final ValueChanged<int> onYearChanged;
-  final ValueChanged<DateTime> onMonthChanged;
+  final String parameter;
+  final String? unit;
+  final double? farmAverage;
 
   @override
   Widget build(BuildContext context) {
-    if (selectedRange == TimeseriesRange.all) {
-      return const SizedBox.shrink();
-    }
-
-    return Material(
-      color: Theme.of(context).colorScheme.surface,
+    final colorScheme = Theme.of(context).colorScheme;
+    return Card(
+      elevation: 0,
+      color: colorScheme.surfaceContainerLow,
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
-        child: selectedRange == TimeseriesRange.oneYear
-            ? DropdownButtonFormField<int>(
-                initialValue: selectedYear,
-                decoration: const InputDecoration(
-                  labelText: '表示する年',
-                  isDense: true,
-                  border: OutlineInputBorder(),
-                ),
-                items: availableYears
-                    .map(
-                      (year) => DropdownMenuItem<int>(
-                        value: year,
-                        child: Text('$year年'),
-                      ),
-                    )
-                    .toList(growable: false),
-                onChanged: (year) {
-                  if (year != null) onYearChanged(year);
-                },
-              )
-            : DropdownButtonFormField<DateTime>(
-                initialValue: selectedMonth,
-                decoration: const InputDecoration(
-                  labelText: '表示する年月',
-                  isDense: true,
-                  border: OutlineInputBorder(),
-                ),
-                items: availableMonths
-                    .map(
-                      (month) => DropdownMenuItem<DateTime>(
-                        value: month,
-                        child: Text('${month.year}年${month.month}月'),
-                      ),
-                    )
-                    .toList(growable: false),
-                onChanged: (month) {
-                  if (month != null) onMonthChanged(month);
-                },
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '圃場平均（全期間・$parameter）',
+                    style: TextStyle(
+                      color: colorScheme.onSurface.withValues(alpha: 0.62),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    farmAverage == null ? 'データなし' : '全測定日の平均',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: colorScheme.onSurface.withValues(alpha: 0.62),
+                    ),
+                  ),
+                ],
               ),
+            ),
+            Text(
+              farmAverage == null ? '--' : farmAverage!.toStringAsFixed(1),
+              style: const TextStyle(fontSize: 34, fontWeight: FontWeight.w800),
+            ),
+            if (unit != null && farmAverage != null) ...[
+              const SizedBox(width: 4),
+              Padding(
+                padding: const EdgeInsets.only(bottom: 6),
+                child: Text(unit!),
+              ),
+            ],
+          ],
+        ),
       ),
     );
   }
@@ -308,66 +289,11 @@ class _ParameterSelector extends StatelessWidget {
   }
 }
 
-class _LatestAverageCard extends StatelessWidget {
-  const _LatestAverageCard({required this.data});
-
-  final TimeseriesResult data;
-
-  @override
-  Widget build(BuildContext context) {
-    final latest = data.points.last;
-    final colorScheme = Theme.of(context).colorScheme;
-    return Card(
-      elevation: 0,
-      color: colorScheme.surfaceContainerLow,
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    '圃場平均（${data.parameter}）',
-                    style: TextStyle(
-                      color: colorScheme.onSurface.withValues(alpha: 0.62),
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    latest.date,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: colorScheme.onSurface.withValues(alpha: 0.62),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Text(
-              latest.avg.toStringAsFixed(1),
-              style: const TextStyle(fontSize: 34, fontWeight: FontWeight.w800),
-            ),
-            if (data.unit != null) ...[
-              const SizedBox(width: 4),
-              Padding(
-                padding: const EdgeInsets.only(bottom: 6),
-                child: Text(data.unit!),
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 class _TimeseriesChart extends StatelessWidget {
-  const _TimeseriesChart({required this.data});
+  const _TimeseriesChart({required this.data, required this.farmAverage});
 
   final TimeseriesResult data;
+  final double? farmAverage;
 
   @override
   Widget build(BuildContext context) {
@@ -393,6 +319,7 @@ class _TimeseriesChart extends StatelessWidget {
                 painter: _TimeseriesChartPainter(
                   points: data.points,
                   workLogs: data.workLogs,
+                  farmAverage: farmAverage,
                   textColor: Theme.of(context).colorScheme.onSurface,
                   baseTextStyle: DefaultTextStyle.of(context).style,
                 ),
@@ -586,12 +513,14 @@ class _TimeseriesChartPainter extends CustomPainter {
   _TimeseriesChartPainter({
     required this.points,
     required this.workLogs,
+    required this.farmAverage,
     required this.textColor,
     required this.baseTextStyle,
   });
 
   final List<TimeseriesPoint> points;
   final List<WorkLogMark> workLogs;
+  final double? farmAverage;
   final Color textColor;
   final TextStyle baseTextStyle;
 
@@ -667,8 +596,14 @@ class _TimeseriesChartPainter extends CustomPainter {
     if (dateRange == null) return;
     final (minDate, maxDate) = dateRange;
 
-    final minY = points.map((p) => p.min).reduce(math.min);
-    final maxY = points.map((p) => p.max).reduce(math.max);
+    final minY = [
+      ...points.map((p) => p.avg),
+      if (farmAverage != null) farmAverage!,
+    ].reduce(math.min);
+    final maxY = [
+      ...points.map((p) => p.avg),
+      if (farmAverage != null) farmAverage!,
+    ].reduce(math.max);
     final yPadding = (maxY - minY).abs() < 0.001 ? 1.0 : (maxY - minY) * 0.12;
     final y0 = minY - yPadding;
     final y1 = maxY + yPadding;
@@ -719,30 +654,6 @@ class _TimeseriesChartPainter extends CustomPainter {
       );
     }
 
-    final bandPath = Path();
-    for (var i = 0; i < points.length; i++) {
-      final p = points[i];
-      final x = xForDate(p.date);
-      if (x == null) continue;
-      final point = Offset(x, yFor(p.max));
-      if (i == 0) {
-        bandPath.moveTo(point.dx, point.dy);
-      } else {
-        bandPath.lineTo(point.dx, point.dy);
-      }
-    }
-    for (var i = points.length - 1; i >= 0; i--) {
-      final p = points[i];
-      final x = xForDate(p.date);
-      if (x == null) continue;
-      bandPath.lineTo(x, yFor(p.min));
-    }
-    bandPath.close();
-    canvas.drawPath(
-      bandPath,
-      Paint()..color = const Color(0xFF4A8459).withValues(alpha: 0.16),
-    );
-
     final linePath = Path();
     for (var i = 0; i < points.length; i++) {
       final p = points[i];
@@ -770,6 +681,23 @@ class _TimeseriesChartPainter extends CustomPainter {
       canvas.drawCircle(Offset(x, yFor(points[i].avg)), 4, dotPaint);
     }
 
+    if (farmAverage != null) {
+      final avgY = yFor(farmAverage!);
+      final farmAvgPaint = Paint()
+        ..color = Colors.grey.withValues(alpha: 0.85)
+        ..strokeWidth = 2
+        ..style = PaintingStyle.stroke;
+      _drawDashedLine(
+        canvas,
+        Offset(chart.left, avgY),
+        Offset(chart.right, avgY),
+        farmAvgPaint,
+        dashLength: 8,
+        dashSpace: 4,
+        horizontal: true,
+      );
+    }
+
     final labelStep = math.max(1, (points.length / 4).ceil());
     for (var i = 0; i < points.length; i += labelStep) {
       final x = xForDate(points[i].date);
@@ -784,17 +712,36 @@ class _TimeseriesChartPainter extends CustomPainter {
     }
   }
 
-  void _drawDashedLine(Canvas canvas, Offset start, Offset end, Paint paint) {
-    const dashHeight = 6.0;
-    const dashSpace = 4.0;
+  void _drawDashedLine(
+    Canvas canvas,
+    Offset start,
+    Offset end,
+    Paint paint, {
+    double dashLength = 6.0,
+    double dashSpace = 4.0,
+    bool horizontal = false,
+  }) {
+    if (horizontal) {
+      var currentX = start.dx;
+      while (currentX < end.dx) {
+        canvas.drawLine(
+          Offset(currentX, start.dy),
+          Offset(math.min(currentX + dashLength, end.dx), start.dy),
+          paint,
+        );
+        currentX += dashLength + dashSpace;
+      }
+      return;
+    }
+
     var currentY = start.dy;
     while (currentY < end.dy) {
       canvas.drawLine(
         Offset(start.dx, currentY),
-        Offset(start.dx, math.min(currentY + dashHeight, end.dy)),
+        Offset(start.dx, math.min(currentY + dashLength, end.dy)),
         paint,
       );
-      currentY += dashHeight + dashSpace;
+      currentY += dashLength + dashSpace;
     }
   }
 
@@ -827,6 +774,7 @@ class _TimeseriesChartPainter extends CustomPainter {
   bool shouldRepaint(covariant _TimeseriesChartPainter oldDelegate) {
     return oldDelegate.points != points ||
         oldDelegate.workLogs != workLogs ||
+        oldDelegate.farmAverage != farmAverage ||
         oldDelegate.textColor != textColor ||
         oldDelegate.baseTextStyle != baseTextStyle;
   }
@@ -847,12 +795,12 @@ class _LegendRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Row(
+    return const Wrap(
+      spacing: 16,
+      runSpacing: 8,
       children: [
-        _LegendItem(color: Color(0xFF2E5C39), label: '平均'),
-        SizedBox(width: 16),
-        _LegendItem(color: Color(0x554A8459), label: 'min/max'),
-        SizedBox(width: 16),
+        _LegendItem(color: Color(0xFF2E5C39), label: '日別平均'),
+        _LegendItem(color: Colors.grey, label: '圃場平均（全期間）', isDashed: true),
         _LegendItem(color: Colors.orange, label: '作業'),
       ],
     );
@@ -860,21 +808,64 @@ class _LegendRow extends StatelessWidget {
 }
 
 class _LegendItem extends StatelessWidget {
-  const _LegendItem({required this.color, required this.label});
+  const _LegendItem({
+    required this.color,
+    required this.label,
+    this.isDashed = false,
+  });
 
   final Color color;
   final String label;
+  final bool isDashed;
 
   @override
   Widget build(BuildContext context) {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Container(width: 18, height: 4, color: color),
+        if (isDashed)
+          SizedBox(
+            width: 18,
+            height: 4,
+            child: CustomPaint(painter: _DashedLineLegendPainter(color: color)),
+          )
+        else
+          Container(width: 18, height: 4, color: color),
         const SizedBox(width: 6),
         Text(label, style: const TextStyle(fontSize: 12)),
       ],
     );
+  }
+}
+
+class _DashedLineLegendPainter extends CustomPainter {
+  const _DashedLineLegendPainter({required this.color});
+
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = 2
+      ..style = PaintingStyle.stroke;
+    const dashLength = 4.0;
+    const dashSpace = 2.0;
+    var x = 0.0;
+    final y = size.height / 2;
+    while (x < size.width) {
+      canvas.drawLine(
+        Offset(x, y),
+        Offset(math.min(x + dashLength, size.width), y),
+        paint,
+      );
+      x += dashLength + dashSpace;
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _DashedLineLegendPainter oldDelegate) {
+    return oldDelegate.color != color;
   }
 }
 
