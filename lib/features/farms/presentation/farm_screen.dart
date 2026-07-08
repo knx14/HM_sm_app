@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import '../../../core/api/api_client_factory.dart';
+import '../../../core/theme/app_text_styles.dart';
 import '../../../utils/polygon_area.dart';
 import '../../../utils/static_maps.dart';
 import '../../results/data/results_repository.dart';
@@ -433,13 +434,43 @@ class _FarmCard extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          farm.farmName,
-                          style: theme.textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.w800,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                farm.farmName,
+                                style: AppTextStyles.homeFarmNameStyle(
+                                  theme.textTheme,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            if (farm.isProvisional) ...[
+                              const SizedBox(width: 6),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 3,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFFEF0D8),
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(
+                                    color: const Color(0xFFB85C00),
+                                  ),
+                                ),
+                                child: const Text(
+                                  '仮登録中',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w700,
+                                    color: Color(0xFFB85C00),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ],
                         ),
                         const SizedBox(height: 2),
                         Text(
@@ -449,11 +480,7 @@ class _FarmCard extends StatelessWidget {
                           ].join(' / '),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: colorScheme.onSurface.withValues(
-                              alpha: 0.68,
-                            ),
-                          ),
+                          style: AppTextStyles.homeAuxStyle(colorScheme),
                         ),
                         const SizedBox(height: 6),
                         _LatestLine(latest: latest),
@@ -543,18 +570,16 @@ class _LatestLine extends StatelessWidget {
     if (latest == null) {
       return _SingleLineScaleDownText(
         text: '最終測定なし',
-        style: TextStyle(
+        style: AppTextStyles.homeDateStyle(
           color: colorScheme.onSurface.withValues(alpha: 0.62),
-          fontSize: 12,
         ),
       );
     }
     return _SingleLineScaleDownText(
       text:
           '最終測定 ${fmt.formatYyyyMmDdSlash(latest!.latestMeasurementDate)} / ${latest!.cecStats.countPoints}点',
-      style: const TextStyle(
-        color: Color(0xFF4A8459),
-        fontSize: 12,
+      style: AppTextStyles.homeDateStyle(
+        color: const Color(0xFF4A8459),
         fontWeight: FontWeight.w700,
       ),
     );
@@ -601,19 +626,13 @@ class _ValueChip extends StatelessWidget {
           children: [
             Text(
               label,
-              style: TextStyle(
-                fontSize: 10,
-                color: colorScheme.onSurface.withValues(alpha: 0.62),
-                fontWeight: FontWeight.w700,
-              ),
+              style: AppTextStyles.homeLabelStyle(colorScheme),
               maxLines: 1,
               overflow: TextOverflow.visible,
             ),
             Text(
               value == null ? '--' : value!.toStringAsFixed(1),
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w800,
+              style: AppTextStyles.homeValueLargeStyle(
                 color: value == null
                     ? colorScheme.onSurface.withValues(alpha: 0.38)
                     : null,

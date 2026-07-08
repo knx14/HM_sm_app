@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>HenryMonitor 未修整項目 実装手順書（Flutter実装フェーズ）</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&family=Noto+Serif+JP:wght@700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#f8f7f1;--paper:#fff;--ink:#1a2318;--ink2:#3d4f3a;--ink3:#6b7e68;
+  --line:#dbd6c4;--lines:#eae6d6;
+  --leaf:#2e5c39;--leafl:#4a8459;--leafp:#e2ede4;
+  --soil:#7a4525;--soilp:#f2e8e0;
+  --amber:#b85c00;--amberp:#fef0d8;
+  --red:#b02020;--redp:#fce4e4;
+  --blue:#1a4f7a;--bluep:#ddeaf5;
+  --teal:#1a6a6a;--tealp:#d8efef;
+  --grey:#5a5a52;--greyp:#e9e8e0;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:'Noto Sans JP',sans-serif;line-height:1.75;font-size:15.5px}
+h1,h2,h3{font-family:'Noto Serif JP',serif;color:var(--ink);margin:0 0 .5em}
+code,pre,.mono{font-family:'JetBrains Mono',monospace}
+a{color:var(--leaf)}
+.layout{display:flex;max-width:1320px;margin:0 auto}
+nav.side{width:260px;flex:none;position:sticky;top:0;height:100vh;overflow-y:auto;padding:28px 18px;border-right:1px solid var(--line);background:var(--paper)}
+nav.side ul{list-style:none;padding:0;margin:0}
+nav.side li{margin:2px 0}
+nav.side a{display:block;padding:6px 10px;border-radius:6px;color:var(--ink2);text-decoration:none;font-size:13.5px}
+nav.side a.sec{font-weight:700;color:var(--ink)}
+nav.side a.sub{padding-left:20px;font-size:12.5px;color:var(--ink3)}
+nav.side a:hover{background:var(--leafp)}
+nav.side hr{border:none;border-top:1px solid var(--lines);margin:10px 0}
+main.main{flex:1;min-width:0;padding:40px 56px 100px}
+.cover{padding:32px 0 28px;border-bottom:3px solid var(--ink)}
+.badge{display:inline-block;background:var(--amberp);color:var(--amber);border:1px solid var(--amber);border-radius:20px;padding:3px 14px;font-size:12.5px;font-weight:700;margin-bottom:14px}
+.cover h1{font-size:30px}
+.cover .desc{color:var(--ink2);max-width:780px}
+.cmeta{display:flex;flex-wrap:wrap;gap:10px;margin-top:18px}
+.cmeta dl{margin:0;background:var(--paper);border:1px solid var(--line);border-radius:8px;padding:8px 14px;min-width:170px}
+.cmeta dt{font-size:11px;color:var(--ink3);margin:0}
+.cmeta dd{margin:2px 0 0;font-weight:700;font-size:13.5px}
+section{padding:38px 0;border-bottom:1px solid var(--lines)}
+section h2{font-size:22px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.tag{font-size:11px;font-weight:700;padding:2px 10px;border-radius:14px}
+.tag.laravel{background:var(--bluep);color:var(--blue)}
+.tag.flutter{background:var(--tealp);color:var(--teal)}
+.tag.db{background:var(--soilp);color:var(--soil)}
+.tag.new{background:var(--redp);color:var(--red)}
+.tag.done{background:var(--leafp);color:var(--leaf)}
+h3.step{font-size:16px;margin-top:28px;background:var(--leafp);color:var(--leaf);padding:6px 12px;border-radius:6px;display:inline-block}
+h3.step.done{background:var(--greyp);color:var(--grey)}
+table{border-collapse:collapse;width:100%;margin:14px 0;font-size:13.8px}
+th,td{border:1px solid var(--line);padding:8px 10px;text-align:left;vertical-align:top}
+th{background:var(--paper);font-weight:700}
+tr:nth-child(even) td{background:#fbfaf5}
+pre{background:#1e261c;color:#eae6d6;padding:14px 16px;border-radius:8px;overflow-x:auto;font-size:12.8px;line-height:1.6}
+code.inline{background:var(--lines);padding:1px 6px;border-radius:4px;font-size:.92em}
+.note{background:var(--amberp);border-left:4px solid var(--amber);padding:10px 16px;border-radius:0 6px 6px 0;margin:14px 0;font-size:13.8px}
+.note.blue{background:var(--bluep);border-left-color:var(--blue)}
+.note.red{background:var(--redp);border-left-color:var(--red)}
+.note.done{background:var(--leafp);border-left-color:var(--leaf)}
+.check{list-style:none;padding:0;margin:10px 0}
+.check li{padding:5px 0 5px 28px;position:relative;font-size:13.8px}
+.check li::before{content:"☐";position:absolute;left:0;color:var(--ink3)}
+.check.done li::before{content:"☑";color:var(--leaf)}
+.file{font-size:12.5px;color:var(--ink3)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+@media (max-width:900px){.grid2{grid-template-columns:1fr}}
+.donebox{border:1px solid var(--line);border-radius:8px;padding:16px 18px;background:var(--paper);margin:14px 0}
+.donebox h4{margin:0 0 8px;font-size:14px;color:var(--leaf)}
+</style>
+</head>
+<body>
+<div class="layout">
+
+<nav class="side">
+  <ul>
+    <li><a class="sec" href="#status">現在の状況</a></li>
+    <li><a class="sec" href="#prereq">0. 前提確認</a></li>
+    <hr>
+    <li><a class="sec" href="#A">A. ホーム画面フォント拡大</a></li>
+    <hr>
+    <li><a class="sec" href="#B">B. 圃場の仮登録機能</a></li>
+    <li><a class="sub" href="#Bdone">B-1〜B-4（Laravel・完了）</a></li>
+    <li><a class="sub" href="#B5">B-5 Flutter 仮登録フォーム</a></li>
+    <li><a class="sub" href="#B6">B-6 測定時エリア判定スキップ</a></li>
+    <hr>
+    <li><a class="sec" href="#C">C. 時系列・タイムライン改修</a></li>
+    <li><a class="sub" href="#C1">C-1 期間フィルタ変更（Flutter）</a></li>
+    <li><a class="sub" href="#C2done">C-2 圃場平均ロジック（Laravel・完了）</a></li>
+    <li><a class="sub" href="#C2flutter">C-2 圃場平均の点線描画（Flutter）</a></li>
+    <li><a class="sub" href="#C3done">C-3 過去実績手動登録API（Laravel・完了）</a></li>
+    <li><a class="sub" href="#C3admin">C-3-3 管理画面フォーム拡張（別タスク）</a></li>
+    <hr>
+    <li><a class="sec" href="#check">動作確認チェックリスト</a></li>
+    <li><a class="sec" href="#deploy">commit → PR → CI/CD</a></li>
+    <li><a class="sec" href="#dod">✓ 完了条件</a></li>
+  </ul>
+</nav>
+
+<main class="main">
+
+<div class="cover">
+  <span class="badge">FB対応・残タスク（Flutter実装フェーズ）</span>
+  <h1>未修整項目 実装手順書</h1>
+  <p class="desc">
+    Laravel側の実装（B：仮登録の受け皿API／C-2：圃場平均ロジック／C-3：過去実績手動登録API）は
+    テスト69件PASSで完了し、本番マージ済みの前提で本書を更新した。
+    ここからはFlutter側（A／B-5／B-6／C-1／C-2の点線描画）の実装に進む。
+    管理画面フォーム拡張（C-3-3）はFlutterと独立した別タスクとして最後に扱う。
+  </p>
+  <div class="cmeta">
+    <dl><dt>Laravel側</dt><dd>実装・テスト完了（69件PASS）</dd></dl>
+    <dl><dt>これから実装</dt><dd>Flutter：A / B-5 / B-6 / C-1 / C-2描画</dd></dl>
+    <dl><dt>別タスク</dt><dd>C-3-3 管理画面フォーム拡張</dd></dl>
+    <dl><dt>ブランチ</dt><dd><code class="inline">feature/pending-items-2-flutter</code></dd></dl>
+    <dl><dt>analyze baseline</dt><dd>117件以下を維持</dd></dl>
+  </div>
+</div>
+
+<!-- ============ 現在の状況 ============ -->
+<section id="status">
+<h2>現在の状況</h2>
+<table>
+<tr><th>項目</th><th>状態</th><th>備考</th></tr>
+<tr><td>A. ホーム画面フォント拡大</td><td>未実施</td><td>Flutterのみ</td></tr>
+<tr><td>B-1〜B-4（DB・API・モデル）</td><td><span class="tag done">完了</span></td><td>farms nullable化はすでに実施済みだったため確認のみ、整合性のためマイグレーション追加済み</td></tr>
+<tr><td>B-5 Flutter仮登録フォーム</td><td>未実施</td><td>本書で今回対応</td></tr>
+<tr><td>B-6 測定時エリア判定スキップ</td><td>未実施</td><td>本書で今回対応</td></tr>
+<tr><td>C-1 期間フィルタUI</td><td>未実施</td><td>Flutterのみ</td></tr>
+<tr><td>C-2 圃場平均ロジック（サーバー側計算）</td><td><span class="tag done">完了</span></td><td><code class="inline">farm_average</code>がAPIレスポンスに追加済み</td></tr>
+<tr><td>C-2 圃場平均の点線描画</td><td>未実施</td><td>本書で今回対応（Flutter）</td></tr>
+<tr><td>C-3 過去実績手動登録API</td><td><span class="tag done">完了</span></td><td>重複チェック修正済み、69件PASS</td></tr>
+<tr><td>C-3-3 管理画面フォーム拡張</td><td>未実施</td><td>Flutterと無関係な別タスク（Laravel Blade）</td></tr>
+</table>
+</section>
+
+<!-- ============ 0. 前提確認 ============ -->
+<section id="prereq">
+<h2>0. 前提確認</h2>
+<ul class="check">
+  <li>Laravel側の変更（<code class="inline">feature/pending-items-2</code>）がmainにマージ済み・本番migrate完了済みであることを確認</li>
+  <li><code class="inline">git checkout main && git pull</code> → <code class="inline">git checkout -b feature/pending-items-2-flutter</code></li>
+  <li><code class="inline">flutter analyze</code> を実行し、baseline が117件（info）のままであることを確認</li>
+  <li>下記「実装済みAPI仕様」を一読し、Flutter側が新たに叩く／解釈するレスポンス形式を把握しておく</li>
+</ul>
+</section>
+
+<!-- ============ A. ホーム画面フォント拡大 ============ -->
+<section id="A">
+<h2>A. ホーム画面のフォントサイズ拡大 <span class="tag flutter">Flutter</span></h2>
+
+<h3 class="step">Step A-1：対象箇所の洗い出し</h3>
+<p><code class="inline">HomeScreen</code>（結果閲覧タブ）内のテキストウィジェットを棚卸しし、フォントサイズをハードコードしている箇所と <code class="inline">Theme.of(context).textTheme</code> を参照している箇所を分類する。</p>
+<pre>grep -rn "fontSize" lib/features/results/presentation/ | grep -i home
+grep -rn "TextStyle(" lib/features/results/presentation/</pre>
+
+<h3 class="step">Step A-2：拡大方針の決定</h3>
+<table>
+<tr><th>要素</th><th>現状（目安）</th><th>変更後（目安）</th></tr>
+<tr><td>圃場名・見出し</td><td>16px</td><td>18〜19px</td></tr>
+<tr><td>最新結果カードの数値（CEC等）</td><td>20px</td><td>24px</td></tr>
+<tr><td>ラベル・補助テキスト（ばらつき小 等）</td><td>12px</td><td>13〜14px</td></tr>
+<tr><td>日付</td><td>12px</td><td>13px</td></tr>
+</table>
+<div class="note">
+  農家ユーザーは高齢者比率が高いことが想定されるため、圃場管理画面や測定画面など他タブへの
+  影響は今回のスコープ外とし、まずはホーム（結果閲覧）タブに限定して実施する。
+</div>
+
+<h3 class="step">Step A-3：実装</h3>
+<ul class="check">
+  <li>個別 <code class="inline">TextStyle(fontSize: ...)</code> のハードコードを避け、可能な範囲で共通の <code class="inline">AppTextStyles</code>（既存があれば流用、なければ <span class="file">lib/core/theme/</span> 配下に定義）に集約</li>
+  <li>OS設定の文字拡大（<code class="inline">MediaQuery.textScaleFactor</code>）を無効化していないか確認し、無効化している場合は解除を検討</li>
+  <li>カード内のレイアウトがフォント拡大により崩れないか（横並びChipの折り返し等）を確認</li>
+</ul>
+
+<h3 class="step">Step A-4：実機確認</h3>
+<ul class="check">
+  <li>実機でホーム画面の見た目を確認（カード・最新結果・圃場ごとの結果一覧）</li>
+  <li>文字が大きくなったことで1画面に収まる情報量が減っても、スクロールで問題なく閲覧できることを確認</li>
+  <li><code class="inline">flutter analyze</code> でbaseline増加がないことを確認</li>
+</ul>
+</section>
+
+<!-- ============ B. 圃場の仮登録機能 ============ -->
+<section id="B">
+<h2>B. 圃場の仮登録機能 <span class="tag flutter">Flutter</span></h2>
+<p>
+  現状の圃場登録は「基本情報（圃場名・栽培方式・作物種別）→ 境界設定（GPS区画）」の2ステップが必須。
+  仮登録機能では、<b>圃場名のみ</b>で登録を完了できるようにし、栽培方式・作物種別・境界情報は未入力のまま
+  測定を開始できるようにする。境界情報がない圃場では、測定時のエリア内外判定（<code class="inline">maps_toolkit</code>）を
+  スキップする。<b>DB・API側は実装済み</b>のため、以下はFlutter側の実装に必要な情報のみをまとめる。
+</p>
+
+<div class="donebox" id="Bdone">
+<h4>✅ Laravel側 実装済み（B-1〜B-4）</h4>
+<table>
+<tr><th>変更</th><th>内容</th></tr>
+<tr><td>DB調査結果</td><td><code class="inline">cultivation_method</code> / <code class="inline">crop_type</code> / <code class="inline">boundary_polygon</code> は元々nullableだった。整合性確認のためのマイグレーションのみ追加済み</td></tr>
+<tr><td>uploadsマイグレーション</td><td><code class="inline">uploads.file_path</code> をnullable化（手動登録データ用）</td></tr>
+<tr><td>Farmモデル</td><td><code class="inline">isProvisional()</code> 追加。専用カラムは持たず、<code class="inline">boundary_polygon</code> が空かどうかだけで判定</td></tr>
+<tr><td>StoreFarmRequest / UpdateFarmRequest</td><td><code class="inline">boundary_polygon</code> をnullable化</td></tr>
+<tr><td>地図API</td><td>既存の <code class="inline">normalizeBoundaryPolygon()</code> が <code class="inline">null → []</code> を返すよう対応済み</td></tr>
+</table>
+<p style="margin:8px 0 0;font-size:13.5px">
+  → Flutterから見た挙動：<code class="inline">POST /api/v1/farms</code> は <code class="inline">farm_name</code> のみで201が返る。
+  圃場一覧・地図系APIのレスポンスで、境界未設定の圃場の <code class="inline">boundary_polygon</code> は
+  <code class="inline">null</code> ではなく<b>空配列 <code class="inline">[]</code></b> として返る点に注意（nullチェックではなく空チェックで判定すること）。
+</p>
+</div>
+
+<h3 class="step" id="B5">Step B-5：Flutter 圃場登録フローの分岐UI</h3>
+<p>
+  <span class="file">lib/features/farms/</span> 配下の圃場登録画面に「仮登録で進める」の導線を追加する。
+  既存の「基本情報 → 境界設定」の2ステップ遷移はそのまま維持し、基本情報画面に仮登録用のショートカットを設ける。
+</p>
+<table>
+<tr><th>画面</th><th>現状</th><th>変更内容</th></tr>
+<tr><td>基本情報画面</td><td>圃場名・栽培方式・作物種別すべて必須バリデーション</td><td>圃場名のみ必須。栽培方式・作物種別は任意（バリデーション削除）</td></tr>
+<tr><td>ボタン</td><td>「境界設定へ」1つのみ</td><td>「境界設定へ」（本登録）＋「仮登録として保存」（境界設定スキップ）の2ボタン</td></tr>
+<tr><td>境界設定画面</td><td>必須遷移</td><td>「仮登録として保存」経由の場合はスキップし、直接APIへPOST（<code class="inline">boundary_polygon</code>を送らない）</td></tr>
+<tr><td>圃場一覧カード</td><td>通常表示</td><td>仮登録圃場（<code class="inline">boundary_polygon.isEmpty</code>）は「仮登録中」バッジを表示し、タップで基本情報画面に戻り本登録を完了できる導線を用意</td></tr>
+</table>
+<pre>// Farmモデル（Flutter側）の判定は、Laravel側isProvisional()と同じロジックで統一する
+class Farm {
+  final List&lt;LatLng&gt; boundaryPolygon; // APIは空配列[]で返す（null化しない）
+  bool get isProvisional =&gt; boundaryPolygon.isEmpty;
+  ...
+}</pre>
+<pre>// 基本情報画面（例：FarmBasicInfoScreen）
+ElevatedButton(
+  onPressed: _canProceedToBoundary ? _goToBoundarySetting : null,
+  child: const Text('境界設定へ'),
+),
+const SizedBox(height: 8),
+OutlinedButton(
+  onPressed: _farmNameController.text.trim().isNotEmpty
+      ? _saveAsProvisional
+      : null,
+  child: const Text('仮登録として保存（あとで境界設定）'),
+),</pre>
+<pre>Future&lt;void&gt; _saveAsProvisional() async {
+  await context.read&lt;FarmRepository&gt;().createFarm(
+    farmName: _farmNameController.text.trim(),
+    cultivationMethod: null,
+    cropType: null,
+    boundaryPolygon: null, // サーバーは空配列[]として保存・返却する
+  );
+  if (mounted) Navigator.of(context).pop();
+}</pre>
+
+<h3 class="step" id="B6">Step B-6：測定画面 — エリア判定ロジックのスキップ</h3>
+<p>
+  <code class="inline">MeasurementSessionScreen</code> のStep3（本測定）における「圃場内外判定（<code class="inline">maps_toolkit</code>）→ 圃場外なら測定開始禁止」
+  のロジックを、選択中の圃場が仮登録圃場（<code class="inline">boundaryPolygon.isEmpty</code>）の場合はスキップする。
+</p>
+<pre>// MeasurementSessionScreen 内、圃場内外判定箇所
+bool _isInsideOrEdge(LatLng point) {
+  final farm = _selectedFarm;
+  if (farm == null) return false;
+
+  // 仮登録圃場（境界情報なし）はエリア判定自体を行わない
+  if (farm.boundaryPolygon.isEmpty) {
+    return true; // 常に測定可能とみなす
+  }
+
+  final containment = PolygonUtil.containsLocation(point, farm.boundaryPolygon, false);
+  final onEdge = PolygonUtil.isLocationOnEdge(point, farm.boundaryPolygon, 1e-6);
+  return containment || onEdge;
+}</pre>
+<ul class="check">
+  <li>本測定画面で、赤い圃場境界線が「仮登録圃場では表示されない」ことをUI上でも明示（境界未設定のバナー等）</li>
+  <li>仮登録圃場選択時は「測定開始」ボタンが常に有効であることを確認</li>
+  <li>境界情報がある通常の圃場では、従来通り圃場外判定が機能することを回帰確認</li>
+</ul>
+<div class="note red">
+  仮登録圃場はGPS判定を行わないため、誤って別の畑で測定してしまうリスクがある。
+  測定開始前の確認ダイアログに「この圃場は仮登録のため、位置情報による誤測定防止が働きません」の注意文言を追加することを推奨する（必須ではないが強く推奨）。
+</div>
+</section>
+
+<!-- ============ C. 時系列・タイムライン改修 ============ -->
+<section id="C">
+<h2>C. 時系列・タイムライン画面の改修 <span class="tag flutter">Flutter</span></h2>
+
+<h3 class="step" id="C1">C-1. 時系列グラフの期間フィルタ変更</h3>
+<p>
+  既存の期間フィルタ（すべて／1年間／1ヶ月）を <b>すべて／3年間／1年間</b> に変更する。
+  データ取得自体はサーバー側で絞り込まず、既存通りクライアント側フィルタ（<code class="inline">graphic</code>ライブラリ描画前のリスト絞り込み）で対応する。
+</p>
+<pre>// lib/features/results/presentation/tabs/timeseries_tab.dart（既存のSegmentedButton相当箇所）
+enum TimeseriesRange { all, threeYears, oneYear }
+
+extension on TimeseriesRange {
+  String get label =&gt; switch (this) {
+    TimeseriesRange.all =&gt; 'すべて',
+    TimeseriesRange.threeYears =&gt; '3年間',
+    TimeseriesRange.oneYear =&gt; '1年間',
+  };
+  Duration? get duration =&gt; switch (this) {
+    TimeseriesRange.all =&gt; null,
+    TimeseriesRange.threeYears =&gt; const Duration(days: 365 * 3),
+    TimeseriesRange.oneYear =&gt; const Duration(days: 365),
+  };
+}</pre>
+<ul class="check">
+  <li>既存の「1ヶ月」選択肢を削除し「3年間」に置き換え</li>
+  <li>フィルタ切り替え時にグラフが再描画され、選択範囲外のプロットが除外されることを確認</li>
+  <li>デフォルト選択は現状維持（要確認：既存実装のデフォルトを踏襲）</li>
+</ul>
+
+<div class="donebox" id="C2done">
+<h4>✅ Laravel側 実装済み（C-2 圃場平均の計算ロジック）</h4>
+<table>
+<tr><th>変更</th><th>内容</th></tr>
+<tr><td>ResultsAggregationService</td><td><code class="inline">computeFarmAverage()</code> 追加。各測定日の平均値を算出し、その単純平均を返す（点数による重み付けなし）</td></tr>
+<tr><td>ResultsTimeseriesService</td><td>レスポンスに <code class="inline">farm_average</code> を追加</td></tr>
+<tr><td><code class="inline">GET /api/farms/{farmId}/results/timeseries</code></td><td><code class="inline">farm_average</code> フィールド付きで返却（データが1件もない場合は<code class="inline">null</code>）</td></tr>
+</table>
+<pre>// レスポンス例
+{
+  "fixed_points": [ ... ],   // 既存：固定地点別の時系列
+  "farm_average": 22.13      // 日付別平均の単純平均（1つのfloat値 or null）
+}</pre>
+</div>
+
+<h3 class="step" id="C2flutter">Step C-2：Flutter — 圃場平均を水平点線として描画</h3>
+<p>
+  <code class="inline">farm_average</code> は「日付ごとに変化する値」ではなく「圃場を代表する1つの固定値」。
+  グラフの横軸全体を通じて<b>水平な1本の点線</b>として描画する（日付ごとの平均点を結ぶ折れ線ではない）。
+</p>
+<pre>// lib/features/results/domain/timeseries_models.dart
+class TimeseriesResponse {
+  final List&lt;FixedPointSeries&gt; fixedPoints;
+  final double? farmAverage; // 圃場平均（全期間フラットな1本の値）
+  ...
+}</pre>
+<pre>// グラフの表示期間の最初と最後の日付に同じfarmAverage値を持つ2点を用意し、
+// 1本の点線として描画する
+final farmAverageSeries = farmAverage == null
+    ? &lt;Map&lt;String, dynamic&gt;&gt;[]
+    : [
+        {'date': visibleDateRange.start, 'value': farmAverage},
+        {'date': visibleDateRange.end,   'value': farmAverage},
+      ];
+
+LineMark(
+  data: farmAverageSeries,
+  position: Varset('date') * Varset('value'),
+  shape: ShapeEncode(value: BasicLineShape(dash: [4, 2])), // 点線
+  color: ColorEncode(value: Colors.grey),
+),</pre>
+<ul class="check">
+  <li>凡例に「圃場平均（全期間）」の項目を点線サンプルとともに追加</li>
+  <li>期間フィルタ（すべて／3年間／1年間）を切り替えても、圃場平均の点線は水平のまま高さが変わらないことを確認（フィルタは表示範囲のみに影響し、<code class="inline">farm_average</code>の値自体は変えない）</li>
+  <li>固定地点の実線・フリー地点の点群・圃場平均の点線が同一グラフ上で判別可能なことを確認</li>
+  <li><code class="inline">farm_average</code> が<code class="inline">null</code>（測定実績なし）の場合、点線を描画せずエラーにもならないことを確認</li>
+</ul>
+
+<div class="donebox" id="C3done">
+<h4>✅ Laravel側 実装済み（C-3 過去実績手動登録API）</h4>
+<table>
+<tr><th>項目</th><th>内容</th></tr>
+<tr><td>エンドポイント</td><td><code class="inline">POST /api/manual-results</code>（Cognito JWT必須）</td></tr>
+<tr><td>新規ファイル</td><td><code class="inline">ManualResultController</code> / <code class="inline">StoreManualResultRequest</code> / <code class="inline">PolygonCentroidService</code> / <code class="inline">SoilParameterUnits</code></td></tr>
+<tr><td>境界未設定圃場への登録</td><td>422 <code class="inline">farm_boundary_required</code>（仮登録圃場は対象外）</td></tr>
+<tr><td>重複チェック</td><td><code class="inline">measurement_parameters-&gt;manual_entry = true</code>の手動登録データ同士のみを対象に判定。センサー測定データとは独立して共存可能。重複時は422 <code class="inline">measurement_date_already_exists</code></td></tr>
+<tr><td>GPS座標</td><td>圃場境界の単純重心を <code class="inline">PolygonCentroidService</code> で算出し <code class="inline">analysis_results.latitude/longitude</code> に格納</td></tr>
+<tr><td>書き込み先</td><td><code class="inline">uploads</code>（<code class="inline">status="completed"</code>を直接セット）→ <code class="inline">analysis_results</code>（1件）→ <code class="inline">result_values</code>（入力された項目のみ）</td></tr>
+<tr><td>パラメータ整合性</td><td>担当者より17種すべての<code class="inline">parameter_name</code> / <code class="inline">unit</code>の対応が確定提供された（下表参照）。<code class="inline">SoilParameterUnits</code>をこの対応表に合わせて更新する</td></tr>
+<tr><td>テスト</td><td>69件PASS（重複ケース・センサー測定との共存ケースを含む）</td></tr>
+</table>
+
+<h4 style="margin-top:16px">result_values パラメータ名・単位 対応表（確定版・17種）</h4>
+<table>
+<tr><th>parameter_name</th><th>unit</th><th>備考</th></tr>
+<tr><td><code class="inline">B</code></td><td><code class="inline">mg/kg</code></td><td>ホウ素</td></tr>
+<tr><td><code class="inline">CaO</code></td><td><code class="inline">mg/kg</code></td><td>酸化カルシウム</td></tr>
+<tr><td><code class="inline">CEC</code></td><td><code class="inline">cmol/kg</code></td><td>陽イオン交換容量</td></tr>
+<tr><td><code class="inline">Cu</code></td><td><code class="inline">mg/kg</code></td><td>銅</td></tr>
+<tr><td><code class="inline">Fe</code></td><td><code class="inline">mg/kg</code></td><td>鉄</td></tr>
+<tr><td><code class="inline">FU</code></td><td>（単位なし）</td><td>単位表記なし。<code class="inline">unit</code>は空文字 or nullで格納</td></tr>
+<tr><td><code class="inline">K2O</code></td><td><code class="inline">mg/kg</code></td><td>酸化カリウム</td></tr>
+<tr><td><code class="inline">MgO</code></td><td><code class="inline">mg/kg</code></td><td>酸化マグネシウム</td></tr>
+<tr><td><code class="inline">Mn</code></td><td><code class="inline">mg/kg</code></td><td>マンガン</td></tr>
+<tr><td><code class="inline">NH4-N</code></td><td><code class="inline">mg/kg</code></td><td>アンモニア態窒素</td></tr>
+<tr><td><code class="inline">NO3-N</code></td><td><code class="inline">mg/kg</code></td><td>硝酸態窒素</td></tr>
+<tr><td><code class="inline">P2O5</code></td><td><code class="inline">mg/kg</code></td><td>リン酸</td></tr>
+<tr><td><code class="inline">PA</code></td><td>（単位なし）</td><td>単位表記なし。<code class="inline">unit</code>は空文字 or nullで格納</td></tr>
+<tr><td><code class="inline">SiO2</code></td><td><code class="inline">mg/kg</code></td><td>ケイ酸</td></tr>
+<tr><td><code class="inline">Zn</code></td><td><code class="inline">mg/kg</code></td><td>亜鉛</td></tr>
+<tr><td><code class="inline">易還元性マンガン</code></td><td><code class="inline">mg/kg</code></td><td>日本語表記のままparameter_nameとして使用</td></tr>
+<tr><td><code class="inline">遊離酸化鉄</code></td><td><code class="inline">mg/kg</code></td><td>日本語表記のままparameter_nameとして使用</td></tr>
+</table>
+
+<pre>// app/Support/SoilParameterUnits.php（確定版・17種）
+class SoilParameterUnits
+{
+    private const MAP = [
+        'B'                => 'mg/kg',
+        'CaO'              => 'mg/kg',
+        'CEC'              => 'cmol/kg',
+        'Cu'               => 'mg/kg',
+        'Fe'               => 'mg/kg',
+        'FU'               => null,
+        'K2O'              => 'mg/kg',
+        'MgO'              => 'mg/kg',
+        'Mn'               => 'mg/kg',
+        'NH4-N'            => 'mg/kg',
+        'NO3-N'            => 'mg/kg',
+        'P2O5'             => 'mg/kg',
+        'PA'               => null,
+        'SiO2'             => 'mg/kg',
+        'Zn'               => 'mg/kg',
+        '易還元性マンガン'  => 'mg/kg',
+        '遊離酸化鉄'        => 'mg/kg',
+    ];
+
+    public static function unitFor(string $parameterName): ?string
+    {
+        if (!array_key_exists($parameterName, self::MAP)) {
+            throw new \InvalidArgumentException("Unknown parameter_name: {$parameterName}");
+        }
+        return self::MAP[$parameterName];
+    }
+
+    public static function allParameterNames(): array
+    {
+        return array_keys(self::MAP);
+    }
+}</pre>
+<div class="note done" style="margin-top:10px">
+  17種すべてのparameter_name/unitが確定したため、C-3-3（管理画面フォーム拡張）は<b>17種すべてを対象に実装してよい</b>。
+  以前の版にあった「まずCEC/CaO/K2O/MgOの4種に限定する」という制限は解除する。
+  ただし<code class="inline">FU</code>・<code class="inline">PA</code>は単位表記がないため、フォーム上の単位表示欄は空欄のまま送信できるようにし、
+  <code class="inline">unitFor()</code>が<code class="inline">null</code>を返すケースとして<code class="inline">result_values.unit</code>にnull（または空文字）が正しく保存されることを確認する。
+</div>
+</div>
+
+<h3 class="step done" id="C3admin">C-3-3. 既存「結果入力」画面（/estimation-results）の拡張 <span class="tag laravel">Laravel Blade・別タスク</span></h3>
+<p>
+  この項目はFlutter側の作業ではなく、Laravel管理画面（Blade）側の別タスクとして扱う。
+  スキルドキュメント記載の既存機能「推定結果閲覧（<span class="file">/estimation-results</span>）: CECマップ表示・結果入力」を確認し、
+  以下を拡張する。
+</p>
+<ul class="check">
+  <li>現状CECのみの入力欄になっていないか確認し、<b>確定した17種すべて</b>（下表参照）を入力できるフォームに拡張。<code class="inline">FU</code>・<code class="inline">PA</code>は単位表示なしの項目として扱う</li>
+  <li>圃場選択時に境界未設定（仮登録）圃場を選択肢から除外 or 選択不可表示（<code class="inline">422 farm_boundary_required</code>のハンドリング）</li>
+  <li>同一圃場・同一日への2回目の登録は<code class="inline">422 measurement_date_already_exists</code>としてエラー表示（センサー測定データがある日への登録は成功する想定なので、エラーメッセージを誤解のないよう「この日の手動登録はすでに存在します」等に調整）</li>
+  <li>登録処理を <code class="inline">POST /api/manual-results</code> に接続</li>
+  <li>登録後、対象圃場の時系列グラフ・タイムラインに反映されることを画面上で確認</li>
+</ul>
+</section>
+
+<!-- ============ 動作確認チェックリスト ============ -->
+<section id="check">
+<h2>動作確認チェックリスト</h2>
+<h3 class="step">A. ホーム画面フォント</h3>
+<ul class="check">
+  <li>実機でホーム画面の文字が拡大表示されている</li>
+  <li>レイアウト崩れ（はみ出し・折り返し異常）がない</li>
+</ul>
+<h3 class="step">B. 仮登録圃場（Flutter）</h3>
+<ul class="check">
+  <li>圃場名のみで登録が成功する</li>
+  <li>仮登録圃場は圃場一覧に「仮登録中」等の表示で区別される</li>
+  <li>仮登録圃場を選んで測定すると、位置に関係なく測定を開始できる</li>
+  <li>境界情報のある通常圃場では、従来通り圃場外で測定がブロックされる（回帰確認）</li>
+  <li>仮登録圃場に後から境界設定を行うと、圃場一覧の表示が自動的に「本登録」扱いに切り替わる</li>
+</ul>
+<h3 class="step">C. 時系列・タイムライン（Flutter）</h3>
+<ul class="check">
+  <li>期間フィルタが「すべて／3年間／1年間」の3択になっている</li>
+  <li>圃場平均が水平な1本の点線で表示され、期間フィルタを切り替えても高さが変わらない</li>
+  <li><code class="inline">farm_average</code>がnullの圃場でエラーにならず、点線が表示されないだけであることを確認</li>
+</ul>
+<h3 class="step">共通</h3>
+<ul class="check">
+  <li><code class="inline">flutter analyze</code> がbaseline（117件）を超えていない</li>
+  <li><code class="inline">dart format</code> 実行済み</li>
+  <li>既存の測定・アップロード・推論フローに影響が出ていない（回帰確認）</li>
+</ul>
+<ul class="check done">
+  <li>（完了済み）Laravel側 <code class="inline">php artisan test</code> 69件PASS</li>
+</ul>
+</section>
+
+<!-- ============ commit → PR → CI/CD ============ -->
+<section id="deploy">
+<h2>commit → PR → CI/CD</h2>
+<pre>git add -A
+git commit -m "feat: home font size, provisional farm UI, timeseries filter/farm-average rendering"
+git push origin feature/pending-items-2-flutter</pre>
+<ul class="check">
+  <li>GitHub上でPull Requestを作成し、変更内容（A/B-5/B-6/C-1/C-2描画）をサマリに明記</li>
+  <li>Laravel側のマイグレーションはすでに本番反映済みのため、今回のPRにDB変更は含まれない</li>
+  <li>mainマージ後、GitHub ActionsによりCI（<code class="inline">flutter build</code>等）が実行される想定</li>
+</ul>
+</section>
+
+<!-- ============ 完了条件 ============ -->
+<section id="dod">
+<h2>✓ 完了条件（Definition of Done）</h2>
+<div class="grid2">
+<div>
+<h3 class="step">A. フォント拡大</h3>
+<ul class="check">
+  <li>ホーム画面の主要テキストが拡大され、実機で視認性向上が確認できる</li>
+</ul>
+<h3 class="step">B. 仮登録圃場（Flutter）</h3>
+<ul class="check">
+  <li>圃場名のみでの登録がアプリ上で成立する</li>
+  <li>仮登録圃場での測定時、エリア判定が正しくスキップされる</li>
+</ul>
+</div>
+<div>
+<h3 class="step">C. 時系列・タイムライン（Flutter）</h3>
+<ul class="check">
+  <li>期間フィルタが3年間／1年間／すべて に変更されている</li>
+  <li>圃場平均が水平な1本の点線として正しく表示される</li>
+</ul>
+<h3 class="step done">別タスク：C-3-3 管理画面</h3>
+<ul class="check">
+  <li>（本書のFlutter実装完了後、別途着手）確定した17種すべてで過去実績登録が可能</li>
+</ul>
+</div>
+</div>
+<div class="note">
+  A・B-5・B-6・C-1・C-2描画のすべてについて実機での動作確認が完了し、
+  <code class="inline">flutter analyze</code> のbaselineが増加していないことを確認した時点で、本フェーズの完了とする。
+</div>
+</section>
+
+</main>
+</div>
+</body>
+</html>

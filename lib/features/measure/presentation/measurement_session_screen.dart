@@ -314,10 +314,12 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
     final results = _resultSpots;
     if (results.isEmpty) return List<_SpotProgress>.from(_spots);
     final resultPositions = results.map((spot) => spot.position);
-    final visibleLocals = _spots.where((local) {
-      if (!local.saveDone) return true;
-      return !_hasNearbyPosition(local.position, resultPositions);
-    }).toList(growable: false);
+    final visibleLocals = _spots
+        .where((local) {
+          if (!local.saveDone) return true;
+          return !_hasNearbyPosition(local.position, resultPositions);
+        })
+        .toList(growable: false);
     return [...results, ...visibleLocals];
   }
 
@@ -357,11 +359,16 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
   /// キャッシュせず常に最新の _confirmedLocation と _farmPolygon から算出するため
   /// 同期ずれが原理的に発生しない。通信環境には一切依存しない純粋な数学演算。
   GeoFenceStatus? get _markerGeoStatus {
+    final farm = _selectedFarm;
+    if (farm != null && farm.isProvisional) return null;
+
     final point = _confirmedLocation;
     final polygon = _farmPolygon;
     if (point == null || polygon.length < 3) return null;
     return GeoService.classifyLocation(point: point, polygon: polygon);
   }
+
+  bool get _isProvisionalFarm => _selectedFarm?.isProvisional ?? false;
 
   @override
   void initState() {
@@ -1136,6 +1143,7 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
   Future<void> _startMeasureSequence() async {
     final farm = _selectedFarm;
     if (_isSerialBusy || farm == null) return;
+
     var point = _confirmedLocation;
     final polygon = _farmPolygon;
     if (point == null && polygon.isNotEmpty) {
@@ -1979,6 +1987,29 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
               ),
             ),
           ),
+        if (_isProvisionalFarm)
+          Positioned(
+            left: 12,
+            right: 12,
+            bottom: 72,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFEF0D8).withValues(alpha: 0.95),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: const Color(0xFFB85C00)),
+              ),
+              child: const Text(
+                '仮登録圃場（境界未設定）\n位置情報による圃場内外判定は行われません',
+                style: TextStyle(
+                  color: Color(0xFFB85C00),
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ),
+          ),
       ],
     );
   }
@@ -1988,8 +2019,9 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
         _recallDone &&
         _bgDone &&
         _selectedFarm != null &&
+        _confirmedLocation != null &&
         !_isSerialBusy &&
-        _markerGeoStatus != GeoFenceStatus.outside;
+        (_isProvisionalFarm || _markerGeoStatus != GeoFenceStatus.outside);
   }
 
   Widget _buildTopStatusBar() {
@@ -2128,55 +2160,57 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
           builder: (context, __) => _MeasurementListScreen(
             spotsProvider: () => _mapSpots,
             onDeleteSpots: (ids) async {
-            final selectedSpots = _mapSpots
-                .where((spot) => ids.contains(spot.id))
-                .toList(growable: false);
-            final resultSpots = selectedSpots
-                .where(
-                  (spot) => spot.isResultPoint && spot.resultPointId != null,
-                )
-                .toList(growable: false);
-            final deletedResultPointIds = {
-              for (final spot in resultSpots) spot.resultPointId!,
-            };
-            try {
-              for (final spot in resultSpots) {
-                await _resultsRepository.deleteResultPoint(spot.resultPointId!);
+              final selectedSpots = _mapSpots
+                  .where((spot) => ids.contains(spot.id))
+                  .toList(growable: false);
+              final resultSpots = selectedSpots
+                  .where(
+                    (spot) => spot.isResultPoint && spot.resultPointId != null,
+                  )
+                  .toList(growable: false);
+              final deletedResultPointIds = {
+                for (final spot in resultSpots) spot.resultPointId!,
+              };
+              try {
+                for (final spot in resultSpots) {
+                  await _resultsRepository.deleteResultPoint(
+                    spot.resultPointId!,
+                  );
+                }
+              } catch (e) {
+                if (!mounted) return false;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text(_resultMutationErrorMessage(e))),
+                );
+                return false;
               }
-            } catch (e) {
-              if (!mounted) return false;
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text(_resultMutationErrorMessage(e))),
-              );
-              return false;
-            }
-            final now = DateTime.now();
-            for (final pointId in deletedResultPointIds) {
-              _deletedPointIds[pointId] = now;
-            }
-            _sessionState._removeResultPins(farm.id, ids);
-            _sessionState._removePins(farm.id, ids);
-            setState(() {
-              if (_activeSpot != null && ids.contains(_activeSpot!.id)) {
-                _activeSpot = null;
+              final now = DateTime.now();
+              for (final pointId in deletedResultPointIds) {
+                _deletedPointIds[pointId] = now;
               }
-              if (_correctingSpotId != null &&
-                  ids.contains(_correctingSpotId)) {
-                _correctingSpotId = null;
+              _sessionState._removeResultPins(farm.id, ids);
+              _sessionState._removePins(farm.id, ids);
+              setState(() {
+                if (_activeSpot != null && ids.contains(_activeSpot!.id)) {
+                  _activeSpot = null;
+                }
+                if (_correctingSpotId != null &&
+                    ids.contains(_correctingSpotId)) {
+                  _correctingSpotId = null;
+                }
+              });
+              _persistSessionState();
+              await _loadTodayResultPinsForSelectedFarm();
+              for (final spot in _mapSpots) {
+                _refreshSpotIcon(spot);
               }
-            });
-            _persistSessionState();
-            await _loadTodayResultPinsForSelectedFarm();
-            for (final spot in _mapSpots) {
-              _refreshSpotIcon(spot);
-            }
-            return true;
-          },
-          onCorrectSpot: (spot) {
-            _startPinCorrection(spot);
-            Navigator.pop(context);
-          },
-        ),
+              return true;
+            },
+            onCorrectSpot: (spot) {
+              _startPinCorrection(spot);
+              Navigator.pop(context);
+            },
+          ),
         ),
       ),
     );
@@ -2530,8 +2564,9 @@ class _MeasurementListScreenState extends State<_MeasurementListScreen> {
                     child: FilledButton(
                       onPressed: _selected.where(spotIds.contains).length == 1
                           ? () {
-                              final selectedIds =
-                                  _selected.where(spotIds.contains).toList();
+                              final selectedIds = _selected
+                                  .where(spotIds.contains)
+                                  .toList();
                               final spot = spots.firstWhere(
                                 (spot) => spot.id == selectedIds.first,
                               );

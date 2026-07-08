@@ -53,18 +53,30 @@ class HelpScreen extends StatelessWidget {
           _HelpCard(
             icon: Icons.info_outline,
             title: 'アプリ情報',
-            subtitle: '利用規約・ライセンス',
+            subtitle: 'バージョン情報',
             onTap: () async {
               final info = await PackageInfo.fromPlatform();
               if (!context.mounted) return;
-              showAboutDialog(
+              await showDialog<void>(
                 context: context,
-                applicationName: 'HenryMonitor',
-                applicationVersion: 'v${info.version} (${info.buildNumber})',
-                children: const [
-                  SizedBox(height: 8),
-                  Text('磁界式センサーと機械学習による土壌成分分析アプリ'),
-                ],
+                builder: (dialogContext) => AlertDialog(
+                  title: const Text('HenryMonitor'),
+                  content: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('v${info.version} (${info.buildNumber})'),
+                      const SizedBox(height: 8),
+                      const Text('磁界式センサーと機械学習による土壌成分分析アプリ'),
+                    ],
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(dialogContext),
+                      child: const Text('閉じる'),
+                    ),
+                  ],
+                ),
               );
             },
           ),

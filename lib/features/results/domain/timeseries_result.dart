@@ -3,23 +3,27 @@ class TimeseriesResult {
   final String? unit;
   final List<TimeseriesPoint> points;
   final List<WorkLogMark> workLogs;
+  final double? farmAverage;
 
   const TimeseriesResult({
     required this.parameter,
     required this.unit,
     required this.points,
     required this.workLogs,
+    this.farmAverage,
   });
 
   TimeseriesResult copyWith({
     List<TimeseriesPoint>? points,
     List<WorkLogMark>? workLogs,
+    double? farmAverage,
   }) {
     return TimeseriesResult(
       parameter: parameter,
       unit: unit,
       points: points ?? this.points,
       workLogs: workLogs ?? this.workLogs,
+      farmAverage: farmAverage ?? this.farmAverage,
     );
   }
 
@@ -36,6 +40,7 @@ class TimeseriesResult {
       workLogs: workLogsRaw
           .map((e) => WorkLogMark.fromJson(e as Map<String, dynamic>))
           .toList(growable: false),
+      farmAverage: (json['farm_average'] as num?)?.toDouble(),
     );
   }
 }
