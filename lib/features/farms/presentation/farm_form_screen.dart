@@ -52,6 +52,7 @@ class _FarmFormScreenState extends State<FarmFormScreen> {
   @override
   void initState() {
     super.initState();
+    _farmNameController.addListener(_onFormFieldChanged);
 
     // 編集モードの場合、既存データで初期化
     if (widget.farm != null) {
@@ -92,8 +93,13 @@ class _FarmFormScreenState extends State<FarmFormScreen> {
     });
   }
 
+  void _onFormFieldChanged() {
+    if (mounted) setState(() {});
+  }
+
   @override
   void dispose() {
+    _farmNameController.removeListener(_onFormFieldChanged);
     _pageController.dispose();
     _farmNameController.dispose();
     _cropTypeController.dispose();
@@ -249,7 +255,21 @@ class _FarmFormScreenState extends State<FarmFormScreen> {
       return;
     }
 
-    if (_boundaryPoints.length < 4) {
+    final isEditMode = widget.farm != null;
+    final isProvisionalUpdate = isEditMode && widget.farm!.isProvisional;
+    final hasFullBoundary = _boundaryPoints.length >= 4;
+
+    if (_boundaryPoints.isNotEmpty && !hasFullBoundary) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('境界点は最低4点必要です'),
+          backgroundColor: Theme.of(context).colorScheme.error,
+        ),
+      );
+      return;
+    }
+
+    if (isEditMode && !isProvisionalUpdate && !hasFullBoundary) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: const Text('境界点は最低4点必要です'),
@@ -264,10 +284,11 @@ class _FarmFormScreenState extends State<FarmFormScreen> {
     });
 
     try {
-      // boundaryPolygonをMap形式に変換
-      final boundaryPolygon = _boundaryPoints.map((point) {
-        return {'lat': point.latitude, 'lng': point.longitude};
-      }).toList();
+      final boundaryPolygon = hasFullBoundary
+          ? _boundaryPoints
+              .map((point) => {'lat': point.latitude, 'lng': point.longitude})
+              .toList()
+          : null;
 
       if (widget.farm != null) {
         // 更新モード
@@ -278,7 +299,7 @@ class _FarmFormScreenState extends State<FarmFormScreen> {
           cropType: _cropTypeController.text.trim().isEmpty
               ? null
               : _cropTypeController.text.trim(),
-          boundaryPolygon: boundaryPolygon,
+          boundaryPolygon: boundaryPolygon ?? const [],
         );
 
         if (!mounted) return;
@@ -290,7 +311,7 @@ class _FarmFormScreenState extends State<FarmFormScreen> {
           ),
         );
       } else {
-        // 登録モード
+        // 登録モード（境界未設定でも圃場名のみで登録可能）
         await widget.farmRepository.createFarm(
           farmName: _farmNameController.text.trim(),
           cultivationMethod: _selectedCultivationMethod,
@@ -304,7 +325,11 @@ class _FarmFormScreenState extends State<FarmFormScreen> {
 
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: const Text('圃場を登録しました'),
+            content: Text(
+              hasFullBoundary
+                  ? '圃場を登録しました'
+                  : '圃場を登録しました（境界はあとで設定できます）',
+            ),
             backgroundColor: Theme.of(context).colorScheme.primary,
           ),
         );
@@ -480,6 +505,7 @@ class _FarmFormScreenState extends State<FarmFormScreen> {
   }
 
   Widget _buildStep1Form(ThemeData theme, ColorScheme colorScheme) {
+    final isEditMode = widget.farm != null;
     return SafeArea(
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
@@ -542,7 +568,7 @@ class _FarmFormScreenState extends State<FarmFormScreen> {
                       DropdownButtonFormField<String>(
                         value: _selectedCultivationMethod,
                         decoration: InputDecoration(
-                          labelText: '栽培方式',
+                          labelText: '栽培方式（任意）',
                           hintText: '選択してください',
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
@@ -570,12 +596,6 @@ class _FarmFormScreenState extends State<FarmFormScreen> {
                             _selectedCultivationMethod = value;
                           });
                         },
-                        validator: (value) {
-                          if (value == null || value.isEmpty) {
-                            return '栽培方式を選択してください';
-                          }
-                          return null;
-                        },
                       ),
                       const SizedBox(height: 20),
 
@@ -583,7 +603,7 @@ class _FarmFormScreenState extends State<FarmFormScreen> {
                       TextFormField(
                         controller: _cropTypeController,
                         decoration: InputDecoration(
-                          labelText: '作物種別',
+                          labelText: '作物種別（任意）',
                           hintText: '例: トマト、レタスなど',
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
@@ -592,12 +612,6 @@ class _FarmFormScreenState extends State<FarmFormScreen> {
                           fillColor: colorScheme.surfaceContainerHighest,
                         ),
                         style: theme.textTheme.bodyLarge,
-                        validator: (value) {
-                          if (value == null || value.trim().isEmpty) {
-                            return '作物種別を入力してください';
-                          }
-                          return null;
-                        },
                       ),
                     ],
                   ),
@@ -642,25 +656,45 @@ class _FarmFormScreenState extends State<FarmFormScreen> {
                 const SizedBox(height: 24),
               ],
 
-              // 次へボタン
-              FilledButton(
-                onPressed: _goToStep2,
-                style: FilledButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
+              if (!isEditMode || widget.farm!.isProvisional) ...[
+                FilledButton(
+                  onPressed: _isLoading ? null : _goToStep2,
+                  style: FilledButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    foregroundColor: Colors.white,
                   ),
-                  foregroundColor: Colors.white,
-                ),
-                child: Text(
-                  '境界設定へ',
-                  style: theme.textTheme.labelLarge?.copyWith(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.white,
+                  child: Text(
+                    isEditMode ? '境界設定を完了する' : '境界設定へ（任意）',
+                    style: theme.textTheme.labelLarge?.copyWith(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white,
+                    ),
                   ),
                 ),
-              ),
+              ] else ...[
+                FilledButton(
+                  onPressed: _goToStep2,
+                  style: FilledButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    foregroundColor: Colors.white,
+                  ),
+                  child: Text(
+                    '境界設定へ',
+                    style: theme.textTheme.labelLarge?.copyWith(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ],
 
               const SizedBox(height: 100), // フッター分の余白
             ],
@@ -784,12 +818,11 @@ class _FarmFormScreenState extends State<FarmFormScreen> {
   }
 
   Widget _buildStep1Footer(ThemeData theme, ColorScheme colorScheme) {
-    final canSubmit =
-        _boundaryPoints.length >= 4 &&
-        _farmNameController.text.trim().isNotEmpty &&
-        _selectedCultivationMethod != null &&
-        _cropTypeController.text.trim().isNotEmpty;
     final isEditMode = widget.farm != null;
+    final canSubmit = isEditMode
+        ? _farmNameController.text.trim().isNotEmpty &&
+              (_boundaryPoints.length >= 4 || widget.farm!.isProvisional)
+        : _farmNameController.text.trim().isNotEmpty;
 
     return Container(
       decoration: BoxDecoration(

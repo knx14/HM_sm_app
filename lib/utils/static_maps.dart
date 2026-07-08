@@ -3,9 +3,8 @@ import 'package:flutter/foundation.dart';
 import 'dart:math' as math;
 
 /// Google Static Maps APIのURLを生成
-/// 
-/// 衛星/ハイブリッドの静止画に、赤いポリゴン（塗り+枠線）と赤いマーカーを表示
-/// 
+///
+/// 衛星/ハイブリッドの静止画に、赤いポリゴン枠線のみを表示
 /// [boundaryPoints] 境界点のリスト（4〜8点、必須）
 /// [apiKey] Google Maps APIキー（必須）
 /// [width] 画像の幅（デフォルト: 280、表示サイズの2倍を推奨）
@@ -40,18 +39,18 @@ String buildStaticMapUrl({
   // bounds -> center/zoom を自前計算
   final bounds = boundsFromPoints(boundaryPoints);
 
-  // boundsを少し拡張して余裕を持たせる（マーカーやポリゴンの線がはみ出さないように）
-  final expandedBounds = _expandBounds(bounds, factor: 0.15); // 15%拡張（マーカーと線の余裕）
+  // boundsを少し拡張して余裕を持たせる（ポリゴンの線がはみ出さないように）
+  final expandedBounds = _expandBounds(bounds, factor: 0.15);
   final mapCenter = centerOfBounds(expandedBounds);
 
   // ★ scale分を加味してズーム計算（Static Mapsの実ピクセルに合わせる）
-  // パディングを大きくして、マーカーやポリゴンの線がはみ出さないようにする
+  // パディングを大きくして、ポリゴンの線がはみ出さないようにする
   // 最小ズームレベルを高く設定して、小さな圃場でも適切にズームインする
   final mapZoom = zoomForBounds(
     bounds: expandedBounds,
     widthPx: clampedWidth * scale,
     heightPx: clampedHeight * scale,
-    paddingPx: 50, // マーカーとポリゴンの線の余裕を考慮
+    paddingPx: 50,
     minZoom: 15, // 最小ズームを高く設定（小さな圃場でも適切にズームイン）
     maxZoom: 20,
   );
@@ -67,30 +66,20 @@ String buildStaticMapUrl({
   buffer.write('&language=ja');
   buffer.write('&center=${mapCenter.latitude},${mapCenter.longitude}');
   buffer.write('&zoom=$mapZoom');
-  
-  // ポリゴン（path）とマーカーを追加
+
   // ポリゴンのパスを生成（最後に先頭点を追加して閉じる）
   final pathPoints = List<LatLng>.from(boundaryPoints);
   if (pathPoints.first != pathPoints.last) {
     pathPoints.add(pathPoints.first);
   }
-  
-  // パス文字列を生成（座標のみ、エンコード前）
   final pathCoordinates = pathPoints
       .map((point) => '${point.latitude},${point.longitude}')
       .join('|');
-  
-  // ポリゴン（path）を追加
-  // 形式: fillcolor:0x55FF0000|color:0xFF0000|weight:6|lat1,lng1|lat2,lng2|...
-  final pathValue = 'fillcolor:0x55FF0000|color:0xFF0000|weight:6|$pathCoordinates';
+
+  // ポリゴン（path）を追加（枠線のみ）
+  // 形式: color:0xFF0000|weight:4|lat1,lng1|lat2,lng2|...
+  final pathValue = 'color:0xFF0000|weight:4|$pathCoordinates';
   buffer.write('&path=${Uri.encodeQueryComponent(pathValue)}');
-  
-  // マーカー（各頂点に赤いピン）
-  final markerCoordinates = boundaryPoints
-      .map((point) => '${point.latitude},${point.longitude}')
-      .join('|');
-  final markerValue = 'size:mid|color:red|$markerCoordinates';
-  buffer.write('&markers=${Uri.encodeQueryComponent(markerValue)}');
   
   // キャッシュバスティングパラメータを追加
   if (cacheBuster != null) {
@@ -146,7 +135,7 @@ double _latRad(double lat) {
   return math.max(math.min(radX2, math.pi), -math.pi) / 2;
 }
 
-/// boundsを拡張する（マーカーやポリゴンの線がはみ出さないように）
+/// boundsを拡張する（ポリゴンの線がはみ出さないように）
 LatLngBounds _expandBounds(LatLngBounds bounds, {double factor = 0.1}) {
   final latDiff = bounds.northeast.latitude - bounds.southwest.latitude;
   final lngDiff = bounds.northeast.longitude - bounds.southwest.longitude;
