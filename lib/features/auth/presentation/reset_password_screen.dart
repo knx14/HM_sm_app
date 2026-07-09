@@ -210,7 +210,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
           onPressed: _loading ? null : _sendCode,
           child: _loading
               ? const CircularProgressIndicator()
-              : const Text('リセットコードを送信'),
+              : const Text('リセットコードを取得'),
         ),
       ),
     ],
