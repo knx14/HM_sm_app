@@ -265,7 +265,10 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
 
   Farm? _selectedFarm;
   LatLng? _confirmedLocation;
+  LatLng? _currentGpsLocation;
+  LatLng? _manualCorrectedLocation;
   GoogleMapController? _mapController;
+  StreamSubscription<Position>? _positionSubscription;
 
   UploadPhase _uploadPhase = UploadPhase.idle;
   SessionStep _currentStep = SessionStep.connect;
@@ -282,6 +285,7 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
   bool _showMapHint = true;
   int _fetchVersion = 0;
   final Map<int, DateTime> _deletedPointIds = <int, DateTime>{};
+  static const double _manualCorrectionReleaseDistanceMeters = 2.0;
 
   final List<ChartData> _chartData = [];
   _SpotProgress? _activeSpot;
@@ -334,6 +338,82 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
     setState(() => _syncMode = mode);
   }
 
+  Future<void> _startGpsPositionUpdates() async {
+    if (_positionSubscription != null) return;
+    try {
+      final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) return;
+      var perm = await Geolocator.checkPermission();
+      if (perm == LocationPermission.denied) {
+        perm = await Geolocator.requestPermission();
+      }
+      if (perm == LocationPermission.denied ||
+          perm == LocationPermission.deniedForever) {
+        return;
+      }
+
+      _positionSubscription =
+          Geolocator.getPositionStream(
+            locationSettings: const LocationSettings(
+              accuracy: LocationAccuracy.high,
+              distanceFilter: 1,
+            ),
+          ).listen(
+            _handleGpsPosition,
+            onError: (Object e) {
+              if (kDebugMode) {
+                debugPrint('GPS位置更新エラー: $e');
+              }
+            },
+          );
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint('GPS位置更新の開始に失敗しました: $e');
+      }
+    }
+  }
+
+  Future<void> _stopGpsPositionUpdates() async {
+    await _positionSubscription?.cancel();
+    _positionSubscription = null;
+  }
+
+  void _handleGpsPosition(Position position) {
+    if (!mounted) return;
+    final here = LatLng(position.latitude, position.longitude);
+    final manualLocation = _manualCorrectedLocation;
+
+    if (_correctingSpotId != null) {
+      setState(() => _currentGpsLocation = here);
+      return;
+    }
+
+    if (manualLocation != null) {
+      final distance = Geolocator.distanceBetween(
+        here.latitude,
+        here.longitude,
+        manualLocation.latitude,
+        manualLocation.longitude,
+      );
+      if (distance < _manualCorrectionReleaseDistanceMeters) {
+        setState(() => _currentGpsLocation = here);
+        return;
+      }
+    }
+
+    setState(() {
+      _currentGpsLocation = here;
+      _manualCorrectedLocation = null;
+      _confirmedLocation = here;
+    });
+    _persistSessionState();
+  }
+
+  void _setManualMeasurementLocation(LatLng location) {
+    _manualCorrectedLocation = location;
+    _confirmedLocation = location;
+  }
+
   bool get _isUploading =>
       _uploadPhase == UploadPhase.saving ||
       _uploadPhase == UploadPhase.initCalling ||
@@ -355,14 +435,17 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
       .map((e) => LatLng(e['lat'] ?? 0, e['lng'] ?? 0))
       .toList();
 
-  /// 赤マーカー（_confirmedLocation）が圃場ポリゴン内にあるかを毎回計算で判定する。
-  /// キャッシュせず常に最新の _confirmedLocation と _farmPolygon から算出するため
+  LatLng? get _effectiveMeasurementLocation =>
+      _manualCorrectedLocation ?? _currentGpsLocation ?? _confirmedLocation;
+
+  /// 赤マーカーが圃場ポリゴン内にあるかを毎回計算で判定する。
+  /// キャッシュせず常に最新の測定位置と _farmPolygon から算出するため
   /// 同期ずれが原理的に発生しない。通信環境には一切依存しない純粋な数学演算。
   GeoFenceStatus? get _markerGeoStatus {
     final farm = _selectedFarm;
     if (farm != null && farm.isProvisional) return null;
 
-    final point = _confirmedLocation;
+    final point = _effectiveMeasurementLocation;
     final polygon = _farmPolygon;
     if (point == null || polygon.length < 3) return null;
     return GeoService.classifyLocation(point: point, polygon: polygon);
@@ -405,6 +488,9 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
     _didBindSessionState = true;
     _setupSerialComm();
     _loadTodayResultPinsForSelectedFarm();
+    if (_selectedFarm != null) {
+      _startGpsPositionUpdates();
+    }
     for (final spot in _spots.where((spot) => spot.icon == null)) {
       _refreshSpotIcon(spot);
     }
@@ -433,6 +519,7 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
   @override
   void dispose() {
     _recallTimeoutTimer?.cancel();
+    _positionSubscription?.cancel();
     SerialComm.removeDisconnectListener(_onUsbDisconnected);
     SerialComm.removeListener(_onReceive);
     _logController.dispose();
@@ -928,9 +1015,12 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
     final farm = result?.farm;
     if (farm == null) {
       _isSelectingFarm = false;
+      await _stopGpsPositionUpdates();
       setState(() {
         _selectedFarm = null;
         _confirmedLocation = null;
+        _currentGpsLocation = null;
+        _manualCorrectedLocation = null;
         _currentStep = SessionStep.bg;
       });
       _persistSessionState();
@@ -953,6 +1043,8 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
     setState(() {
       _selectedFarm = farm;
       _confirmedLocation = center;
+      _currentGpsLocation = null;
+      _manualCorrectedLocation = null;
       _activeSpot = null;
       _correctingSpotId = null;
       _currentStep = SessionStep.measure;
@@ -960,6 +1052,7 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
     });
     _sessionState.startSession(farm.id);
     _persistSessionState();
+    await _startGpsPositionUpdates();
     await _loadTodayResultPinsForSelectedFarm();
     for (final spot in _spots.where((spot) => spot.icon == null)) {
       _refreshSpotIcon(spot);
@@ -1048,14 +1141,18 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
       }
 
       if (nearestFarm == null || nearestCenter == null) return;
+      final here = LatLng(pos.latitude, pos.longitude);
       setState(() {
         _selectedFarm = nearestFarm;
-        _confirmedLocation = LatLng(pos.latitude, pos.longitude);
+        _currentGpsLocation = here;
+        _manualCorrectedLocation = null;
+        _confirmedLocation = here;
         _currentStep = _bgDone ? SessionStep.measure : _currentStep;
         _showMapHint = true;
       });
       _sessionState.startSession(nearestFarm.id);
       _persistSessionState();
+      await _startGpsPositionUpdates();
       await _loadTodayResultPinsForSelectedFarm();
     } catch (e) {
       if (kDebugMode) {
@@ -1096,9 +1193,12 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
       // 赤マーカー位置を現在地に更新。
       // ステータスは _markerGeoStatus getter で自動計算される。
       setState(() {
+        _currentGpsLocation = here;
+        _manualCorrectedLocation = null;
         _confirmedLocation = here;
       });
       _persistSessionState();
+      await _startGpsPositionUpdates();
       if (moveCamera) {
         await _mapController?.animateCamera(
           CameraUpdate.newCameraPosition(
@@ -1144,7 +1244,7 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
     final farm = _selectedFarm;
     if (_isSerialBusy || farm == null) return;
 
-    var point = _confirmedLocation;
+    var point = _effectiveMeasurementLocation;
     final polygon = _farmPolygon;
     if (point == null && polygon.isNotEmpty) {
       point = calculatePolygonCenter(polygon);
@@ -1184,7 +1284,10 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
     await _saveAndQueueThenUpload(spot, localPinPosition: point);
   }
 
-  Future<String?> _save(int farmId) async {
+  Future<String?> _save(
+    int farmId, {
+    required LatLng measurementLocation,
+  }) async {
     final userId = context.read<UserProvider>().userId;
     if (userId == null || userId.trim().isEmpty) {
       _appendLog('ユーザIDが未設定のため保存できません\n');
@@ -1210,8 +1313,8 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
         note2: note2,
         settings: settings,
         ampId: _ampId,
-        latitude: _confirmedLocation?.latitude,
-        longitude: _confirmedLocation?.longitude,
+        latitude: measurementLocation.latitude,
+        longitude: measurementLocation.longitude,
       );
       _appendLog('保存完了: $fileBase\n');
       return fileBase;
@@ -1245,7 +1348,7 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
 
     try {
       _appendUploadLog('save: start');
-      fileBase = await _save(farm.id);
+      fileBase = await _save(farm.id, measurementLocation: localPinPosition);
       if (fileBase == null) {
         if (!mounted) return;
         setState(() => _uploadPhase = UploadPhase.error);
@@ -1672,7 +1775,7 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
     );
     setState(() {
       spot.position = next;
-      _confirmedLocation = next;
+      _setManualMeasurementLocation(next);
     });
     _persistSessionState();
     _mapController?.animateCamera(CameraUpdate.newLatLng(next));
@@ -1681,7 +1784,7 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
   void _startPinCorrection(_SpotProgress spot) {
     setState(() {
       _correctingSpotId = spot.id;
-      _confirmedLocation = spot.position;
+      _setManualMeasurementLocation(spot.position);
       _showMapHint = true;
     });
     _persistSessionState();
@@ -1730,7 +1833,7 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
   }
 
   Set<Circle> _buildLocationCircles() {
-    final location = _confirmedLocation;
+    final location = _effectiveMeasurementLocation;
     if (location == null) return const <Circle>{};
     return {
       Circle(
@@ -1816,7 +1919,8 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
       );
     }
     final polygon = _farmPolygon;
-    final initialTarget = _confirmedLocation ?? calculatePolygonCenter(polygon);
+    final initialTarget =
+        _effectiveMeasurementLocation ?? calculatePolygonCenter(polygon);
     return Stack(
       children: [
         GoogleMap(
@@ -1847,7 +1951,7 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
             // 赤マーカー位置を更新。ステータスは _markerGeoStatus getter で
             // rebuild 時に自動計算されるため、同期ずれが原理的に起きない。
             setState(() {
-              _confirmedLocation = p;
+              _setManualMeasurementLocation(p);
               final correctingSpot = _spotById(_correctingSpotId);
               if (correctingSpot != null) {
                 correctingSpot.position = p;
@@ -1960,7 +2064,7 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
           ),
         ),
         // 圃場内外ステータスの視覚フィードバック
-        // _markerGeoStatus は毎回 _confirmedLocation から計算されるため常に正確
+        // _markerGeoStatus は毎回その時点の測定位置から計算されるため常に正確
         if (_markerGeoStatus != null && _correctingSpotId == null)
           Positioned(
             left: 12,
@@ -2019,7 +2123,7 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
         _recallDone &&
         _bgDone &&
         _selectedFarm != null &&
-        _confirmedLocation != null &&
+        _effectiveMeasurementLocation != null &&
         !_isSerialBusy &&
         (_isProvisionalFarm || _markerGeoStatus != GeoFenceStatus.outside);
   }
