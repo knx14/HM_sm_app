@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:amplify_flutter/amplify_flutter.dart';
 import '../../auth/data/amplify_auth_service.dart';
 import '../../auth/domain/auth_repository.dart';
 
@@ -88,40 +87,18 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
       _error = null;
     });
     try {
-      // 詳細なエラーログを出力
-      print('=== パスワードリセット開始 ===');
-      print('Email: ${_email.text.trim()}');
-      print('Code length: ${_code.text.trim().length}');
-      print('Password length: ${_newPassword.text.length}');
-
       await _repo.confirmResetPassword(
         email: _email.text.trim(),
         code: _code.text.trim(),
         newPassword: _newPassword.text,
       );
 
-      print('=== パスワードリセット成功 ===');
-
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('パスワードをリセットしました。')));
       Navigator.pop(context); // SignIn画面に戻る
-    } catch (e, stackTrace) {
-      // 詳細なエラー情報をログに出力
-      print('=== パスワードリセットエラー ===');
-      print('Error type: ${e.runtimeType}');
-      print('Error: $e');
-      print('Stack trace: $stackTrace');
-
-      // Amplifyのエラータイプを確認
-      if (e is AuthException) {
-        print('AuthException details:');
-        print('  - Message: ${e.message}');
-        print('  - Recovery suggestion: ${e.recoverySuggestion}');
-        print('  - Underlying exception: ${e.underlyingException}');
-      }
-
+    } catch (e) {
       setState(() => _error = _parseError(e));
     } finally {
       if (mounted) {

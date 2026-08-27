@@ -59,7 +59,4 @@ class AppSettings extends ChangeNotifier {
     }
     if (changed) notifyListeners();
   }
-
-  String getZeroCommand() =>
-      'zero $fstart $fdelta $points $excite $range $integrate $average';
 }

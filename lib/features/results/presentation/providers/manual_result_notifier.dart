@@ -7,13 +7,23 @@ class ManualResultNotifier extends ChangeNotifier {
   ManualResultNotifier({
     required this.farmId,
     required this.isProvisional,
+    this.uploadId,
+    String? initialMeasurementDate,
+    Map<String, double?> initialValues = const {},
     ManualResultRepository? repository,
   }) : _repository = repository ?? ManualResultRepository() {
-    measurementDate = _formatDate(DateTime.now());
+    measurementDate = initialMeasurementDate ?? _formatDate(DateTime.now());
+    for (final entry in initialValues.entries) {
+      final value = entry.value;
+      if (value != null && valueTexts.containsKey(entry.key)) {
+        valueTexts[entry.key] = _formatValue(value);
+      }
+    }
   }
 
   final int farmId;
   final bool isProvisional;
+  final int? uploadId;
   final ManualResultRepository _repository;
 
   String measurementDate = '';
@@ -23,6 +33,8 @@ class ManualResultNotifier extends ChangeNotifier {
 
   bool isSaving = false;
   String? saveError;
+
+  bool get isEditing => uploadId != null;
 
   bool get canSubmit {
     if (isProvisional || isSaving) return false;
@@ -60,20 +72,29 @@ class ManualResultNotifier extends ChangeNotifier {
     notifyListeners();
 
     try {
-      await _repository.create(
-        farmId: farmId,
-        measurementDate: measurementDate,
-        values: _parsedValues(),
-      );
+      final values = _parsedValues();
+      if (uploadId case final int id) {
+        await _repository.update(
+          uploadId: id,
+          measurementDate: measurementDate,
+          values: values,
+        );
+      } else {
+        await _repository.create(
+          farmId: farmId,
+          measurementDate: measurementDate,
+          values: values,
+        );
+      }
       return true;
     } on ManualResultBoundaryRequiredException {
-      saveError = 'この圃場は境界が未設定のため、過去実績を登録できません';
+      saveError = 'この圃場は境界が未設定のため、測定結果を保存できません';
       return false;
     } on ManualResultDateAlreadyExistsException {
-      saveError = 'この日の過去実績はすでに登録されています';
+      saveError = 'この日の手動測定結果はすでに登録されています';
       return false;
     } catch (_) {
-      saveError = '登録に失敗しました。通信状態を確認してください';
+      saveError = '${isEditing ? '更新' : '登録'}に失敗しました。通信状態を確認してください';
       return false;
     } finally {
       isSaving = false;
@@ -86,5 +107,11 @@ class ManualResultNotifier extends ChangeNotifier {
     final m = date.month.toString().padLeft(2, '0');
     final d = date.day.toString().padLeft(2, '0');
     return '$y-$m-$d';
+  }
+
+  static String _formatValue(double value) {
+    return value == value.truncateToDouble()
+        ? value.toInt().toString()
+        : value.toString();
   }
 }

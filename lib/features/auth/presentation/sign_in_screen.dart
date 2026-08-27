@@ -64,14 +64,15 @@ class _SignInScreenState extends State<SignInScreen> {
       if (userId != null) {
         userProvider.setUserId(userId, displayName: displayName);
       }
-
-      // id_tokenも取得して確認（デバッグ用）
-      final token = await authService.idToken();
-      print('id_token取得: ${token != null ? "成功" : "失敗"}');
       if (!mounted) return;
 
-      // ホーム画面に遷移
-      Navigator.pushReplacementNamed(context, AppRoutes.main);
+      // 認証前の画面を履歴から除去し、戻る操作でログイン画面へ
+      // 戻れないようにする。
+      Navigator.pushNamedAndRemoveUntil(
+        context,
+        AppRoutes.main,
+        (route) => false,
+      );
     } catch (e) {
       if (!mounted) return;
       final errorMessage = _parseError(e);
