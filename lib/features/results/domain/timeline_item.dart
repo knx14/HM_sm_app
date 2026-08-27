@@ -18,13 +18,21 @@ final class MeasurementTimelineItem extends TimelineItem {
   final int countPoints;
   final Map<String, ParameterStat> values;
   final double? deltaCec;
+  final String measurementSource;
+  final int? manualResultUploadId;
 
   const MeasurementTimelineItem({
     required super.date,
     required this.countPoints,
     required this.values,
     this.deltaCec,
+    required this.measurementSource,
+    this.manualResultUploadId,
   }) : super(type: 'measurement');
+
+  bool get isManual =>
+      measurementSource.trim().toLowerCase() == 'manual' ||
+      manualResultUploadId != null;
 
   factory MeasurementTimelineItem.fromJson(Map<String, dynamic> json) {
     final valuesRaw = (json['values'] as Map?) ?? const {};
@@ -39,6 +47,8 @@ final class MeasurementTimelineItem extends TimelineItem {
         ),
       ),
       deltaCec: (deltaRaw['CEC'] as num?)?.toDouble(),
+      measurementSource: (json['measurement_source'] as String?) ?? 'sensor',
+      manualResultUploadId: (json['manual_result_upload_id'] as num?)?.toInt(),
     );
   }
 }

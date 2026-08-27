@@ -36,6 +36,25 @@ class ManualResultRepository {
     }
   }
 
+  Future<void> update({
+    required int uploadId,
+    required String measurementDate,
+    required Map<String, double> values,
+  }) async {
+    try {
+      await _apiClient.dio.put(
+        '/api/manual-results/$uploadId',
+        data: {'measurement_date': measurementDate, 'values': values},
+      );
+    } on DioException catch (e) {
+      throw _mapException(e);
+    }
+  }
+
+  Future<void> delete(int uploadId) async {
+    await _apiClient.dio.delete('/api/manual-results/$uploadId');
+  }
+
   Exception _mapException(DioException e) {
     final data = e.response?.data;
     final errorCode = _extractErrorCode(data);

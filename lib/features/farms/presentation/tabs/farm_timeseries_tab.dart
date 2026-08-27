@@ -289,14 +289,45 @@ class _ParameterSelector extends StatelessWidget {
   }
 }
 
-class _TimeseriesChart extends StatelessWidget {
+class _TimeseriesChart extends StatefulWidget {
   const _TimeseriesChart({required this.data, required this.farmAverage});
 
   final TimeseriesResult data;
   final double? farmAverage;
 
   @override
+  State<_TimeseriesChart> createState() => _TimeseriesChartState();
+}
+
+class _TimeseriesChartState extends State<_TimeseriesChart> {
+  final Map<int, Offset> _pointerPositions = {};
+  double _zoom = 1;
+  double _viewportStart = 0;
+  bool _isPinching = false;
+  double _pinchStartDistance = 1;
+  double _pinchStartZoom = 1;
+  double _pinchAnchorDateFraction = 0.5;
+  ScrollHoldController? _scrollHold;
+
+  @override
+  void didUpdateWidget(covariant _TimeseriesChart oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.data != widget.data) {
+      _zoom = 1;
+      _viewportStart = 0;
+      _pointerPositions.clear();
+    }
+  }
+
+  @override
+  void dispose() {
+    _scrollHold?.cancel();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final data = widget.data;
     return Card(
       elevation: 0,
       color: Theme.of(context).colorScheme.surfaceContainerLow,
@@ -304,27 +335,92 @@ class _TimeseriesChart extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(8, 14, 12, 8),
         child: LayoutBuilder(
           builder: (context, constraints) {
-            return GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTapUp: (details) {
-                final index = _pointIndexAt(
-                  details.localPosition,
-                  constraints.biggest,
-                  data,
-                );
-                if (index == null) return;
-                _showMeasurementDetail(context, data, data.points[index]);
-              },
-              child: CustomPaint(
-                painter: _TimeseriesChartPainter(
-                  points: data.points,
-                  workLogs: data.workLogs,
-                  farmAverage: farmAverage,
-                  textColor: Theme.of(context).colorScheme.onSurface,
-                  baseTextStyle: DefaultTextStyle.of(context).style,
+            final size = constraints.biggest;
+            final viewportEnd = _viewportStart + 1 / _zoom;
+            return Stack(
+              children: [
+                Listener(
+                  behavior: HitTestBehavior.opaque,
+                  onPointerDown: (event) =>
+                      _handlePointerDown(event, size, context),
+                  onPointerMove: (event) => _handlePointerMove(event, size),
+                  onPointerUp: _handlePointerEnd,
+                  onPointerCancel: _handlePointerEnd,
+                  child: SizedBox(
+                    width: size.width,
+                    height: size.height,
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onHorizontalDragUpdate: (details) {
+                        if (_isPinching || _pointerPositions.length > 1) return;
+                        final chart = _TimeseriesChartPainter.chartRectFor(
+                          size,
+                        );
+                        final maxStart = 1 - 1 / _zoom;
+                        setState(() {
+                          _viewportStart =
+                              (_viewportStart -
+                                      details.delta.dx / chart.width / _zoom)
+                                  .clamp(0, maxStart);
+                        });
+                      },
+                      onTapUp: (details) {
+                        final logs = _workLogsAt(
+                          details.localPosition,
+                          size,
+                          data,
+                          viewportStart: _viewportStart,
+                          viewportEnd: viewportEnd,
+                        );
+                        if (logs.isNotEmpty) {
+                          _showWorkLogDetail(context, logs);
+                          return;
+                        }
+                        final index = _pointIndexAt(
+                          details.localPosition,
+                          size,
+                          data,
+                          viewportStart: _viewportStart,
+                          viewportEnd: viewportEnd,
+                        );
+                        if (index == null) return;
+                        _showMeasurementDetail(
+                          context,
+                          data,
+                          data.points[index],
+                        );
+                      },
+                      child: CustomPaint(
+                        painter: _TimeseriesChartPainter(
+                          points: data.points,
+                          workLogs: data.workLogs,
+                          farmAverage: widget.farmAverage,
+                          textColor: Theme.of(context).colorScheme.onSurface,
+                          baseTextStyle: DefaultTextStyle.of(context).style,
+                          viewportStart: _viewportStart,
+                          viewportEnd: viewportEnd,
+                        ),
+                      ),
+                    ),
+                  ),
                 ),
-                child: const SizedBox.expand(),
-              ),
+                Positioned(
+                  top: 4,
+                  right: 4,
+                  child: Material(
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.surface.withValues(alpha: 0.88),
+                    shape: const CircleBorder(),
+                    child: IconButton(
+                      visualDensity: VisualDensity.compact,
+                      tooltip: '表示をリセット',
+                      onPressed: _resetViewport,
+                      icon: const Icon(Icons.center_focus_strong, size: 20),
+                    ),
+                  ),
+                ),
+              ],
             );
           },
         ),
@@ -332,7 +428,93 @@ class _TimeseriesChart extends StatelessWidget {
     );
   }
 
-  int? _pointIndexAt(Offset tap, Size size, TimeseriesResult data) {
+  void _handlePointerDown(
+    PointerDownEvent event,
+    Size size,
+    BuildContext context,
+  ) {
+    _pointerPositions[event.pointer] = event.localPosition;
+    if (_pointerPositions.length != 2) return;
+    _isPinching = true;
+    _scrollHold?.cancel();
+    _scrollHold = Scrollable.maybeOf(context)?.position.hold(() {});
+    final positions = _pointerPositions.values.take(2).toList(growable: false);
+    _pinchStartDistance = math.max(1, (positions[0] - positions[1]).distance);
+    _pinchStartZoom = _zoom;
+    final focalPoint = Offset(
+      (positions[0].dx + positions[1].dx) / 2,
+      (positions[0].dy + positions[1].dy) / 2,
+    );
+    final normalizedX = _normalizedChartX(focalPoint.dx, size);
+    _pinchAnchorDateFraction = _viewportStart + normalizedX / _zoom;
+  }
+
+  void _handlePointerMove(PointerMoveEvent event, Size size) {
+    if (!_pointerPositions.containsKey(event.pointer)) return;
+    _pointerPositions[event.pointer] = event.localPosition;
+    if (!_isPinching || _pointerPositions.length < 2) return;
+
+    final positions = _pointerPositions.values.take(2).toList(growable: false);
+    final distance = math.max(1, (positions[0] - positions[1]).distance);
+    final focalPoint = Offset(
+      (positions[0].dx + positions[1].dx) / 2,
+      (positions[0].dy + positions[1].dy) / 2,
+    );
+    final maxZoom = _maxZoomFor(widget.data);
+    final nextZoom = (_pinchStartZoom * distance / _pinchStartDistance).clamp(
+      1.0,
+      maxZoom,
+    );
+    final normalizedX = _normalizedChartX(focalPoint.dx, size);
+    final maxStart = 1 - 1 / nextZoom;
+    final nextStart = (_pinchAnchorDateFraction - normalizedX / nextZoom).clamp(
+      0.0,
+      maxStart,
+    );
+    setState(() {
+      _zoom = nextZoom;
+      _viewportStart = nextStart;
+    });
+  }
+
+  void _handlePointerEnd(PointerEvent event) {
+    _pointerPositions.remove(event.pointer);
+    if (_pointerPositions.length >= 2) return;
+    _isPinching = false;
+    _scrollHold?.cancel();
+    _scrollHold = null;
+  }
+
+  double _normalizedChartX(double x, Size size) {
+    final chart = _TimeseriesChartPainter.chartRectFor(size);
+    return ((x - chart.left) / chart.width).clamp(0.0, 1.0);
+  }
+
+  double _maxZoomFor(TimeseriesResult data) {
+    final range = _TimeseriesChartPainter.dateRangeFor(
+      data.points,
+      data.workLogs,
+    );
+    if (range == null) return 6;
+    final days = math.max(1, range.$2.difference(range.$1).inDays);
+    return (days / 7).clamp(1.0, 200.0);
+  }
+
+  void _resetViewport() {
+    if (!mounted) return;
+    setState(() {
+      _zoom = 1;
+      _viewportStart = 0;
+    });
+  }
+
+  int? _pointIndexAt(
+    Offset tap,
+    Size size,
+    TimeseriesResult data, {
+    required double viewportStart,
+    required double viewportEnd,
+  }) {
     final points = data.points;
     if (points.isEmpty) return null;
     final chart = _TimeseriesChartPainter.chartRectFor(size);
@@ -349,6 +531,8 @@ class _TimeseriesChart extends StatelessWidget {
         chart,
         range.$1,
         range.$2,
+        viewportStart: viewportStart,
+        viewportEnd: viewportEnd,
       );
       if (x == null) continue;
       final distance = (tap.dx - x).abs();
@@ -358,6 +542,49 @@ class _TimeseriesChart extends StatelessWidget {
       }
     }
     return nearestIndex;
+  }
+
+  List<WorkLogMark> _workLogsAt(
+    Offset tap,
+    Size size,
+    TimeseriesResult data, {
+    required double viewportStart,
+    required double viewportEnd,
+  }) {
+    if (data.workLogs.isEmpty) return const [];
+    final chart = _TimeseriesChartPainter.chartRectFor(size);
+    if (!chart.inflate(12).contains(tap)) return const [];
+    final range = _TimeseriesChartPainter.dateRangeFor(
+      data.points,
+      data.workLogs,
+    );
+    if (range == null) return const [];
+
+    WorkLogMark? nearest;
+    var nearestDistance = double.infinity;
+    for (final log in data.workLogs) {
+      final x = _TimeseriesChartPainter.xForDateString(
+        log.date,
+        chart,
+        range.$1,
+        range.$2,
+        viewportStart: viewportStart,
+        viewportEnd: viewportEnd,
+      );
+      if (x == null) continue;
+      final distance = (tap.dx - x).abs();
+      if (distance <= 12 && distance < nearestDistance) {
+        nearest = log;
+        nearestDistance = distance;
+      }
+    }
+    if (nearest == null) return const [];
+    final dateKey = _TimeseriesChartPainter._dateKeyStatic(nearest.date);
+    return data.workLogs
+        .where(
+          (log) => _TimeseriesChartPainter._dateKeyStatic(log.date) == dateKey,
+        )
+        .toList(growable: false);
   }
 
   void _showMeasurementDetail(
@@ -378,6 +605,101 @@ class _TimeseriesChart extends StatelessWidget {
         count: point.count,
       ),
     );
+  }
+
+  void _showWorkLogDetail(BuildContext context, List<WorkLogMark> logs) {
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      builder: (_) => _WorkLogDetailSheet(logs: logs),
+    );
+  }
+}
+
+class _WorkLogDetailSheet extends StatelessWidget {
+  const _WorkLogDetailSheet({required this.logs});
+
+  final List<WorkLogMark> logs;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return SafeArea(
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.sizeOf(context).height * 0.72,
+        ),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                _TimeseriesChartPainter._dateKeyStatic(logs.first.date),
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: colorScheme.onSurface.withValues(alpha: 0.62),
+                  fontSize: 13,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                logs.length == 1 ? '作業内容' : '作業内容（${logs.length}件）',
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Flexible(
+                child: ListView.separated(
+                  shrinkWrap: true,
+                  itemCount: logs.length,
+                  separatorBuilder: (_, _) => const Divider(height: 1),
+                  itemBuilder: (context, index) {
+                    final log = logs[index];
+                    final title = log.title?.trim();
+                    final details = <String>[
+                      if (title?.isNotEmpty == true)
+                        _workTypeLabel(log.workType),
+                      if (log.detail?.trim().isNotEmpty == true)
+                        log.detail!.trim(),
+                      if (log.amountValue != null)
+                        '${_formatWorkAmount(log.amountValue!)}'
+                            '${log.amountUnit?.trim().isNotEmpty == true ? ' ${log.amountUnit!.trim()}' : ''}',
+                    ];
+                    return ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: Icon(
+                        Icons.agriculture_outlined,
+                        color: Colors.orange.shade800,
+                      ),
+                      title: Text(
+                        title?.isNotEmpty == true
+                            ? title!
+                            : _workTypeLabel(log.workType),
+                      ),
+                      subtitle: details.isEmpty
+                          ? null
+                          : Text(details.join('\n')),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _formatWorkAmount(double value) {
+    return value == value.roundToDouble()
+        ? value.toInt().toString()
+        : value.toString();
   }
 }
 
@@ -516,6 +838,8 @@ class _TimeseriesChartPainter extends CustomPainter {
     required this.farmAverage,
     required this.textColor,
     required this.baseTextStyle,
+    required this.viewportStart,
+    required this.viewportEnd,
   });
 
   final List<TimeseriesPoint> points;
@@ -523,11 +847,14 @@ class _TimeseriesChartPainter extends CustomPainter {
   final double? farmAverage;
   final Color textColor;
   final TextStyle baseTextStyle;
+  final double viewportStart;
+  final double viewportEnd;
 
   static const left = 44.0;
   static const right = 10.0;
   static const top = 12.0;
-  static const bottom = 38.0;
+  static const bottom = 40.0;
+  static const _labelGap = 6.0;
 
   static Rect chartRectFor(Size size) {
     return Rect.fromLTWH(
@@ -570,8 +897,10 @@ class _TimeseriesChartPainter extends CustomPainter {
     String date,
     Rect chart,
     DateTime minDate,
-    DateTime maxDate,
-  ) {
+    DateTime maxDate, {
+    double viewportStart = 0,
+    double viewportEnd = 1,
+  }) {
     final parsed = DateTime.tryParse(_dateKeyStatic(date));
     if (parsed == null) return null;
     if (maxDate.isAtSameMomentAs(minDate)) {
@@ -582,7 +911,11 @@ class _TimeseriesChartPainter extends CustomPainter {
       return parsed.isAtSameMomentAs(minDate) ? chart.center.dx : null;
     }
     final offsetDays = parsed.difference(minDate).inDays;
-    return chart.left + chart.width * (offsetDays / totalDays);
+    final dateFraction = offsetDays / totalDays;
+    final visibleFraction = viewportEnd - viewportStart;
+    if (visibleFraction <= 0) return null;
+    return chart.left +
+        chart.width * ((dateFraction - viewportStart) / visibleFraction);
   }
 
   @override
@@ -608,8 +941,14 @@ class _TimeseriesChartPainter extends CustomPainter {
     final y0 = minY - yPadding;
     final y1 = maxY + yPadding;
 
-    double? xForDate(String date) =>
-        xForDateString(date, chart, minDate, maxDate);
+    double? xForDate(String date) => xForDateString(
+      date,
+      chart,
+      minDate,
+      maxDate,
+      viewportStart: viewportStart,
+      viewportEnd: viewportEnd,
+    );
 
     double yFor(double value) {
       if ((y1 - y0).abs() < 0.001) return chart.center.dy;
@@ -631,6 +970,9 @@ class _TimeseriesChartPainter extends CustomPainter {
       );
     }
 
+    canvas.save();
+    canvas.clipRect(chart);
+
     final workPaint = Paint()
       ..color = Colors.orange.withValues(alpha: 0.75)
       ..strokeWidth = 1.4;
@@ -643,14 +985,10 @@ class _TimeseriesChartPainter extends CustomPainter {
         Offset(x, chart.bottom),
         workPaint,
       );
-      _drawText(
-        canvas,
-        mark.title?.isNotEmpty == true
-            ? mark.title!
-            : _workTypeLabel(mark.workType),
-        Offset(x + 3, chart.top + 2),
-        fontSize: 9,
-        color: Colors.orange.shade800,
+      canvas.drawCircle(
+        Offset(x, chart.top),
+        4,
+        Paint()..color = Colors.orange.shade800,
       );
     }
 
@@ -697,18 +1035,64 @@ class _TimeseriesChartPainter extends CustomPainter {
         horizontal: true,
       );
     }
+    canvas.restore();
 
-    final labelStep = math.max(1, (points.length / 4).ceil());
-    for (var i = 0; i < points.length; i += labelStep) {
-      final x = xForDate(points[i].date);
-      if (x == null) continue;
-      _drawText(
-        canvas,
-        _shortDate(points[i].date),
-        Offset(x - 16, chart.bottom + 8),
+    final visibleDays =
+        maxDate.difference(minDate).inDays * (viewportEnd - viewportStart);
+    final showYear = visibleDays >= 365;
+    final axisDates = _axisDatesForViewport(minDate, maxDate);
+    final candidates =
+        <({double x, double left, double right, TextPainter painter})>[];
+    for (final date in axisDates) {
+      final x = xForDate(date);
+      if (x == null || x < chart.left || x > chart.right) continue;
+      final painter = _textPainter(
+        _axisDate(date, showYear: showYear),
         fontSize: 10,
         color: textColor.withValues(alpha: 0.68),
       );
+      final labelLeft = (x - painter.width / 2).clamp(
+        chart.left,
+        chart.right - painter.width,
+      );
+      candidates.add((
+        x: x,
+        left: labelLeft,
+        right: labelLeft + painter.width,
+        painter: painter,
+      ));
+    }
+    if (candidates.isNotEmpty) {
+      final visibleLabels =
+          <({double x, double left, double right, TextPainter painter})>[
+            candidates.first,
+          ];
+      for (var i = 1; i < candidates.length - 1; i++) {
+        final candidate = candidates[i];
+        if (candidate.left >= visibleLabels.last.right + _labelGap) {
+          visibleLabels.add(candidate);
+        }
+      }
+      if (candidates.length > 1) {
+        final last = candidates.last;
+        while (visibleLabels.length > 1 &&
+            last.left < visibleLabels.last.right + _labelGap) {
+          visibleLabels.removeLast();
+        }
+        if (last.left >= visibleLabels.last.right + _labelGap) {
+          visibleLabels.add(last);
+        }
+      }
+      for (final label in visibleLabels) {
+        canvas.drawLine(
+          Offset(label.x, chart.bottom),
+          Offset(label.x, chart.bottom + 4),
+          Paint()
+            ..color = textColor.withValues(alpha: 0.35)
+            ..strokeWidth = 1,
+        );
+        label.painter.paint(canvas, Offset(label.left, chart.bottom + 8));
+      }
     }
   }
 
@@ -752,6 +1136,15 @@ class _TimeseriesChartPainter extends CustomPainter {
     required double fontSize,
     required Color color,
   }) {
+    _textPainter(text, fontSize: fontSize, color: color).paint(canvas, offset);
+  }
+
+  TextPainter _textPainter(
+    String text, {
+    required double fontSize,
+    required Color color,
+    double? maxWidth,
+  }) {
     final painter = TextPainter(
       text: TextSpan(
         style: baseTextStyle.copyWith(fontSize: fontSize, color: color),
@@ -759,15 +1152,67 @@ class _TimeseriesChartPainter extends CustomPainter {
       ),
       textDirection: TextDirection.ltr,
       locale: const Locale('ja', 'JP'),
-    )..layout();
-    painter.paint(canvas, offset);
+      maxLines: 1,
+      ellipsis: maxWidth == null ? null : '…',
+    )..layout(maxWidth: maxWidth ?? double.infinity);
+    return painter;
   }
 
-  String _shortDate(String date) {
-    if (date.length >= 10) {
-      return '${date.substring(5, 7)}/${date.substring(8, 10)}';
+  List<String> _axisDatesForViewport(DateTime minDate, DateTime maxDate) {
+    final totalDuration = maxDate.difference(minDate);
+    if (totalDuration.inMilliseconds <= 0) {
+      return [_dateKeyStatic(minDate.toIso8601String())];
     }
-    return date;
+
+    final visibleStart = minDate.add(
+      Duration(
+        milliseconds: (totalDuration.inMilliseconds * viewportStart).round(),
+      ),
+    );
+    final visibleEnd = minDate.add(
+      Duration(
+        milliseconds: (totalDuration.inMilliseconds * viewportEnd).round(),
+      ),
+    );
+    final visibleDays = math.max(
+      1,
+      visibleEnd.difference(visibleStart).inHours / 24,
+    );
+    final stepDays = switch (visibleDays) {
+      <= 10 => 1,
+      <= 35 => 5,
+      <= 90 => 14,
+      <= 240 => 30,
+      <= 730 => 90,
+      _ => 365,
+    };
+
+    var tick = DateTime(
+      visibleStart.year,
+      visibleStart.month,
+      visibleStart.day,
+    );
+    if (tick.isBefore(visibleStart)) {
+      tick = tick.add(const Duration(days: 1));
+    }
+    final dates = <String>[];
+    while (!tick.isAfter(visibleEnd) && dates.length < 50) {
+      dates.add(_dateKeyStatic(tick.toIso8601String()));
+      tick = tick.add(Duration(days: stepDays));
+    }
+    return dates;
+  }
+
+  String _axisDate(String date, {required bool showYear}) {
+    final parsed = DateTime.tryParse(_dateKeyStatic(date));
+    if (parsed == null) return date;
+    final month = parsed.month.toString().padLeft(2, '0');
+    final day = parsed.day.toString().padLeft(2, '0');
+    if (showYear) {
+      final year = (parsed.year % 100).toString().padLeft(2, '0');
+      return '$year/$month/$day';
+    }
+    return '$month/$day';
   }
 
   @override
@@ -776,7 +1221,9 @@ class _TimeseriesChartPainter extends CustomPainter {
         oldDelegate.workLogs != workLogs ||
         oldDelegate.farmAverage != farmAverage ||
         oldDelegate.textColor != textColor ||
-        oldDelegate.baseTextStyle != baseTextStyle;
+        oldDelegate.baseTextStyle != baseTextStyle ||
+        oldDelegate.viewportStart != viewportStart ||
+        oldDelegate.viewportEnd != viewportEnd;
   }
 }
 
