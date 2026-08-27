@@ -103,7 +103,9 @@ class _SyncScreenState extends State<SyncScreen> {
         cultivationType: null,
       );
       if (mounted) {
-        context.read<MeasurementStateProvider>().removeSyncedLocalPins(
+        // complete は受付完了であり、クラウド結果が即時に取得できるとは限らない。
+        // 結果ピンへ置換されるまでローカル点を残し、表示の空白期間を作らない。
+        context.read<MeasurementStateProvider>().markSyncedLocalPinUploaded(
           farmId: item.farmId,
           localPinId: item.localPinId,
           latitude: latitude,
@@ -158,10 +160,9 @@ class _SyncScreenState extends State<SyncScreen> {
   }
 
   Future<void> _syncSelected() async {
-    final targets = _items
-        .where((item) => _selected.contains(item.fileBase))
-        .toList()
-      ..sort(PendingUploadItem.compareByMeasurementOrder);
+    final targets =
+        _items.where((item) => _selected.contains(item.fileBase)).toList()
+          ..sort(PendingUploadItem.compareByMeasurementOrder);
     if (targets.isEmpty) return;
     setState(() {
       _isSyncingSelected = true;

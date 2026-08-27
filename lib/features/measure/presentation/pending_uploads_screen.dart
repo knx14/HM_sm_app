@@ -64,7 +64,7 @@ class _PendingUploadsScreenState extends State<PendingUploadsScreen> {
         cultivationType: null,
       );
       if (mounted) {
-        context.read<MeasurementStateProvider>().removeSyncedLocalPins(
+        context.read<MeasurementStateProvider>().markSyncedLocalPinUploaded(
           farmId: item.farmId,
           localPinId: item.localPinId,
           latitude: latitude,
