@@ -142,7 +142,7 @@ class MeasurementStateProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  void removeSyncedLocalPins({
+  void markSyncedLocalPinUploaded({
     required int farmId,
     String? localPinId,
     double? latitude,
@@ -151,11 +151,21 @@ class MeasurementStateProvider extends ChangeNotifier {
     final key = _keyForFarm(farmId);
     final pins = _pinsByFarmDate[key];
     if (pins == null) return;
-    final ids = <String>{};
+
+    _SpotProgress? target;
     if (localPinId != null && localPinId.isNotEmpty) {
-      ids.add(localPinId);
+      for (final spot in pins) {
+        if (spot.id == localPinId) {
+          target = spot;
+          break;
+        }
+      }
     }
-    if (latitude != null && longitude != null) {
+
+    // 古いキューには localPinId がないため、座標が最も近い未同期点を
+    // 1件だけ選ぶ。近接地点をまとめて同期済みにしないようにする。
+    if (target == null && latitude != null && longitude != null) {
+      var nearestDistance = double.infinity;
       for (final spot in pins) {
         if (!spot.saveDone || spot.uploadDone) continue;
         final distance = Geolocator.distanceBetween(
@@ -164,13 +174,18 @@ class MeasurementStateProvider extends ChangeNotifier {
           spot.position.latitude,
           spot.position.longitude,
         );
-        if (distance <= 5.0) {
-          ids.add(spot.id);
+        if (distance <= 5.0 && distance < nearestDistance) {
+          target = spot;
+          nearestDistance = distance;
         }
       }
     }
-    if (ids.isEmpty) return;
-    pins.removeWhere((spot) => ids.contains(spot.id));
+
+    if (target == null) return;
+    target
+      ..saveDone = true
+      ..failed = false
+      ..uploadDone = true;
     notifyListeners();
   }
 
@@ -269,6 +284,7 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
   LatLng? _manualCorrectedLocation;
   GoogleMapController? _mapController;
   StreamSubscription<Position>? _positionSubscription;
+  Timer? _manualLocationHoldTimer;
 
   UploadPhase _uploadPhase = UploadPhase.idle;
   SessionStep _currentStep = SessionStep.connect;
@@ -285,9 +301,8 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
   bool _showMapHint = true;
   int _fetchVersion = 0;
   final Map<int, DateTime> _deletedPointIds = <int, DateTime>{};
-  static const double _manualCorrectionReleaseDistanceMeters = 2.0;
+  static const Duration _manualLocationHoldDuration = Duration(seconds: 5);
 
-  final List<ChartData> _chartData = [];
   _SpotProgress? _activeSpot;
   String? _correctingSpotId;
   final Map<String, BitmapDescriptor> _markerIconCache =
@@ -309,22 +324,18 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
   }
 
   /// マップ・測定リストに表示する測定点。
-  /// 自動同期では、クラウド結果ピンと位置が近い保存済みローカルピンを
-  /// 同一測定とみなしてローカル側を非表示にし、二重表示を防ぐ。
+  ///
+  /// ローカル点とクラウド結果点を測定時刻順に統合する。近接判定だけで
+  /// ローカル点を隠すと、過去のクラウド点の近くで行った未同期測定まで
+  /// 消えるため、重複の一対一置換は [_removeLocalPinsCoveredByResults] で行う。
   List<_SpotProgress> get _mapSpots {
-    if (_syncMode == SyncMode.manual) {
-      return [..._resultSpots, ..._spots];
-    }
-    final results = _resultSpots;
-    if (results.isEmpty) return List<_SpotProgress>.from(_spots);
-    final resultPositions = results.map((spot) => spot.position);
-    final visibleLocals = _spots
-        .where((local) {
-          if (!local.saveDone) return true;
-          return !_hasNearbyPosition(local.position, resultPositions);
-        })
-        .toList(growable: false);
-    return [...results, ...visibleLocals];
+    final merged = <_SpotProgress>[..._resultSpots, ..._spots];
+    merged.sort((a, b) {
+      final timeCompare = a.createdAt.compareTo(b.createdAt);
+      if (timeCompare != 0) return timeCompare;
+      return a.id.compareTo(b.id);
+    });
+    return merged;
   }
 
   void _notifyMapSpotsChanged() {
@@ -381,37 +392,38 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
   void _handleGpsPosition(Position position) {
     if (!mounted) return;
     final here = LatLng(position.latitude, position.longitude);
-    final manualLocation = _manualCorrectedLocation;
 
-    if (_correctingSpotId != null) {
+    if (_correctingSpotId != null || _manualCorrectedLocation != null) {
       setState(() => _currentGpsLocation = here);
       return;
     }
 
-    if (manualLocation != null) {
-      final distance = Geolocator.distanceBetween(
-        here.latitude,
-        here.longitude,
-        manualLocation.latitude,
-        manualLocation.longitude,
-      );
-      if (distance < _manualCorrectionReleaseDistanceMeters) {
-        setState(() => _currentGpsLocation = here);
-        return;
-      }
-    }
-
     setState(() {
       _currentGpsLocation = here;
-      _manualCorrectedLocation = null;
       _confirmedLocation = here;
     });
     _persistSessionState();
   }
 
-  void _setManualMeasurementLocation(LatLng location) {
+  void _setManualMeasurementLocation(
+    LatLng location, {
+    bool holdBeforeGpsResume = true,
+  }) {
     _manualCorrectedLocation = location;
     _confirmedLocation = location;
+    _manualLocationHoldTimer?.cancel();
+    if (!holdBeforeGpsResume) return;
+    _manualLocationHoldTimer = Timer(_manualLocationHoldDuration, () {
+      if (!mounted || _correctingSpotId != null) return;
+      final gpsLocation = _currentGpsLocation;
+      setState(() {
+        _manualCorrectedLocation = null;
+        if (gpsLocation != null) {
+          _confirmedLocation = gpsLocation;
+        }
+      });
+      _persistSessionState();
+    });
   }
 
   bool get _isUploading =>
@@ -519,6 +531,7 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
   @override
   void dispose() {
     _recallTimeoutTimer?.cancel();
+    _manualLocationHoldTimer?.cancel();
     _positionSubscription?.cancel();
     SerialComm.removeDisconnectListener(_onUsbDisconnected);
     SerialComm.removeListener(_onReceive);
@@ -605,9 +618,7 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
       }
       // 結果ピンを state に反映する前にローカルピンを除去する。
       // 反映後に除去すると、一瞬ローカル＋クラウドの二重表示が起きる。
-      if (syncMode == SyncMode.auto) {
-        await _removeLocalPinsCoveredByResults(farm.id, pins);
-      }
+      await _removeLocalPinsCoveredByResults(farm.id, pins);
       _sessionState._setResultPins(farm.id, pins);
       for (final spot in _mapSpots) {
         await _refreshSpotIcon(spot);
@@ -663,16 +674,14 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
       }
     }
 
-    // 除去候補: 保存済みで、同期キュー（手動同期・再送待ち）に載っていないローカルピン。
-    // uploadDone のピンも対象に含める。アップロード直後はサーバーの推定処理が
-    // 未完了で結果ピンが返らずローカルピンが残るが、後続の取得で結果ピンが
-    // 現れた時点で置き換えないと、同一測定が二重表示される（幽霊ピンの原因）。
+    // 除去候補: アップロード完了済みで、同期キューに載っていないローカルピン。
+    // 手動・自動のどちらでも、クラウド結果が現れた時点で同一測定を置き換える。
+    // 未同期点やキュー登録に失敗した点は uploadDone=false のため除去しない。
     final removableSpots = <_SpotProgress>[];
     for (final spot in _spots) {
-      if (!spot.saveDone) continue;
+      if (!spot.saveDone || !spot.uploadDone) continue;
       if (pendingLocalPinIds.contains(spot.id)) continue;
-      if (!spot.uploadDone &&
-          _hasNearbyPosition(spot.position, pendingPositions)) {
+      if (_hasNearbyPosition(spot.position, pendingPositions)) {
         continue;
       }
       removableSpots.add(spot);
@@ -704,6 +713,9 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
         }
       }
       if (nearest != null) {
+        // クラウド側の created_at はアップロード・推定処理時刻になる場合が
+        // あるため、対応するローカル点の測定時刻を引き継いで番号を維持する。
+        resultSpot.createdAt = nearest.createdAt;
         idsToRemove.add(nearest.id);
       }
       // 対応するローカルピンが見つからなかった場合も消費済みにする。
@@ -941,32 +953,6 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
     MeasurementService.sendStoreCommand(_selectedSensor);
   }
 
-  void _sendRecallCommand() {
-    if (!_isConnected || _isSerialBusy) return;
-    MeasurementService.sendListCommand();
-    Future.delayed(const Duration(milliseconds: 300), () {
-      if (!mounted || _isSerialBusy) return;
-      final lines = _logController.text.split('\n');
-      for (final line in lines) {
-        if (line.trim().startsWith(_selectedSensor)) {
-          final parts = line.trim().split(RegExp(r'\s+'));
-          if (parts.length >= 8) {
-            setState(() {
-              _fstart.text = parts[1];
-              _fdelta.text = parts[2];
-              _points.text = parts[3];
-              _excite.text = parts[4];
-              _range.text = parts[5];
-              _integrate.text = parts[6];
-              _average.text = parts[7];
-            });
-          }
-        }
-      }
-      MeasurementService.sendRecallCommand(_selectedSensor);
-    });
-  }
-
   void _updateSettings() {
     _settings.update(
       fstart: double.tryParse(_fstart.text),
@@ -1016,6 +1002,7 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
     if (farm == null) {
       _isSelectingFarm = false;
       await _stopGpsPositionUpdates();
+      _manualLocationHoldTimer?.cancel();
       setState(() {
         _selectedFarm = null;
         _confirmedLocation = null;
@@ -1040,6 +1027,7 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
     final center = calculatePolygonCenter(polygon);
     // まずポリゴン中心をフォールバックとして設定
     // ステータスは _markerGeoStatus getter で自動計算されるため手動設定不要
+    _manualLocationHoldTimer?.cancel();
     setState(() {
       _selectedFarm = farm;
       _confirmedLocation = center;
@@ -1142,6 +1130,7 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
 
       if (nearestFarm == null || nearestCenter == null) return;
       final here = LatLng(pos.latitude, pos.longitude);
+      _manualLocationHoldTimer?.cancel();
       setState(() {
         _selectedFarm = nearestFarm;
         _currentGpsLocation = here;
@@ -1192,6 +1181,7 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
       if (!mounted) return;
       // 赤マーカー位置を現在地に更新。
       // ステータスは _markerGeoStatus getter で自動計算される。
+      _manualLocationHoldTimer?.cancel();
       setState(() {
         _currentGpsLocation = here;
         _manualCorrectedLocation = null;
@@ -1228,7 +1218,6 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
     }
     _execCompleter = Completer<bool>();
     setState(() {
-      _chartData.clear();
       _logController.clear();
       _receivedPoints = 0;
       _totalPoints =
@@ -1657,15 +1646,6 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
         }
 
         if (_isMeasuring && line.startsWith('*')) {
-          final idx = _receivedPoints;
-          final freq = _fstartValue() + (_fdeltaValue() * idx);
-          final point = MeasurementParser.tryParseExecDataLine(
-            line,
-            frequency: freq,
-          );
-          if (point != null) {
-            _chartData.add(point);
-          }
           _receivedPoints++;
           final p = ((_receivedPoints / _totalPoints) * 100)
               .clamp(0, 100)
@@ -1775,7 +1755,7 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
     );
     setState(() {
       spot.position = next;
-      _setManualMeasurementLocation(next);
+      _setManualMeasurementLocation(next, holdBeforeGpsResume: false);
     });
     _persistSessionState();
     _mapController?.animateCamera(CameraUpdate.newLatLng(next));
@@ -1784,7 +1764,7 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
   void _startPinCorrection(_SpotProgress spot) {
     setState(() {
       _correctingSpotId = spot.id;
-      _setManualMeasurementLocation(spot.position);
+      _setManualMeasurementLocation(spot.position, holdBeforeGpsResume: false);
       _showMapHint = true;
     });
     _persistSessionState();
@@ -1860,21 +1840,9 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
             isConnected: _isConnected,
             isMeasuring: _isSerialBusy,
             isUploading: _isUploading,
-            fstart: _fstart,
-            fdelta: _fdelta,
-            points: _points,
-            excite: _excite,
-            range: _range,
-            integrate: _integrate,
-            average: _average,
-            note1: _note1,
-            note2: _note2,
-            selectedSensor: _selectedSensor,
-            onSensorChanged: (v) => setState(() => _selectedSensor = v),
             onSendId: _sendIDCommand,
             onSendList: _sendListCommand,
             onSendStore: _sendStoreCommand,
-            onSendRecall: _sendRecallCommand,
             logController: _logController,
             logScrollController: _logScrollController,
             uploadLogController: _uploadLogController,
@@ -1951,8 +1919,11 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
             // 赤マーカー位置を更新。ステータスは _markerGeoStatus getter で
             // rebuild 時に自動計算されるため、同期ずれが原理的に起きない。
             setState(() {
-              _setManualMeasurementLocation(p);
               final correctingSpot = _spotById(_correctingSpotId);
+              _setManualMeasurementLocation(
+                p,
+                holdBeforeGpsResume: correctingSpot == null,
+              );
               if (correctingSpot != null) {
                 correctingSpot.position = p;
               }
@@ -2248,7 +2219,15 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
         return;
       }
     }
-    setState(() => _correctingSpotId = null);
+    _manualLocationHoldTimer?.cancel();
+    final gpsLocation = _currentGpsLocation;
+    setState(() {
+      _correctingSpotId = null;
+      _manualCorrectedLocation = null;
+      if (gpsLocation != null) {
+        _confirmedLocation = gpsLocation;
+      }
+    });
     _persistSessionState();
     _openMeasurementList();
   }

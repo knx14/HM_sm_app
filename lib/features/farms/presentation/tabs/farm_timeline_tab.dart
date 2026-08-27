@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../../results/data/manual_result_repository.dart';
 import '../../../results/domain/timeline_item.dart';
+import '../../../results/presentation/manual_result_form_screen.dart';
 import '../../../results/presentation/providers/timeline_notifier.dart';
 import '../../../results/presentation/widgets/farm_record_add_sheet.dart';
 import '../../../work_logs/data/work_log_repository.dart';
@@ -65,7 +67,15 @@ class _TimelineView extends StatelessWidget {
             }
             final item = state.items[index - (state.isLoading ? 1 : 0)];
             return switch (item) {
-              MeasurementTimelineItem() => _MeasurementCard(item: item),
+              MeasurementTimelineItem() => _MeasurementCard(
+                item: item,
+                onEdit: item.isManual
+                    ? () => _editManualResult(context, state, item)
+                    : null,
+                onDelete: item.isManual
+                    ? () => _deleteManualResult(context, state, item)
+                    : null,
+              ),
               WorkLogTimelineItem() => _WorkLogCard(
                 item: item,
                 onEdit: () => _editWorkLog(context, state, item),
@@ -99,6 +109,86 @@ class _TimelineView extends StatelessWidget {
         ),
       ],
     );
+  }
+
+  Future<void> _editManualResult(
+    BuildContext context,
+    TimelineNotifier state,
+    MeasurementTimelineItem item,
+  ) async {
+    final uploadId = item.manualResultUploadId;
+    if (uploadId == null) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('手動測定結果のIDを取得できませんでした')));
+      return;
+    }
+
+    final saved = await ManualResultFormScreen.showEdit(
+      context,
+      farmId: state.farmId,
+      isProvisional: isProvisional,
+      uploadId: uploadId,
+      measurementDate: _dateKey(item.date),
+      initialValues: item.values.map((key, stat) => MapEntry(key, stat.avg)),
+    );
+    if (!saved || !context.mounted) return;
+    await state.reload();
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('測定結果を更新しました')));
+  }
+
+  Future<void> _deleteManualResult(
+    BuildContext context,
+    TimelineNotifier state,
+    MeasurementTimelineItem item,
+  ) async {
+    final uploadId = item.manualResultUploadId;
+    if (uploadId == null) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('手動測定結果のIDを取得できませんでした')));
+      return;
+    }
+
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('測定結果を削除'),
+        content: Text('${_shortDate(item.date)}の手動測定結果を削除しますか？'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('キャンセル'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(context).colorScheme.error,
+              foregroundColor: Theme.of(context).colorScheme.onError,
+            ),
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('削除'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !context.mounted) return;
+
+    try {
+      await ManualResultRepository().delete(uploadId);
+      await state.reload();
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('測定結果を削除しました')));
+    } catch (_) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('削除に失敗しました')));
+    }
   }
 
   Future<void> _editWorkLog(
@@ -225,9 +315,11 @@ class _TimelineView extends StatelessWidget {
 }
 
 class _MeasurementCard extends StatelessWidget {
-  const _MeasurementCard({required this.item});
+  const _MeasurementCard({required this.item, this.onEdit, this.onDelete});
 
   final MeasurementTimelineItem item;
+  final VoidCallback? onEdit;
+  final VoidCallback? onDelete;
 
   @override
   Widget build(BuildContext context) {
@@ -263,26 +355,74 @@ class _MeasurementCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Icon(
-                          Icons.analytics_outlined,
-                          size: 18,
-                          color: Color(0xFF2E5C39),
-                        ),
-                        const SizedBox(width: 6),
-                        const Text(
-                          '測定結果',
-                          style: TextStyle(fontWeight: FontWeight.w800),
-                        ),
-                        const Spacer(),
-                        Text(
-                          '${_shortDate(item.date)} / ${item.countPoints}点',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: colorScheme.onSurface.withValues(
-                              alpha: 0.62,
-                            ),
+                        const Expanded(
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.analytics_outlined,
+                                size: 18,
+                                color: Color(0xFF2E5C39),
+                              ),
+                              SizedBox(width: 6),
+                              Text(
+                                '測定結果',
+                                style: TextStyle(fontWeight: FontWeight.w800),
+                              ),
+                            ],
                           ),
+                        ),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Text(
+                              '${_shortDate(item.date)} / ${item.countPoints}点',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: colorScheme.onSurface.withValues(
+                                  alpha: 0.62,
+                                ),
+                              ),
+                            ),
+                            if (onEdit != null || onDelete != null)
+                              PopupMenuButton<String>(
+                                tooltip: '測定結果メニュー',
+                                icon: const Icon(Icons.more_vert),
+                                onSelected: (value) {
+                                  if (value == 'edit') onEdit?.call();
+                                  if (value == 'delete') onDelete?.call();
+                                },
+                                itemBuilder: (context) => [
+                                  PopupMenuItem(
+                                    value: 'edit',
+                                    enabled: onEdit != null,
+                                    child: const ListTile(
+                                      dense: true,
+                                      leading: Icon(Icons.edit_outlined),
+                                      title: Text('編集'),
+                                    ),
+                                  ),
+                                  PopupMenuItem(
+                                    value: 'delete',
+                                    enabled: onDelete != null,
+                                    child: ListTile(
+                                      dense: true,
+                                      leading: Icon(
+                                        Icons.delete_outline,
+                                        color: colorScheme.error,
+                                      ),
+                                      title: Text(
+                                        '削除',
+                                        style: TextStyle(
+                                          color: colorScheme.error,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                          ],
                         ),
                       ],
                     ),

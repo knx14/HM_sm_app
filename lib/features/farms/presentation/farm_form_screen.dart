@@ -389,9 +389,11 @@ class _FarmFormScreenState extends State<FarmFormScreen> {
         await showDialog<bool>(
           context: context,
           builder: (dialogContext) => AlertDialog(
-            title: const Text('圃場を削除しますか？'),
+            title: const Text('圃場を一覧から削除しますか？'),
             content: Text(
-              '「${farm.farmName}」と、この圃場に紐づくすべての測定データが削除されます。\n\nこの操作は取り消せません。',
+              '「${farm.farmName}」を一覧から削除します。\n\n'
+              '※ 測定データがある場合、圃場は一覧から非表示になります'
+              '（データ自体は保持されます）。',
             ),
             actions: [
               TextButton(
@@ -419,7 +421,7 @@ class _FarmFormScreenState extends State<FarmFormScreen> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: const Text('圃場を削除しました'),
+          content: const Text('圃場を一覧から削除しました'),
           backgroundColor: Theme.of(context).colorScheme.primary,
         ),
       );
@@ -433,6 +435,9 @@ class _FarmFormScreenState extends State<FarmFormScreen> {
         final responseData = e.response?.data;
         if (statusCode == 403) {
           errorMessage = 'この圃場を削除する権限がありません。';
+        } else if (statusCode == 422) {
+          // 新APIでは到達しない想定。旧APIから返された場合も汎用エラーとして扱う。
+          errorMessage = '削除に失敗しました。\nしばらく時間をおいて再度お試しください。';
         } else if (responseData is Map && responseData.containsKey('message')) {
           errorMessage = responseData['message'] as String;
         } else if (statusCode != null) {

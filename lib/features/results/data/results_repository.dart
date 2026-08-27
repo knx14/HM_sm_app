@@ -19,14 +19,6 @@ class ResultsRepository {
   final ApiClient apiClient;
   ResultsRepository(this.apiClient);
 
-  Future<List<LatestResultFeedItem>> fetchLatestResults() async {
-    final response = await apiClient.dio.get('/api/results/latest');
-    final data = response.data as List<dynamic>;
-    return data
-        .map((e) => LatestResultFeedItem.fromJson(e as Map<String, dynamic>))
-        .toList();
-  }
-
   Future<List<FarmWithLatestResult>> fetchFarmsWithLatestResult() async {
     final response = await apiClient.dio.get('/api/farms/with-latest-result');
     final data = response.data as List<dynamic>;
@@ -113,9 +105,10 @@ class ResultsRepository {
         ? body['items'] as List<dynamic>?
         : body as List<dynamic>?;
     final items = data ?? const <dynamic>[];
-    return items
+    final parsedItems = items
         .map((e) => TimelineItem.fromJson(e as Map<String, dynamic>))
         .where((item) => item is! UnknownTimelineItem)
         .toList(growable: false);
+    return parsedItems;
   }
 }

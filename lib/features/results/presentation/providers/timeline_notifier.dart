@@ -36,7 +36,7 @@ class TimelineNotifier extends ChangeNotifier {
     notifyListeners();
     try {
       _items = await _repo.fetchFarmTimeline(farmId);
-    } catch (e) {
+    } catch (_) {
       _error = '取得に失敗しました';
     } finally {
       _isLoading = false;

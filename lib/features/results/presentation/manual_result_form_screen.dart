@@ -39,6 +39,37 @@ class ManualResultFormScreen extends StatelessWidget {
     return result ?? false;
   }
 
+  static Future<bool> showEdit(
+    BuildContext context, {
+    required int farmId,
+    required bool isProvisional,
+    required int uploadId,
+    required String measurementDate,
+    required Map<String, double?> initialValues,
+  }) async {
+    final result = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) {
+        return ChangeNotifierProvider(
+          create: (_) => ManualResultNotifier(
+            farmId: farmId,
+            isProvisional: isProvisional,
+            uploadId: uploadId,
+            initialMeasurementDate: measurementDate,
+            initialValues: initialValues,
+          ),
+          child: ManualResultFormScreen(
+            farmId: farmId,
+            isProvisional: isProvisional,
+          ),
+        );
+      },
+    );
+    return result ?? false;
+  }
+
   @override
   Widget build(BuildContext context) {
     final notifier = context.watch<ManualResultNotifier>();
@@ -76,10 +107,10 @@ class ManualResultFormScreen extends StatelessWidget {
                   padding: const EdgeInsets.fromLTRB(20, 0, 8, 8),
                   child: Row(
                     children: [
-                      const Expanded(
+                      Expanded(
                         child: Text(
-                          '過去の測定結果を追加',
-                          style: TextStyle(
+                          notifier.isEditing ? '測定結果を編集' : '過去の測定結果を追加',
+                          style: const TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.w800,
                           ),
@@ -103,7 +134,7 @@ class ManualResultFormScreen extends StatelessWidget {
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Text(
-                        'この圃場は境界が未設定のため、過去実績を登録できません',
+                        'この圃場は境界が未設定のため、測定結果を保存できません',
                         style: TextStyle(
                           color: Theme.of(context).colorScheme.onErrorContainer,
                           fontWeight: FontWeight.w600,
@@ -171,7 +202,7 @@ class ManualResultFormScreen extends StatelessWidget {
                                   color: Colors.white,
                                 ),
                               )
-                            : const Text('登録する'),
+                            : Text(notifier.isEditing ? '更新する' : '登録する'),
                       ),
                     ],
                   ),
