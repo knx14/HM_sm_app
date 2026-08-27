@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -327,13 +326,6 @@ class _MeasurementCard extends StatelessWidget {
     final colorScheme = Theme.of(context).colorScheme;
     final cec = item.values['CEC'];
     final delta = item.deltaCec;
-    if (kDebugMode) {
-      debugPrint(
-        'TIMELINE_CARD date=${item.date} source="${item.measurementSource}" '
-        'uploadId=${item.manualResultUploadId} '
-        'showMenu=${onEdit != null || onDelete != null}',
-      );
-    }
     final deltaColor = (delta ?? 0) >= 0
         ? Colors.green.shade700
         : colorScheme.error;

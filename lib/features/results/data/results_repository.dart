@@ -1,7 +1,4 @@
-import 'dart:convert';
-
 import 'package:dio/dio.dart';
-import 'package:flutter/foundation.dart';
 
 import '../../../core/api/api_client.dart';
 import '../domain/farm_result_date.dart';
@@ -21,14 +18,6 @@ class PreviousNotFoundException implements Exception {
 class ResultsRepository {
   final ApiClient apiClient;
   ResultsRepository(this.apiClient);
-
-  Future<List<LatestResultFeedItem>> fetchLatestResults() async {
-    final response = await apiClient.dio.get('/api/results/latest');
-    final data = response.data as List<dynamic>;
-    return data
-        .map((e) => LatestResultFeedItem.fromJson(e as Map<String, dynamic>))
-        .toList();
-  }
 
   Future<List<FarmWithLatestResult>> fetchFarmsWithLatestResult() async {
     final response = await apiClient.dio.get('/api/farms/with-latest-result');
@@ -112,12 +101,6 @@ class ResultsRepository {
   Future<List<TimelineItem>> fetchFarmTimeline(int farmId) async {
     final response = await apiClient.dio.get('/api/farms/$farmId/timeline');
     final body = response.data;
-    if (kDebugMode) {
-      debugPrint(
-        'TIMELINE_RESPONSE farmId=$farmId body=${jsonEncode(body)}',
-        wrapWidth: 1024,
-      );
-    }
     final data = body is Map
         ? body['items'] as List<dynamic>?
         : body as List<dynamic>?;
@@ -126,16 +109,6 @@ class ResultsRepository {
         .map((e) => TimelineItem.fromJson(e as Map<String, dynamic>))
         .where((item) => item is! UnknownTimelineItem)
         .toList(growable: false);
-    if (kDebugMode) {
-      for (final item in parsedItems.whereType<MeasurementTimelineItem>()) {
-        debugPrint(
-          'TIMELINE_MEASUREMENT date=${item.date} '
-          'source="${item.measurementSource}" '
-          'manualResultUploadId=${item.manualResultUploadId} '
-          'isManual=${item.isManual}',
-        );
-      }
-    }
     return parsedItems;
   }
 }

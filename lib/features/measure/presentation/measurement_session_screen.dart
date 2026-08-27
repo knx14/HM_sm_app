@@ -303,7 +303,6 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
   final Map<int, DateTime> _deletedPointIds = <int, DateTime>{};
   static const Duration _manualLocationHoldDuration = Duration(seconds: 5);
 
-  final List<ChartData> _chartData = [];
   _SpotProgress? _activeSpot;
   String? _correctingSpotId;
   final Map<String, BitmapDescriptor> _markerIconCache =
@@ -619,9 +618,7 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
       }
       // 結果ピンを state に反映する前にローカルピンを除去する。
       // 反映後に除去すると、一瞬ローカル＋クラウドの二重表示が起きる。
-      if (syncMode == SyncMode.auto) {
-        await _removeLocalPinsCoveredByResults(farm.id, pins);
-      }
+      await _removeLocalPinsCoveredByResults(farm.id, pins);
       _sessionState._setResultPins(farm.id, pins);
       for (final spot in _mapSpots) {
         await _refreshSpotIcon(spot);
@@ -677,16 +674,14 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
       }
     }
 
-    // 除去候補: 保存済みで、同期キュー（手動同期・再送待ち）に載っていないローカルピン。
-    // uploadDone のピンも対象に含める。アップロード直後はサーバーの推定処理が
-    // 未完了で結果ピンが返らずローカルピンが残るが、後続の取得で結果ピンが
-    // 現れた時点で置き換えないと、同一測定が二重表示される（幽霊ピンの原因）。
+    // 除去候補: アップロード完了済みで、同期キューに載っていないローカルピン。
+    // 手動・自動のどちらでも、クラウド結果が現れた時点で同一測定を置き換える。
+    // 未同期点やキュー登録に失敗した点は uploadDone=false のため除去しない。
     final removableSpots = <_SpotProgress>[];
     for (final spot in _spots) {
-      if (!spot.saveDone) continue;
+      if (!spot.saveDone || !spot.uploadDone) continue;
       if (pendingLocalPinIds.contains(spot.id)) continue;
-      if (!spot.uploadDone &&
-          _hasNearbyPosition(spot.position, pendingPositions)) {
+      if (_hasNearbyPosition(spot.position, pendingPositions)) {
         continue;
       }
       removableSpots.add(spot);
@@ -1223,7 +1218,6 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
     }
     _execCompleter = Completer<bool>();
     setState(() {
-      _chartData.clear();
       _logController.clear();
       _receivedPoints = 0;
       _totalPoints =
@@ -1652,15 +1646,6 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
         }
 
         if (_isMeasuring && line.startsWith('*')) {
-          final idx = _receivedPoints;
-          final freq = _fstartValue() + (_fdeltaValue() * idx);
-          final point = MeasurementParser.tryParseExecDataLine(
-            line,
-            frequency: freq,
-          );
-          if (point != null) {
-            _chartData.add(point);
-          }
           _receivedPoints++;
           final p = ((_receivedPoints / _totalPoints) * 100)
               .clamp(0, 100)

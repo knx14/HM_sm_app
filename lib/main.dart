@@ -12,10 +12,9 @@ Future<void> _configureAmplify() async {
     if (!Amplify.isConfigured) {
       await Amplify.addPlugins([AmplifyAuthCognito()]);
       await Amplify.configure(amplifyconfiguration);
-      debugPrint('Amplify configured'); //デバッグ用。本番はloggerを使用
     }
   } on Exception catch (e) {
-    debugPrint('Error configuring Amplify: $e'); //デバッグ用。本番はloggerを使用
+    debugPrint('Error configuring Amplify: $e');
   }
 }
 

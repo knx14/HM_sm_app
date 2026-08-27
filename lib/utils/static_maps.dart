@@ -1,5 +1,4 @@
 import 'package:google_maps_flutter/google_maps_flutter.dart';
-import 'package:flutter/foundation.dart';
 import 'dart:math' as math;
 
 /// Google Static Maps APIのURLを生成
@@ -12,7 +11,7 @@ import 'dart:math' as math;
 /// [scale] スケール（デフォルト: 2、高解像度）
 /// [cacheBuster] キャッシュバスティング用のパラメータ（オプション）
 /// [maptype] 地図タイプ（デフォルト: hybrid、satelliteも可）
-/// 
+///
 /// boundsからcenter/zoomを自前計算してURLを生成します。
 String buildStaticMapUrl({
   required List<LatLng> boundaryPoints,
@@ -25,9 +24,6 @@ String buildStaticMapUrl({
 }) {
   // APIキーの検証（最重要）
   if (apiKey.isEmpty) {
-    if (kDebugMode) {
-      debugPrint('【エラー】APIキーが空です。Google Maps Static APIはkeyが必須です。');
-    }
     throw ArgumentError('Google Maps API key is required');
   }
 
@@ -58,9 +54,9 @@ String buildStaticMapUrl({
   // URLを手動で構築（二重エンコードを防ぐため、StringBufferで確実に）
   final buffer = StringBuffer();
   buffer.write('https://maps.googleapis.com/maps/api/staticmap?');
-  
+
   // 基本パラメータ（エンコード不要）
-  buffer.write('size=${clampedWidth}x${clampedHeight}');
+  buffer.write('size=${clampedWidth}x$clampedHeight');
   buffer.write('&scale=$scale');
   buffer.write('&maptype=$maptype'); // hybrid または satellite
   buffer.write('&language=ja');
@@ -80,25 +76,16 @@ String buildStaticMapUrl({
   // 形式: color:0xFF0000|weight:4|lat1,lng1|lat2,lng2|...
   final pathValue = 'color:0xFF0000|weight:4|$pathCoordinates';
   buffer.write('&path=${Uri.encodeQueryComponent(pathValue)}');
-  
+
   // キャッシュバスティングパラメータを追加
   if (cacheBuster != null) {
     buffer.write('&v=${Uri.encodeQueryComponent(cacheBuster)}');
   }
-  
+
   // APIキーを最後に追加（エンコード不要、最重要）
   buffer.write('&key=$apiKey');
-  
-  final url = buffer.toString();
-  
-  // デバッグ用: エラー検出時のみ詳細ログを出力
-  if (kDebugMode) {
-    if (!url.contains('&key=') && !url.contains('key=')) {
-      debugPrint('【警告】Static Maps URLにkeyパラメータが含まれていません');
-    }
-  }
-  
-  return url;
+
+  return buffer.toString();
 }
 
 /// points から bounds を作成
@@ -139,11 +126,11 @@ double _latRad(double lat) {
 LatLngBounds _expandBounds(LatLngBounds bounds, {double factor = 0.1}) {
   final latDiff = bounds.northeast.latitude - bounds.southwest.latitude;
   final lngDiff = bounds.northeast.longitude - bounds.southwest.longitude;
-  
+
   // 拡張量を計算
   final latExpand = latDiff * factor;
   final lngExpand = lngDiff * factor;
-  
+
   return LatLngBounds(
     southwest: LatLng(
       bounds.southwest.latitude - latExpand,
@@ -188,4 +175,3 @@ int zoomForBounds({
   final zoom = math.min(latZoom, lngZoom).floor();
   return zoom.clamp(minZoom, maxZoom);
 }
-

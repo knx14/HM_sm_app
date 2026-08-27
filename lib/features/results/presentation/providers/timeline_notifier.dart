@@ -36,11 +36,7 @@ class TimelineNotifier extends ChangeNotifier {
     notifyListeners();
     try {
       _items = await _repo.fetchFarmTimeline(farmId);
-    } catch (e, stackTrace) {
-      if (kDebugMode) {
-        debugPrint('TIMELINE_LOAD_ERROR farmId=$farmId error=$e');
-        debugPrintStack(stackTrace: stackTrace);
-      }
+    } catch (_) {
       _error = '取得に失敗しました';
     } finally {
       _isLoading = false;

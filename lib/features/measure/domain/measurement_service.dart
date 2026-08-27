@@ -7,10 +7,6 @@ class MeasurementService {
     SerialComm.send('ID\n');
   }
 
-  static void sendZeroCommand(AppSettings settings) {
-    SerialComm.send('${settings.getZeroCommand()}\n');
-  }
-
   static void sendStoreCommand(String sensorNumber) {
     SerialComm.send('condition store $sensorNumber\n');
   }
@@ -24,14 +20,15 @@ class MeasurementService {
   }
 
   static void sendMeasurementCommand(AppSettings settings) {
-    final cmd = 'exec ${settings.excite} ${settings.range} ${settings.integrate} ${settings.average}';
+    final cmd =
+        'exec ${settings.excite} ${settings.range} ${settings.integrate} ${settings.average}';
     SerialComm.send('$cmd\n');
   }
 
   /// BG（null測定）コマンドを送信
   static void sendBgMeasurementCommand(AppSettings settings) {
-    final cmd = 'null ${settings.excite} ${settings.range} ${settings.integrate} ${settings.average}';
+    final cmd =
+        'null ${settings.excite} ${settings.range} ${settings.integrate} ${settings.average}';
     SerialComm.send('$cmd\n');
   }
 }
-
