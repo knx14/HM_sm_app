@@ -53,6 +53,19 @@ class FarmCacheStore {
     }
   }
 
+  /// 指定した圃場をキャッシュから除去する。
+  /// キャッシュが存在しない場合は何もしない。
+  Future<void> removeById(int farmId) async {
+    final farms = await load();
+    if (farms == null) return;
+
+    farms.removeWhere((farm) {
+      final cachedId = farm['id'];
+      return cachedId == farmId || cachedId?.toString() == farmId.toString();
+    });
+    await save(farms);
+  }
+
   /// キャッシュの保存日時を返す。
   /// キャッシュが存在しない場合は null を返す。
   Future<DateTime?> savedAt() async {

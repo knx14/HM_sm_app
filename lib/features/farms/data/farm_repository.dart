@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import '../../../core/api/api_client.dart';
 import '../domain/farm.dart';
 import 'farm_cache_store.dart';
@@ -213,7 +214,33 @@ class FarmRepository {
 
   /// 圃場を削除
   Future<void> delete(int farmId) async {
-    await apiClient.dio.delete('/api/v1/farms/$farmId');
+    try {
+      final response = await apiClient.dio.delete('/api/v1/farms/$farmId');
+      final responseData = response.data;
+      final message = responseData is Map ? responseData['message'] : null;
+
+      // 新APIでは測定データの有無により、物理削除または非表示化される。
+      // 旧APIなどレスポンス本文が異なる場合も、2xxであれば削除成功として扱う。
+      if (message != null &&
+          message != 'farm_deleted' &&
+          message != 'farm_hidden') {
+        debugPrint('Unexpected farm delete response: $responseData');
+      }
+
+      // オフライン時に削除済み圃場が再表示されないよう、端末キャッシュからも除去する。
+      try {
+        await _cache.removeById(farmId);
+      } catch (e) {
+        // API上の削除は成功しているため、キャッシュ更新失敗を削除失敗にはしない。
+        debugPrint('Failed to remove farm $farmId from cache: $e');
+      }
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 422) {
+        // 新APIでは到達しない想定。旧APIとの互換経路として記録し、呼び出し元で汎用エラー表示する。
+        debugPrint('Unexpected 422 on farm delete: ${e.response?.data}');
+      }
+      rethrow;
+    }
   }
 
   /// ログインユーザー情報を取得（疎通確認用）
