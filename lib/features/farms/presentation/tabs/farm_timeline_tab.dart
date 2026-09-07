@@ -282,31 +282,45 @@ class _TimelineView extends StatelessWidget {
     );
   }
 
+  /// タイムラインがIDを返さない旧APIに接続した場合のみ、作業記録一覧から
+  /// 内容一致で対象を特定する。複数一致した場合は誤操作を避けるため特定しない。
   Future<int?> _resolveWorkLogId(WorkLogTimelineItem item, int farmId) async {
     if (item.id > 0) return item.id;
     try {
       final logs = await WorkLogRepository().listByFarm(farmId);
+      int? matchedId;
       for (final log in logs) {
-        final id = (log['id'] as num?)?.toInt();
+        final id = _asDouble(log['id'])?.toInt();
         if (id == null) continue;
-        if (_matchesWorkLog(item, log)) return id;
+        if (!_matchesWorkLog(item, log)) continue;
+        if (matchedId != null) return null;
+        matchedId = id;
       }
+      return matchedId;
     } catch (_) {
       return null;
     }
-    return null;
   }
 
   bool _matchesWorkLog(WorkLogTimelineItem item, Map<String, dynamic> log) {
-    final logDate = log['work_date'] as String? ?? log['date'] as String?;
+    final logDate = _asString(log['work_date']) ?? _asString(log['date']);
     final sameDate = _dateKey(logDate) == _dateKey(item.date);
-    final sameType = (log['work_type'] as String?) == item.workType;
-    final sameTitle = (log['title'] as String?) == item.title;
-    final sameDetail = (log['detail'] as String?) == item.detail;
-    final logAmount = (log['amount_value'] as num?)?.toDouble();
-    final sameAmount = logAmount == item.amountValue;
+    final sameType = _asString(log['work_type']) == item.workType;
+    final sameTitle = _asString(log['title']) == item.title;
+    final sameDetail = _asString(log['detail']) == item.detail;
+    final sameAmount = _asDouble(log['amount_value']) == item.amountValue;
     return sameDate && sameType && sameTitle && sameDetail && sameAmount;
   }
+
+  /// `amount_value` はタイムラインAPIが数値、作業記録一覧APIが `decimal:2` の
+  /// 文字列を返すため、どちらの表現でも同じ数量として比較できるようにする。
+  double? _asDouble(dynamic value) {
+    if (value is num) return value.toDouble();
+    if (value is String) return double.tryParse(value);
+    return null;
+  }
+
+  String? _asString(dynamic value) => value is String ? value : null;
 
   String _dateKey(String? date) {
     if (date == null) return '';

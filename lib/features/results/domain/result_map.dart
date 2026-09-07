@@ -57,6 +57,8 @@ class ResultValue {
 
 class ResultPoint {
   final int pointId;
+  final int? uploadId;
+  final int? measurementNumber;
   final double lat;
   final double lng;
   final DateTime? createdAt;
@@ -64,6 +66,8 @@ class ResultPoint {
 
   const ResultPoint({
     required this.pointId,
+    this.uploadId,
+    this.measurementNumber,
     required this.lat,
     required this.lng,
     this.createdAt,
@@ -74,6 +78,8 @@ class ResultPoint {
     final valuesJson = (json['values'] as List<dynamic>);
     return ResultPoint(
       pointId: (json['point_id'] as num).toInt(),
+      uploadId: (json['upload_id'] as num?)?.toInt(),
+      measurementNumber: (json['measurement_number'] as num?)?.toInt(),
       lat: (json['lat'] as num).toDouble(),
       lng: (json['lng'] as num).toDouble(),
       createdAt: json['created_at'] != null

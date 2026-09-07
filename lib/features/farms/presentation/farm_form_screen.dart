@@ -175,7 +175,11 @@ class _FarmFormScreenState extends State<FarmFormScreen> {
       return;
     }
 
-    // Step1に戻る
+    _backToStep1();
+  }
+
+  /// 境界設定から基本情報へ戻る。入力済みの基本情報と境界点は保持する。
+  void _backToStep1() {
     _pageController.previousPage(
       duration: const Duration(milliseconds: 300),
       curve: Curves.easeInOut,
@@ -390,10 +394,8 @@ class _FarmFormScreenState extends State<FarmFormScreen> {
           context: context,
           builder: (dialogContext) => AlertDialog(
             title: const Text('圃場を一覧から削除しますか？'),
-            content: Text(
-              '「${farm.farmName}」を一覧から削除します。\n\n'
-              '※ 測定データがある場合、圃場は一覧から非表示になります'
-              '（データ自体は保持されます）。',
+            content: Text('「${farm.farmName}」を一覧から削除します。 \n\n'
+            '※測定データがある場合、測定データも削除されます。'
             ),
             actions: [
               TextButton(
@@ -482,30 +484,38 @@ class _FarmFormScreenState extends State<FarmFormScreen> {
     final colorScheme = theme.colorScheme;
     final isEditMode = widget.farm != null;
 
-    return Scaffold(
-      backgroundColor: colorScheme.surface,
-      appBar: AppBar(
-        title: Text(
-          isEditMode ? '圃場を編集' : (_currentStep == 0 ? '基本情報' : '境界設定'),
-          style: theme.textTheme.titleLarge?.copyWith(
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        elevation: 0,
+    // 境界設定を表示している間は、戻る操作で画面を閉じずに基本情報へ戻す。
+    return PopScope(
+      canPop: _currentStep == 0,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) return;
+        _backToStep1();
+      },
+      child: Scaffold(
         backgroundColor: colorScheme.surface,
-        foregroundColor: colorScheme.onSurface,
+        appBar: AppBar(
+          title: Text(
+            isEditMode ? '圃場を編集' : (_currentStep == 0 ? '基本情報' : '境界設定'),
+            style: theme.textTheme.titleLarge?.copyWith(
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          elevation: 0,
+          backgroundColor: colorScheme.surface,
+          foregroundColor: colorScheme.onSurface,
+        ),
+        body: PageView(
+          controller: _pageController,
+          physics: const NeverScrollableScrollPhysics(),
+          children: [
+            _buildStep1Form(theme, colorScheme),
+            _buildStep2Map(theme, colorScheme),
+          ],
+        ),
+        bottomNavigationBar: _currentStep == 0
+            ? _buildStep1Footer(theme, colorScheme)
+            : null,
       ),
-      body: PageView(
-        controller: _pageController,
-        physics: const NeverScrollableScrollPhysics(),
-        children: [
-          _buildStep1Form(theme, colorScheme),
-          _buildStep2Map(theme, colorScheme),
-        ],
-      ),
-      bottomNavigationBar: _currentStep == 0
-          ? _buildStep1Footer(theme, colorScheme)
-          : null,
     );
   }
 
