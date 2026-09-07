@@ -96,6 +96,7 @@ class MeasurementUploadService {
     String? note1,
     String? note2,
     String? cultivationType,
+    int? measurementNumber,
   }) async {
     final body = <String, dynamic>{
       'farm_id': farmId,
@@ -104,6 +105,7 @@ class MeasurementUploadService {
       'note2': note2,
       'cultivation_type': cultivationType,
       'measurement_parameters': measurementParameters,
+      if (measurementNumber != null) 'measurement_number': measurementNumber,
     };
 
     final resp = await _apiDio.post(
@@ -174,6 +176,7 @@ class MeasurementUploadService {
     String? note1,
     String? note2,
     String? cultivationType,
+    int? measurementNumber,
     void Function(UploadPhase phase)? onPhase,
     void Function(String message)? onLog,
   }) async {
@@ -190,6 +193,7 @@ class MeasurementUploadService {
         note1: note1,
         note2: note2,
         cultivationType: cultivationType,
+        measurementNumber: measurementNumber,
       );
       log('init: ok upload_id=${initResp.uploadId}');
 

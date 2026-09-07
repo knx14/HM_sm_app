@@ -137,7 +137,6 @@ class _HomeScreenState extends State<HomeScreen> {
               const SizedBox(height: 14),
               _AccountTile(
                 label: userLabel,
-                isLoading: user.userId == null,
                 onTap: _showAccountModal,
               ),
               const SizedBox(height: 22),
@@ -214,12 +213,10 @@ class _HomeScreenState extends State<HomeScreen> {
 class _AccountTile extends StatelessWidget {
   const _AccountTile({
     required this.label,
-    required this.isLoading,
     required this.onTap,
   });
 
   final String label;
-  final bool isLoading;
   final VoidCallback onTap;
 
   @override
@@ -235,32 +232,13 @@ class _AccountTile extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
           child: Row(
             children: [
-              CircleAvatar(
-                radius: 17,
-                backgroundColor: const Color(0xFF2E5C39),
-                child: isLoading
-                    ? const SizedBox(
-                        width: 14,
-                        height: 14,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Colors.white,
-                        ),
-                      )
-                    : Text(
-                        label.characters.first.toUpperCase(),
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-              ),
-              const SizedBox(width: 10),
+              const SizedBox(width: 24),
               Expanded(
                 child: Text(
                   label,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
                   style: AppTextStyles.homeAccountNameStyle(),
                 ),
               ),

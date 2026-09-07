@@ -22,8 +22,12 @@ import '../../sync/domain/sync_settings_store.dart';
 import '../constants/app_constants.dart';
 import '../data/measurement_local_paths.dart';
 import '../data/local_save_service.dart';
+import '../data/measurement_sound_service.dart';
 import '../data/measurement_upload_service.dart';
+import '../data/local_measurement_pin_store.dart';
 import '../data/pending_upload_store.dart';
+import '../data/result_map_cache_store.dart';
+import '../data/deleted_measurement_store.dart';
 import '../data/serial_comm_android.dart';
 import '../domain/app_settings.dart';
 import '../domain/chart_data.dart';
@@ -31,6 +35,8 @@ import '../domain/measure_settings.dart';
 import '../domain/measure_settings_store.dart';
 import '../domain/measurement_parser.dart';
 import '../domain/measurement_service.dart';
+import '../domain/measurement_number.dart';
+import '../domain/result_map_apply.dart';
 import 'farm_select_screen.dart';
 import 'measurement_settings_sheet.dart';
 
@@ -43,13 +49,19 @@ class _SpotProgress {
     required this.createdAt,
     this.isResultPoint = false,
     this.resultPointId,
+    this.measurementNumber,
+    this.uploadId,
+    this.fileBase,
   });
 
   final String id;
   LatLng position;
   DateTime createdAt;
   final bool isResultPoint;
-  final int? resultPointId;
+  int? resultPointId;
+  final int? measurementNumber;
+  int? uploadId;
+  String? fileBase;
   int percent = 0;
   bool saveDone = false;
   bool uploadDone = false;
@@ -58,16 +70,22 @@ class _SpotProgress {
   BitmapDescriptor? icon;
 }
 
+Color measurementSpotColor(_SpotProgress spot) {
+  if (spot.isResultPoint || spot.uploadDone) {
+    return const Color(0xFF27AE60);
+  }
+  if (spot.saveDone) {
+    return const Color(0xFFE67E22);
+  }
+  return const Color(0xFFC0392B);
+}
+
 class MeasurementStateProvider extends ChangeNotifier {
   final Map<String, List<_SpotProgress>> _pinsByFarmDate =
       <String, List<_SpotProgress>>{};
-  final Map<String, List<_SpotProgress>> _resultPinsByFarmDate =
-      <String, List<_SpotProgress>>{};
 
-  /// ローカルピンの除去（置き換え）を既に1回行ったクラウド結果ピンのID。
-  /// 1つの結果ピンが複数のローカルピンを消してしまうことを防ぐために、
-  /// 結果ピンごとに「消せるのは初回出現時の1件だけ」というルールを課す。
-  final Map<String, Set<int>> _consumedResultPointIdsByFarmDate =
+  /// この画面で消した測定番号。結果マップやローカル復元で戻さない。
+  final Map<String, Set<int>> _deletedMeasurementNumbersByFarmDate =
       <String, Set<int>>{};
 
   Farm? selectedFarm;
@@ -92,18 +110,22 @@ class MeasurementStateProvider extends ChangeNotifier {
   void _purgeOldSessions() {
     final today = _jstDateString();
     _pinsByFarmDate.removeWhere((key, _) => !key.endsWith('_$today'));
-    _resultPinsByFarmDate.removeWhere((key, _) => !key.endsWith('_$today'));
-    _consumedResultPointIdsByFarmDate.removeWhere(
+    _deletedMeasurementNumbersByFarmDate.removeWhere(
       (key, _) => !key.endsWith('_$today'),
     );
   }
 
-  Set<int> _consumedResultPointIdsForFarm(int farmId) {
+  Set<int> _deletedMeasurementNumbersForFarm(int farmId) {
     _purgeOldSessions();
-    return _consumedResultPointIdsByFarmDate.putIfAbsent(
+    return _deletedMeasurementNumbersByFarmDate.putIfAbsent(
       _keyForFarm(farmId),
       () => <int>{},
     );
+  }
+
+  void markMeasurementNumbersDeleted(int farmId, Iterable<int> numbers) {
+    final deleted = _deletedMeasurementNumbersForFarm(farmId);
+    deleted.addAll(numbers);
   }
 
   void startSession(int farmId) {
@@ -117,21 +139,26 @@ class MeasurementStateProvider extends ChangeNotifier {
     return List.unmodifiable(_pinsByFarmDate[_keyForFarm(farmId)] ?? const []);
   }
 
-  List<_SpotProgress> _resultPinsForFarm(int farmId) {
-    _purgeOldSessions();
-    return List.unmodifiable(
-      _resultPinsByFarmDate[_keyForFarm(farmId)] ?? const [],
-    );
+  void _addPin(int farmId, _SpotProgress pin) {
+    _addPins(farmId, [pin]);
   }
 
-  void _addPin(int farmId, _SpotProgress pin) {
+  void _addPins(int farmId, List<_SpotProgress> newPins) {
+    if (newPins.isEmpty) return;
     _purgeOldSessions();
     final pins = _pinsByFarmDate.putIfAbsent(
       _keyForFarm(farmId),
       () => <_SpotProgress>[],
     );
-    pins.add(pin);
-    notifyListeners();
+    final existingIds = {for (final spot in pins) spot.id};
+    var added = false;
+    for (final pin in newPins) {
+      if (existingIds.contains(pin.id)) continue;
+      pins.add(pin);
+      existingIds.add(pin.id);
+      added = true;
+    }
+    if (added) notifyListeners();
   }
 
   void _removePins(int farmId, Set<String> ids) {
@@ -147,6 +174,8 @@ class MeasurementStateProvider extends ChangeNotifier {
     String? localPinId,
     double? latitude,
     double? longitude,
+    int? uploadId,
+    int? measurementNumber,
   }) {
     final key = _keyForFarm(farmId);
     final pins = _pinsByFarmDate[key];
@@ -161,22 +190,11 @@ class MeasurementStateProvider extends ChangeNotifier {
         }
       }
     }
-
-    // 古いキューには localPinId がないため、座標が最も近い未同期点を
-    // 1件だけ選ぶ。近接地点をまとめて同期済みにしないようにする。
-    if (target == null && latitude != null && longitude != null) {
-      var nearestDistance = double.infinity;
+    if (target == null && measurementNumber != null) {
       for (final spot in pins) {
-        if (!spot.saveDone || spot.uploadDone) continue;
-        final distance = Geolocator.distanceBetween(
-          latitude,
-          longitude,
-          spot.position.latitude,
-          spot.position.longitude,
-        );
-        if (distance <= 5.0 && distance < nearestDistance) {
+        if (spot.measurementNumber == measurementNumber) {
           target = spot;
-          nearestDistance = distance;
+          break;
         }
       }
     }
@@ -185,21 +203,10 @@ class MeasurementStateProvider extends ChangeNotifier {
     target
       ..saveDone = true
       ..failed = false
-      ..uploadDone = true;
-    notifyListeners();
-  }
-
-  void _removeResultPins(int farmId, Set<String> ids) {
-    final key = _keyForFarm(farmId);
-    final pins = _resultPinsByFarmDate[key];
-    if (pins == null) return;
-    pins.removeWhere((spot) => ids.contains(spot.id));
-    notifyListeners();
-  }
-
-  void _setResultPins(int farmId, List<_SpotProgress> pins) {
-    _purgeOldSessions();
-    _resultPinsByFarmDate[_keyForFarm(farmId)] = pins;
+      ..uploadDone = true
+      ..uploadId = uploadId ?? target.uploadId
+      ..icon = null;
+    target.iconVersion++;
     notifyListeners();
   }
 
@@ -266,6 +273,12 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
   final MeasureSettingsStore _measureSettingsStore = MeasureSettingsStore();
   final PendingUploadStore _pendingUploadStore = PendingUploadStore();
   final SyncSettingsStore _syncSettingsStore = SyncSettingsStore();
+  final ResultMapCacheStore _resultMapCacheStore = ResultMapCacheStore();
+  final LocalMeasurementPinStore _localMeasurementPinStore =
+      LocalMeasurementPinStore();
+  final DeletedMeasurementStore _deletedMeasurementStore =
+      DeletedMeasurementStore();
+  final MeasurementSoundService _soundService = MeasurementSoundService();
   late final ResultsRepository _resultsRepository;
   SyncMode _syncMode = SyncMode.auto;
 
@@ -287,6 +300,7 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
   Timer? _manualLocationHoldTimer;
 
   UploadPhase _uploadPhase = UploadPhase.idle;
+  bool _isDrainingUploadQueue = false;
   SessionStep _currentStep = SessionStep.connect;
 
   bool _isRecalling = false;
@@ -317,25 +331,27 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
     return _sessionState._pinsForFarm(farm.id);
   }
 
-  List<_SpotProgress> get _resultSpots {
-    final farm = _selectedFarm;
-    if (farm == null) return const <_SpotProgress>[];
-    return _sessionState._resultPinsForFarm(farm.id);
-  }
-
-  /// マップ・測定リストに表示する測定点。
-  ///
-  /// ローカル点とクラウド結果点を測定時刻順に統合する。近接判定だけで
-  /// ローカル点を隠すと、過去のクラウド点の近くで行った未同期測定まで
-  /// 消えるため、重複の一対一置換は [_removeLocalPinsCoveredByResults] で行う。
+  /// 選択圃場・当日の表示点。存在の正は端末の系列であり、クラウド点とマージしない。
+  /// ピンとリストの数字は並び順ではなく、保存した測定番号を使う。
   List<_SpotProgress> get _mapSpots {
-    final merged = <_SpotProgress>[..._resultSpots, ..._spots];
-    merged.sort((a, b) {
+    final spots = [..._spots];
+    spots.sort((a, b) {
+      final numberCompare = MeasurementNumber.compareNullable(
+        a.measurementNumber,
+        b.measurementNumber,
+      );
+      if (numberCompare != 0) return numberCompare;
       final timeCompare = a.createdAt.compareTo(b.createdAt);
       if (timeCompare != 0) return timeCompare;
       return a.id.compareTo(b.id);
     });
-    return merged;
+    return spots;
+  }
+
+  int _nextMeasurementNumber() {
+    return MeasurementNumber.next([
+      for (final spot in _mapSpots) spot.measurementNumber,
+    ]);
   }
 
   void _notifyMapSpotsChanged() {
@@ -382,11 +398,6 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
         debugPrint('GPS位置更新の開始に失敗しました: $e');
       }
     }
-  }
-
-  Future<void> _stopGpsPositionUpdates() async {
-    await _positionSubscription?.cancel();
-    _positionSubscription = null;
   }
 
   void _handleGpsPosition(Position position) {
@@ -499,12 +510,9 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
         : SessionStep.bg;
     _didBindSessionState = true;
     _setupSerialComm();
-    _loadTodayResultPinsForSelectedFarm();
+    unawaited(_reloadPinsAndIcons());
     if (_selectedFarm != null) {
       _startGpsPositionUpdates();
-    }
-    for (final spot in _spots.where((spot) => spot.icon == null)) {
-      _refreshSpotIcon(spot);
     }
     if (_selectedFarm == null) {
       _autoSelectNearestFarm();
@@ -548,6 +556,7 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
     _average.dispose();
     _note1.dispose();
     _note2.dispose();
+    _soundService.dispose();
     super.dispose();
   }
 
@@ -583,213 +592,264 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
 
   String _todayJstIsoDate() => _sessionState._jstDateString();
 
+  Future<void> _reloadPinsAndIcons() async {
+    await _refreshDisplayedSpotIcons();
+    await _loadTodayResultPinsForSelectedFarm();
+    if (!mounted) return;
+    await _refreshDisplayedSpotIcons();
+  }
+
+  Future<void> _refreshDisplayedSpotIcons() async {
+    final spots = [..._spots];
+    for (final spot in spots) {
+      await _refreshSpotIcon(spot);
+    }
+  }
+
   Future<List<_SpotProgress>> _loadTodayResultPinsForSelectedFarm() async {
     final farm = _selectedFarm;
     if (farm == null) return const <_SpotProgress>[];
     final myVersion = ++_fetchVersion;
-    final now = DateTime.now();
-    _deletedPointIds.removeWhere(
-      (_, time) => now.difference(time).inSeconds > 30,
-    );
+    final dateIso = _todayJstIsoDate();
+    await _restoreLocalPinsFromDisk(farm.id, dateIso);
+    if (myVersion != _fetchVersion ||
+        !mounted ||
+        _selectedFarm?.id != farm.id) {
+      return const <_SpotProgress>[];
+    }
     try {
       final result = await _resultsRepository.fetchFarmResultMap(
         farmId: farm.id,
-        dateIso: _todayJstIsoDate(),
+        dateIso: dateIso,
       );
       if (myVersion != _fetchVersion ||
           !mounted ||
           _selectedFarm?.id != farm.id) {
         return const <_SpotProgress>[];
       }
-      final activePoints = result.points
-          .where((point) {
-            final deletedAt = _deletedPointIds[point.pointId];
-            if (deletedAt == null) return true;
-            return DateTime.now().difference(deletedAt).inSeconds > 30;
-          })
-          .toList(growable: false);
-      final pins = _resultPointsToSpots(
-        activePoints,
-        measurementDate: result.measurementDate,
-      );
-      final syncMode = await _syncSettingsStore.loadSyncMode();
-      if (mounted && syncMode != _syncMode) {
-        setState(() => _syncMode = syncMode);
+      if (result.points.isEmpty) {
+        if (kDebugMode) {
+          debugPrint('当日測定結果が空のため、表示中またはローカルのピンを維持します');
+        }
+        await _fallbackToCachedResultPins(farm.id, dateIso);
+        return _mapSpots;
       }
-      // 結果ピンを state に反映する前にローカルピンを除去する。
-      // 反映後に除去すると、一瞬ローカル＋クラウドの二重表示が起きる。
-      await _removeLocalPinsCoveredByResults(farm.id, pins);
-      _sessionState._setResultPins(farm.id, pins);
-      for (final spot in _mapSpots) {
-        await _refreshSpotIcon(spot);
+      await _saveResultMapCache(farm.id, dateIso, result);
+      if (myVersion != _fetchVersion ||
+          !mounted ||
+          _selectedFarm?.id != farm.id) {
+        return const <_SpotProgress>[];
       }
-      _notifyMapSpotsChanged();
-      return pins;
+      await _applyResultMap(farm.id, result);
+      return _mapSpots;
     } catch (e) {
-      if (myVersion != _fetchVersion) return const <_SpotProgress>[];
-      if (mounted && _selectedFarm?.id == farm.id) {
-        _sessionState._setResultPins(farm.id, const <_SpotProgress>[]);
-      }
       if (kDebugMode) {
         debugPrint('当日測定結果ピンの取得に失敗しました: $e');
       }
-      return const <_SpotProgress>[];
+      if (myVersion != _fetchVersion) return const <_SpotProgress>[];
+      await _fallbackToCachedResultPins(farm.id, dateIso);
+      return _mapSpots;
     }
   }
 
-  Future<void> _removeLocalPinsCoveredByResults(
+  Future<void> _saveResultMapCache(
     int farmId,
-    List<_SpotProgress> resultSpots,
+    String dateIso,
+    ResultMapResponse response,
   ) async {
-    if (resultSpots.isEmpty) return;
-    final consumedResultPointIds = _sessionState._consumedResultPointIdsForFarm(
+    try {
+      await _resultMapCacheStore.save(
+        farmId: farmId,
+        dateIso: dateIso,
+        response: response,
+      );
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint('測定結果マップのキャッシュ保存に失敗しました: $e');
+      }
+    }
+  }
+
+  Future<List<_SpotProgress>> _applyResultMap(
+    int farmId,
+    ResultMapResponse result,
+  ) async {
+    final localSpots = _sessionState._pinsForFarm(farmId);
+    final localNumbers = [
+      for (final spot in localSpots) spot.measurementNumber,
+    ];
+    final localResultPointIds = [
+      for (final spot in localSpots) spot.resultPointId,
+    ];
+    final deletedNumbers = _sessionState._deletedMeasurementNumbersForFarm(
       farmId,
     );
-    final pendingLocalPinIds = <String>{};
-    final pendingPositions = <LatLng>[];
-    for (final item in await _pendingUploadStore.listItems()) {
-      if (item.farmId != farmId) continue;
-      final localPinId = item.localPinId;
-      if (localPinId != null && localPinId.isNotEmpty) {
-        pendingLocalPinIds.add(localPinId);
-      }
-      var latitude = item.latitude;
-      var longitude = item.longitude;
-      if (latitude == null || longitude == null) {
-        try {
-          final jsonFile = await MeasurementLocalPaths.jsonFile(item.fileBase);
-          if (await jsonFile.exists()) {
-            final metadata =
-                jsonDecode(await jsonFile.readAsString())
-                    as Map<String, dynamic>;
-            latitude = (metadata['latitude'] as num?)?.toDouble();
-            longitude = (metadata['longitude'] as num?)?.toDouble();
+    final deletedResultPointIds = _deletedPointIds.keys.toSet();
+    final toRefresh = <_SpotProgress>[];
+
+    for (final point in result.points) {
+      final decision = ResultMapPointDecision.decide(
+        measurementNumber: point.measurementNumber,
+        resultPointId: point.pointId,
+        localNumbers: localNumbers,
+        localResultPointIds: localResultPointIds,
+        deletedMeasurementNumbers: deletedNumbers,
+        deletedResultPointIds: deletedResultPointIds,
+      );
+      switch (decision.action) {
+        case ResultMapPointAction.skipDeleted:
+          continue;
+        case ResultMapPointAction.update:
+          final index = decision.matchingIndex;
+          if (index == null || index < 0 || index >= localSpots.length) {
+            continue;
           }
-        } catch (_) {
-          // 座標が読めない古い pending は保守的にローカルピンを残す。
-        }
-      }
-      if (latitude != null && longitude != null) {
-        pendingPositions.add(LatLng(latitude, longitude));
+          final spot = localSpots[index];
+          final wasEstimated = spot.uploadDone;
+          final previousIcon = spot.icon;
+          spot
+            ..saveDone = true
+            ..failed = false
+            ..uploadDone = true
+            ..resultPointId = point.pointId
+            ..uploadId = point.uploadId ?? spot.uploadId;
+          if (_correctingSpotId != spot.id) {
+            spot.position = LatLng(point.lat, point.lng);
+          }
+          if (!wasEstimated || previousIcon == null) {
+            toRefresh.add(spot);
+          }
+          break;
+        case ResultMapPointAction.add:
+          final spot = _spotFromResultPoint(
+            point,
+            measurementDate: result.measurementDate,
+          );
+          _sessionState._addPin(farmId, spot);
+          localNumbers.add(spot.measurementNumber);
+          localResultPointIds.add(spot.resultPointId);
+          toRefresh.add(spot);
       }
     }
 
-    // 除去候補: アップロード完了済みで、同期キューに載っていないローカルピン。
-    // 手動・自動のどちらでも、クラウド結果が現れた時点で同一測定を置き換える。
-    // 未同期点やキュー登録に失敗した点は uploadDone=false のため除去しない。
-    final removableSpots = <_SpotProgress>[];
-    for (final spot in _spots) {
-      if (!spot.saveDone || !spot.uploadDone) continue;
-      if (pendingLocalPinIds.contains(spot.id)) continue;
-      if (_hasNearbyPosition(spot.position, pendingPositions)) {
-        continue;
-      }
-      removableSpots.add(spot);
-    }
-
-    // 結果ピン1件につきローカルピン1件だけを対応付けて除去する。
-    // さらに、一度ローカルピンの置き換えを終えた結果ピン（消費済み）は
-    // 以降の取得で再度マッチさせない。これにより、近接地点で連続測定した際に
-    // 既存の結果ピンが新しい測定のローカルピンを誤って消してしまい、
-    // 件数がずれる（測定していない点が現れたように見える）ことを防ぐ。
-    final idsToRemove = <String>{};
-    for (final resultSpot in resultSpots) {
-      final resultPointId = resultSpot.resultPointId;
-      if (resultPointId == null) continue;
-      if (consumedResultPointIds.contains(resultPointId)) continue;
-      _SpotProgress? nearest;
-      var nearestDistance = double.infinity;
-      for (final spot in removableSpots) {
-        if (idsToRemove.contains(spot.id)) continue;
-        final distance = Geolocator.distanceBetween(
-          resultSpot.position.latitude,
-          resultSpot.position.longitude,
-          spot.position.latitude,
-          spot.position.longitude,
-        );
-        if (distance <= 5.0 && distance < nearestDistance) {
-          nearest = spot;
-          nearestDistance = distance;
-        }
-      }
-      if (nearest != null) {
-        // クラウド側の created_at はアップロード・推定処理時刻になる場合が
-        // あるため、対応するローカル点の測定時刻を引き継いで番号を維持する。
-        resultSpot.createdAt = nearest.createdAt;
-        idsToRemove.add(nearest.id);
-      }
-      // 対応するローカルピンが見つからなかった場合も消費済みにする。
-      // 初回出現時に対応が取れない結果ピンは過去の測定に由来するもので、
-      // 後から作られる新しいローカルピンを消してよい根拠にはならないため。
-      consumedResultPointIds.add(resultPointId);
-    }
-    if (idsToRemove.isEmpty) return;
-    _sessionState._removePins(farmId, idsToRemove);
-    if (_activeSpot != null && idsToRemove.contains(_activeSpot!.id)) {
-      _activeSpot = null;
-      _persistSessionState();
+    for (final spot in toRefresh) {
+      await _refreshSpotIcon(spot);
     }
     _notifyMapSpotsChanged();
+    return _mapSpots;
   }
 
-  bool _hasCorrespondingResultSpot(
-    LatLng localPinPosition,
-    List<_SpotProgress> resultSpots,
-  ) {
-    return _hasNearbyPosition(
-      localPinPosition,
-      resultSpots.map((spot) => spot.position),
-    );
-  }
-
-  bool _hasNearbyPosition(LatLng localPinPosition, Iterable<LatLng> positions) {
-    for (final position in positions) {
-      final distance = Geolocator.distanceBetween(
-        localPinPosition.latitude,
-        localPinPosition.longitude,
-        position.latitude,
-        position.longitude,
-      );
-      if (distance <= 5.0) return true;
-    }
-    return false;
-  }
-
-  List<_SpotProgress> _resultPointsToSpots(
-    List<ResultPoint> points, {
+  _SpotProgress _spotFromResultPoint(
+    ResultPoint point, {
     required DateTime measurementDate,
   }) {
-    final sorted = List<ResultPoint>.from(points)
-      ..sort((a, b) {
-        final aTime = a.createdAt;
-        final bTime = b.createdAt;
-        if (aTime != null && bTime != null) return aTime.compareTo(bTime);
-        if (aTime != null) return -1;
-        if (bTime != null) return 1;
-        return a.pointId.compareTo(b.pointId);
-      });
-    return [
-      for (var i = 0; i < sorted.length; i++)
-        _SpotProgress(
-            id: 'result_${sorted[i].pointId}',
-            position: LatLng(sorted[i].lat, sorted[i].lng),
-            createdAt: _createdAtForResultPoint(
-              sorted[i],
-              fallback: measurementDate.add(Duration(minutes: i)),
-            ),
-            isResultPoint: true,
-            resultPointId: sorted[i].pointId,
-          )
-          ..saveDone = true
-          ..uploadDone = true,
-    ];
+    return _SpotProgress(
+        id: 'result_${point.pointId}',
+        position: LatLng(point.lat, point.lng),
+        createdAt: point.createdAt ?? measurementDate,
+        isResultPoint: true,
+        resultPointId: point.pointId,
+        measurementNumber: point.measurementNumber,
+        uploadId: point.uploadId,
+      )
+      ..saveDone = true
+      ..uploadDone = true;
   }
 
-  DateTime _createdAtForResultPoint(
-    ResultPoint point, {
-    required DateTime fallback,
-  }) {
-    return point.createdAt ?? fallback;
+  /// 取得失敗時は表示中の点を消さない。キャッシュは未知の測定番号を足すためだけに使う。
+  Future<List<_SpotProgress>> _fallbackToCachedResultPins(
+    int farmId,
+    String dateIso,
+  ) async {
+    if (!mounted || _selectedFarm?.id != farmId) {
+      return const <_SpotProgress>[];
+    }
+    ResultMapResponse? cached;
+    try {
+      cached = await _resultMapCacheStore.load(
+        farmId: farmId,
+        dateIso: dateIso,
+      );
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint('測定結果マップのキャッシュ読み込みに失敗しました: $e');
+      }
+    }
+    if (cached == null ||
+        cached.points.isEmpty ||
+        !mounted ||
+        _selectedFarm?.id != farmId) {
+      return const <_SpotProgress>[];
+    }
+    return await _applyResultMap(farmId, cached);
+  }
+
+  /// 端末に残っている当日の測定データから、まだ系列に無いローカルピンを復元する。
+  /// 同じ測定番号が既にある点は重ねない。削除した番号も戻さない。
+  Future<void> _restoreLocalPinsFromDisk(int farmId, String dateIso) async {
+    if (!mounted || _selectedFarm?.id != farmId) return;
+    try {
+      final persistedDeleted = await _deletedMeasurementStore.load(
+        farmId: farmId,
+        dateIso: dateIso,
+      );
+      _sessionState.markMeasurementNumbersDeleted(farmId, persistedDeleted);
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint('削除記録の読み込みに失敗しました: $e');
+      }
+    }
+    if (!mounted || _selectedFarm?.id != farmId) return;
+    List<LocalMeasurementRecord> records;
+    try {
+      final pending = await _pendingUploadStore.listItems();
+      records = await _localMeasurementPinStore.loadForFarmOnDate(
+        farmId: farmId,
+        dateIso: dateIso,
+        pendingItems: pending,
+      );
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint('ローカル測定ピンの復元に失敗しました: $e');
+      }
+      return;
+    }
+    if (!mounted || _selectedFarm?.id != farmId) return;
+
+    final existingIds = {for (final spot in _spots) spot.id};
+    final existingNumbers = {
+      for (final spot in _spots)
+        if (spot.measurementNumber != null) spot.measurementNumber!,
+    };
+    final deletedNumbers = _sessionState._deletedMeasurementNumbersForFarm(
+      farmId,
+    );
+    final restored = <_SpotProgress>[];
+    for (final record in records) {
+      if (existingIds.contains(record.id)) continue;
+      final number = record.measurementNumber;
+      if (number != null && deletedNumbers.contains(number)) continue;
+      if (number != null && existingNumbers.contains(number)) continue;
+      restored.add(
+        _SpotProgress(
+            id: record.id,
+            position: LatLng(record.latitude, record.longitude),
+            createdAt: record.createdAt,
+            measurementNumber: record.measurementNumber,
+            fileBase: record.fileBase,
+          )
+          ..saveDone = true
+          ..uploadDone = !record.isPending,
+      );
+      existingIds.add(record.id);
+      if (number != null) existingNumbers.add(number);
+    }
+    if (restored.isEmpty) return;
+    _sessionState._addPins(farmId, restored);
+    for (final spot in restored) {
+      await _refreshSpotIcon(spot);
+    }
+    _notifyMapSpotsChanged();
   }
 
   String _resultMutationErrorMessage(Object error) {
@@ -1000,17 +1060,9 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
     if (!mounted) return;
     final farm = result?.farm;
     if (farm == null) {
+      // 圃場を選ばずに戻った場合は、それまでの選択圃場・測定位置・GPS更新を
+      // そのまま維持する。
       _isSelectingFarm = false;
-      await _stopGpsPositionUpdates();
-      _manualLocationHoldTimer?.cancel();
-      setState(() {
-        _selectedFarm = null;
-        _confirmedLocation = null;
-        _currentGpsLocation = null;
-        _manualCorrectedLocation = null;
-        _currentStep = SessionStep.bg;
-      });
-      _persistSessionState();
       return;
     }
     if (result?.isFromCache ?? false) {
@@ -1041,10 +1093,7 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
     _sessionState.startSession(farm.id);
     _persistSessionState();
     await _startGpsPositionUpdates();
-    await _loadTodayResultPinsForSelectedFarm();
-    for (final spot in _spots.where((spot) => spot.icon == null)) {
-      _refreshSpotIcon(spot);
-    }
+    await _reloadPinsAndIcons();
     _isSelectingFarm = false;
     await _mapController?.animateCamera(
       CameraUpdate.newCameraPosition(CameraPosition(target: center, zoom: 18)),
@@ -1255,6 +1304,7 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
       id: localPinId,
       position: point,
       createdAt: DateTime.now(),
+      measurementNumber: _nextMeasurementNumber(),
     );
     _sessionState._addPin(farm.id, spot);
     setState(() {
@@ -1270,12 +1320,14 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
       await _markSpotFailed(spot);
       return;
     }
+    unawaited(_soundService.playMeasurementComplete());
     await _saveAndQueueThenUpload(spot, localPinPosition: point);
   }
 
   Future<String?> _save(
     int farmId, {
     required LatLng measurementLocation,
+    int? measurementNumber,
   }) async {
     final userId = context.read<UserProvider>().userId;
     if (userId == null || userId.trim().isEmpty) {
@@ -1304,6 +1356,7 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
         ampId: _ampId,
         latitude: measurementLocation.latitude,
         longitude: measurementLocation.longitude,
+        measurementNumber: measurementNumber,
       );
       _appendLog('保存完了: $fileBase\n');
       return fileBase;
@@ -1319,38 +1372,35 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
   }) async {
     final farm = _selectedFarm;
     if (farm == null) return;
-    if (_isUploading) {
-      _appendUploadLog('upload: already running');
-      return;
+    if (!_isDrainingUploadQueue) {
+      setState(() {
+        _uploadPhase = UploadPhase.saving;
+      });
     }
-    setState(() {
-      _uploadPhase = UploadPhase.saving;
-    });
     String? fileBase;
-    String measurementDateForPending = DateTime.now().toIso8601String();
-    int? pointNumberForPending() {
-      final index = _mapSpots.indexWhere(
-        (candidate) => candidate.id == spot.id,
-      );
-      return index < 0 ? null : index + 1;
-    }
 
     try {
       _appendUploadLog('save: start');
-      fileBase = await _save(farm.id, measurementLocation: localPinPosition);
+      fileBase = await _save(
+        farm.id,
+        measurementLocation: localPinPosition,
+        measurementNumber: spot.measurementNumber,
+      );
       if (fileBase == null) {
         if (!mounted) return;
-        setState(() => _uploadPhase = UploadPhase.error);
+        if (!_isDrainingUploadQueue) {
+          setState(() => _uploadPhase = UploadPhase.error);
+        }
         _appendUploadLog('save: error');
         await _markSpotFailed(spot);
         return;
       }
+      spot.fileBase = fileBase;
       _appendUploadLog('save: ok $fileBase');
       await _markSpotSaved(spot);
 
-      final csvFile = await MeasurementLocalPaths.csvFile(fileBase);
       final jsonFile = await MeasurementLocalPaths.jsonFile(fileBase);
-      if (!await csvFile.exists() || !await jsonFile.exists()) {
+      if (!await jsonFile.exists()) {
         throw StateError('保存済みファイルが見つかりません: $fileBase');
       }
       final measurementParameters =
@@ -1358,35 +1408,37 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
       final measurementDate =
           (measurementParameters['timestamp'] as String?) ??
           DateTime.now().toIso8601String();
-      measurementDateForPending = measurementDate;
 
-      // 手動同期モードではクラウド送信を行わず、同期画面から送信できるよう
-      // 同期キューに登録して終了する（オフライン時と同じ扱い）。
       final syncMode = await _syncSettingsStore.loadSyncMode();
       if (mounted && syncMode != _syncMode) {
         setState(() => _syncMode = syncMode);
       }
+      final queued = await _queuePendingUpload(
+        PendingUploadItem(
+          fileBase: fileBase,
+          farmId: farm.id,
+          farmName: farm.farmName,
+          pointNumber: spot.measurementNumber,
+          localPinId: spot.id,
+          latitude: localPinPosition.latitude,
+          longitude: localPinPosition.longitude,
+          note1: _note1.text.trim().isEmpty ? null : _note1.text.trim(),
+          note2: _note2.text.trim().isEmpty ? null : _note2.text.trim(),
+          measurementDate: measurementDate,
+          failedPhase: syncMode == SyncMode.manual ? 'manual' : 'queued',
+          lastError: '',
+          createdAt: DateTime.now(),
+          updatedAt: DateTime.now(),
+        ),
+      );
+      if (!queued) {
+        _appendUploadLog('pending: queue failed $fileBase');
+      }
       if (syncMode == SyncMode.manual) {
-        final queued = await _queuePendingUpload(
-          PendingUploadItem(
-            fileBase: fileBase,
-            farmId: farm.id,
-            farmName: farm.farmName,
-            pointNumber: pointNumberForPending(),
-            localPinId: spot.id,
-            latitude: localPinPosition.latitude,
-            longitude: localPinPosition.longitude,
-            note1: _note1.text.trim().isEmpty ? null : _note1.text.trim(),
-            note2: _note2.text.trim().isEmpty ? null : _note2.text.trim(),
-            measurementDate: measurementDate,
-            failedPhase: 'manual',
-            lastError: '',
-            createdAt: DateTime.now(),
-            updatedAt: DateTime.now(),
-          ),
-        );
         if (!mounted) return;
-        setState(() => _uploadPhase = UploadPhase.done);
+        if (!_isDrainingUploadQueue) {
+          setState(() => _uploadPhase = UploadPhase.done);
+        }
         _appendUploadLog(
           queued
               ? 'manual: 保存完了（同期画面から送信できます） $fileBase'
@@ -1394,97 +1446,22 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
         );
         return;
       }
-
-      final note1 = _note1.text.trim();
-      final note2 = _note2.text.trim();
-      final uploader = MeasurementUploadService();
-      final result = await uploader.uploadCsvWithInitComplete(
-        farmId: farm.id,
-        csvFile: csvFile,
-        measurementParameters: measurementParameters,
-        measurementDate: measurementDate,
-        note1: note1.isEmpty ? null : note1,
-        note2: note2.isEmpty ? null : note2,
-        cultivationType: null,
-        onPhase: (p) {
-          if (!mounted) return;
-          setState(() => _uploadPhase = p);
-        },
-        onLog: (m) {
-          if (!mounted) return;
-          _appendUploadLog(m);
-        },
-      );
-      if (!mounted) return;
-      await _markSpotUploaded(spot);
-      setState(() => _uploadPhase = UploadPhase.done);
-      _appendUploadLog('done: upload_id=${result.uploadId} (受付完了: 処理中)');
-      await _loadTodayResultPinsForSelectedFarm();
-      if (_spots.any((candidate) => candidate.id == spot.id) &&
-          _hasCorrespondingResultSpot(localPinPosition, _resultSpots)) {
-        _sessionState._removePins(farm.id, {spot.id});
-        if (_activeSpot?.id == spot.id) {
-          _activeSpot = null;
-          _persistSessionState();
-        }
-      }
-      _notifyMapSpotsChanged();
-      try {
-        await _pendingUploadStore.removeByFileBase(fileBase);
-      } catch (e) {
-        _appendUploadLog('pending: remove failed $e');
-      }
-    } on MeasurementUploadException catch (e) {
-      var queued = false;
-      if (fileBase != null) {
-        queued = await _queuePendingUpload(
-          PendingUploadItem(
-            fileBase: fileBase,
-            farmId: farm.id,
-            farmName: farm.farmName,
-            pointNumber: pointNumberForPending(),
-            localPinId: spot.id,
-            latitude: localPinPosition.latitude,
-            longitude: localPinPosition.longitude,
-            note1: _note1.text.trim().isEmpty ? null : _note1.text.trim(),
-            note2: _note2.text.trim().isEmpty ? null : _note2.text.trim(),
-            measurementDate: measurementDateForPending,
-            failedPhase: e.phase.name,
-            lastError: e.toString(),
-            createdAt: DateTime.now(),
-            updatedAt: DateTime.now(),
-          ),
-        );
-      }
-      if (!mounted) return;
-      await _markSpotFailed(spot);
-      setState(() => _uploadPhase = UploadPhase.error);
-      _appendUploadLog('error: $e');
-      if (fileBase != null) {
-        _appendUploadLog(
-          queued
-              ? 'pending: queued $fileBase'
-              : 'pending: queue failed $fileBase',
-        );
-      }
+      unawaited(_drainAutoUploadQueue());
     } catch (e) {
-      var queued = false;
       if (fileBase != null) {
-        queued = await _queuePendingUpload(
+        await _queuePendingUpload(
           PendingUploadItem(
             fileBase: fileBase,
             farmId: farm.id,
             farmName: farm.farmName,
-            pointNumber: pointNumberForPending(),
+            pointNumber: spot.measurementNumber,
             localPinId: spot.id,
             latitude: localPinPosition.latitude,
             longitude: localPinPosition.longitude,
             note1: _note1.text.trim().isEmpty ? null : _note1.text.trim(),
             note2: _note2.text.trim().isEmpty ? null : _note2.text.trim(),
-            measurementDate: measurementDateForPending,
-            failedPhase: _uploadPhase == UploadPhase.idle
-                ? UploadPhase.error.name
-                : _uploadPhase.name,
+            measurementDate: DateTime.now().toIso8601String(),
+            failedPhase: 'queued',
             lastError: e.toString(),
             createdAt: DateTime.now(),
             updatedAt: DateTime.now(),
@@ -1493,21 +1470,115 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
       }
       if (!mounted) return;
       await _markSpotFailed(spot);
-      setState(() => _uploadPhase = UploadPhase.error);
-      _appendUploadLog('error: $e');
-      if (fileBase != null) {
-        _appendUploadLog(
-          queued
-              ? 'pending: queued $fileBase'
-              : 'pending: queue failed $fileBase',
-        );
+      if (!_isDrainingUploadQueue) {
+        setState(() => _uploadPhase = UploadPhase.error);
       }
+      _appendUploadLog('error: $e');
     } finally {
       if (mounted &&
+          !_isDrainingUploadQueue &&
           _uploadPhase != UploadPhase.done &&
           _uploadPhase != UploadPhase.error) {
         setState(() => _uploadPhase = UploadPhase.idle);
       }
+    }
+  }
+
+  Future<void> _drainAutoUploadQueue() async {
+    if (_isDrainingUploadQueue) return;
+    _isDrainingUploadQueue = true;
+    try {
+      while (mounted) {
+        final items = await _pendingUploadStore.listItemsInMeasurementOrder();
+        PendingUploadItem? next;
+        for (final item in items) {
+          if (item.failedPhase == 'queued') {
+            next = item;
+            break;
+          }
+        }
+        if (next == null) break;
+        await _uploadQueuedItem(next);
+      }
+    } finally {
+      _isDrainingUploadQueue = false;
+    }
+  }
+
+  Future<void> _uploadQueuedItem(PendingUploadItem item) async {
+    try {
+      final csvFile = await MeasurementLocalPaths.csvFile(item.fileBase);
+      final jsonFile = await MeasurementLocalPaths.jsonFile(item.fileBase);
+      if (!await csvFile.exists() || !await jsonFile.exists()) {
+        throw StateError('保存済みファイルが見つかりません: ${item.fileBase}');
+      }
+      final measurementParameters =
+          jsonDecode(await jsonFile.readAsString()) as Map<String, dynamic>;
+      final result = await MeasurementUploadService().uploadCsvWithInitComplete(
+        farmId: item.farmId,
+        csvFile: csvFile,
+        measurementParameters: measurementParameters,
+        measurementDate: item.measurementDate,
+        note1: item.note1,
+        note2: item.note2,
+        cultivationType: null,
+        measurementNumber: item.pointNumber,
+        onPhase: (phase) {
+          if (!mounted) return;
+          setState(() => _uploadPhase = phase);
+        },
+        onLog: (message) {
+          if (!mounted) return;
+          _appendUploadLog(message);
+        },
+      );
+      if (!mounted) return;
+      final spot = _spotById(item.localPinId);
+      if (spot != null) {
+        spot.uploadId = result.uploadId;
+        await _markSpotUploaded(spot);
+      }
+      setState(() => _uploadPhase = UploadPhase.done);
+      _appendUploadLog(
+        'done: upload_id=${result.uploadId} (受付完了: 処理中)',
+      );
+      try {
+        await _pendingUploadStore.removeByFileBase(item.fileBase);
+      } catch (e) {
+        _appendUploadLog('pending: remove failed $e');
+      }
+    } on MeasurementUploadException catch (e) {
+      await _queuePendingUpload(
+        item.copyWith(
+          failedPhase: e.phase.name,
+          lastError: e.toString(),
+          updatedAt: DateTime.now(),
+        ),
+      );
+      final spot = _spotById(item.localPinId);
+      if (spot != null) {
+        await _markSpotFailed(spot);
+      }
+      if (!mounted) return;
+      setState(() => _uploadPhase = UploadPhase.error);
+      _appendUploadLog('error: $e');
+      _appendUploadLog('pending: queued ${item.fileBase}');
+    } catch (e) {
+      await _queuePendingUpload(
+        item.copyWith(
+          failedPhase: UploadPhase.error.name,
+          lastError: e.toString(),
+          updatedAt: DateTime.now(),
+        ),
+      );
+      final spot = _spotById(item.localPinId);
+      if (spot != null) {
+        await _markSpotFailed(spot);
+      }
+      if (!mounted) return;
+      setState(() => _uploadPhase = UploadPhase.error);
+      _appendUploadLog('error: $e');
+      _appendUploadLog('pending: queued ${item.fileBase}');
     }
   }
 
@@ -1664,18 +1735,8 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
 
   Future<void> _refreshSpotIcon(_SpotProgress spot) async {
     final requestVersion = ++spot.iconVersion;
-    final Color color;
-    final index = _mapSpots.indexOf(spot);
-    final label = index >= 0 ? '${index + 1}' : '?';
-    if (spot.isResultPoint || spot.uploadDone) {
-      color = const Color(0xFF27AE60);
-    } else if (spot.saveDone) {
-      color = const Color(0xFFE67E22);
-    } else if (spot.failed) {
-      color = Colors.red;
-    } else {
-      color = Colors.red;
-    }
+    final Color color = measurementSpotColor(spot);
+    final label = spot.measurementNumber?.toString() ?? '?';
     final key = 'small-v2-$label-${color.toARGB32()}';
     final cached = _markerIconCache[key];
     if (cached != null) {
@@ -2202,7 +2263,7 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
   Future<void> _confirmPinCorrection() async {
     if (_isSerialBusy) return;
     final spot = _spotById(_correctingSpotId);
-    if (spot?.isResultPoint == true && spot?.resultPointId != null) {
+    if (spot?.resultPointId != null) {
       try {
         await _resultsRepository.updateResultPointLocation(
           pointId: spot!.resultPointId!,
@@ -2232,6 +2293,137 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
     _openMeasurementList();
   }
 
+  Future<bool> _deleteSpots(int farmId, Set<String> ids) async {
+    final selectedSpots = _mapSpots
+        .where((spot) => ids.contains(spot.id))
+        .toList(growable: false);
+    if (selectedSpots.isEmpty) return false;
+
+    final deletedNumbers = [
+      for (final spot in selectedSpots)
+        if (spot.measurementNumber != null) spot.measurementNumber!,
+    ];
+    _sessionState.markMeasurementNumbersDeleted(farmId, deletedNumbers);
+    try {
+      await _deletedMeasurementStore.add(
+        farmId: farmId,
+        dateIso: _todayJstIsoDate(),
+        numbers: deletedNumbers,
+      );
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint('削除記録の保存に失敗しました: $e');
+      }
+    }
+
+    for (final spot in selectedSpots) {
+      if (spot.resultPointId != null) {
+        _deletedPointIds[spot.resultPointId!] = DateTime.now();
+      }
+    }
+
+    _sessionState._removePins(farmId, ids);
+    setState(() {
+      if (_activeSpot != null && ids.contains(_activeSpot!.id)) {
+        _activeSpot = null;
+      }
+      if (_correctingSpotId != null && ids.contains(_correctingSpotId)) {
+        _correctingSpotId = null;
+        _manualCorrectedLocation = null;
+      }
+    });
+    _persistSessionState();
+
+    unawaited(_deleteLocalMeasurementRecords(farmId, selectedSpots));
+    unawaited(_deleteCloudMeasurements(selectedSpots));
+    return true;
+  }
+
+  Future<void> _deleteLocalMeasurementRecords(
+    int farmId,
+    List<_SpotProgress> spots,
+  ) async {
+    final fileBases = <String>{
+      for (final spot in spots)
+        if (spot.fileBase != null && spot.fileBase!.isNotEmpty) spot.fileBase!,
+    };
+    try {
+      final pending = await _pendingUploadStore.listItems();
+      final records = await _localMeasurementPinStore.loadForFarmOnDate(
+        farmId: farmId,
+        dateIso: _todayJstIsoDate(),
+        pendingItems: pending,
+      );
+      final selectedIds = {for (final spot in spots) spot.id};
+      final selectedNumbers = {
+        for (final spot in spots)
+          if (spot.measurementNumber != null) spot.measurementNumber!,
+      };
+      for (final record in records) {
+        if (selectedIds.contains(record.id) ||
+            (record.measurementNumber != null &&
+                selectedNumbers.contains(record.measurementNumber))) {
+          fileBases.add(record.fileBase);
+        }
+      }
+      for (final item in pending) {
+        if (item.farmId != farmId) continue;
+        final localPinId = item.localPinId;
+        if ((localPinId != null && selectedIds.contains(localPinId)) ||
+            fileBases.contains(item.fileBase) ||
+            (item.pointNumber != null &&
+                selectedNumbers.contains(item.pointNumber))) {
+          fileBases.add(item.fileBase);
+          try {
+            await _pendingUploadStore.removeByFileBase(item.fileBase);
+          } catch (e) {
+            if (kDebugMode) {
+              debugPrint('同期待ちキューの削除に失敗しました: $e');
+            }
+          }
+        }
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint('ローカル測定記録の特定に失敗しました: $e');
+      }
+    }
+    for (final fileBase in fileBases) {
+      await _deleteMeasurementFiles(fileBase);
+    }
+  }
+
+  Future<void> _deleteMeasurementFiles(String fileBase) async {
+    for (final file in [
+      await MeasurementLocalPaths.csvFile(fileBase),
+      await MeasurementLocalPaths.jsonFile(fileBase),
+    ]) {
+      try {
+        if (await file.exists()) {
+          await file.delete();
+        }
+      } catch (e) {
+        if (kDebugMode) {
+          debugPrint('測定ファイルの削除に失敗しました: $fileBase $e');
+        }
+      }
+    }
+  }
+
+  Future<void> _deleteCloudMeasurements(List<_SpotProgress> spots) async {
+    for (final spot in spots) {
+      final pointId = spot.resultPointId;
+      if (pointId == null) continue;
+      try {
+        await _resultsRepository.deleteResultPoint(pointId);
+      } catch (e) {
+        if (kDebugMode) {
+          debugPrint('クラウド測定の削除に失敗しました: $pointId $e');
+        }
+      }
+    }
+  }
+
   void _openMeasurementList() {
     final farm = _selectedFarm;
     if (_isSerialBusy || farm == null) return;
@@ -2242,53 +2434,7 @@ class _MeasurementSessionScreenState extends State<MeasurementSessionScreen> {
           listenable: _sessionState,
           builder: (context, __) => _MeasurementListScreen(
             spotsProvider: () => _mapSpots,
-            onDeleteSpots: (ids) async {
-              final selectedSpots = _mapSpots
-                  .where((spot) => ids.contains(spot.id))
-                  .toList(growable: false);
-              final resultSpots = selectedSpots
-                  .where(
-                    (spot) => spot.isResultPoint && spot.resultPointId != null,
-                  )
-                  .toList(growable: false);
-              final deletedResultPointIds = {
-                for (final spot in resultSpots) spot.resultPointId!,
-              };
-              try {
-                for (final spot in resultSpots) {
-                  await _resultsRepository.deleteResultPoint(
-                    spot.resultPointId!,
-                  );
-                }
-              } catch (e) {
-                if (!mounted) return false;
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text(_resultMutationErrorMessage(e))),
-                );
-                return false;
-              }
-              final now = DateTime.now();
-              for (final pointId in deletedResultPointIds) {
-                _deletedPointIds[pointId] = now;
-              }
-              _sessionState._removeResultPins(farm.id, ids);
-              _sessionState._removePins(farm.id, ids);
-              setState(() {
-                if (_activeSpot != null && ids.contains(_activeSpot!.id)) {
-                  _activeSpot = null;
-                }
-                if (_correctingSpotId != null &&
-                    ids.contains(_correctingSpotId)) {
-                  _correctingSpotId = null;
-                }
-              });
-              _persistSessionState();
-              await _loadTodayResultPinsForSelectedFarm();
-              for (final spot in _mapSpots) {
-                _refreshSpotIcon(spot);
-              }
-              return true;
-            },
+            onDeleteSpots: (ids) => _deleteSpots(farm.id, ids),
             onCorrectSpot: (spot) {
               _startPinCorrection(spot);
               Navigator.pop(context);
@@ -2530,10 +2676,6 @@ class _MeasurementListScreen extends StatefulWidget {
 class _MeasurementListScreenState extends State<_MeasurementListScreen> {
   final Set<String> _selected = <String>{};
 
-  Map<String, int> _spotNumbersFor(List<_SpotProgress> spots) => {
-    for (var i = 0; i < spots.length; i++) spots[i].id: i + 1,
-  };
-
   Future<void> _confirmDeleteSelected() async {
     if (_selected.isEmpty) return;
     final count = _selected.length;
@@ -2568,7 +2710,6 @@ class _MeasurementListScreenState extends State<_MeasurementListScreen> {
   @override
   Widget build(BuildContext context) {
     final spots = widget.spotsProvider();
-    final spotNumbers = _spotNumbersFor(spots);
     final spotIds = spots.map((spot) => spot.id).toSet();
     return Scaffold(
       appBar: AppBar(
@@ -2596,7 +2737,8 @@ class _MeasurementListScreenState extends State<_MeasurementListScreen> {
                     itemBuilder: (context, index) {
                       final spot = spots[index];
                       final selected = _selected.contains(spot.id);
-                      final spotNumber = spotNumbers[spot.id] ?? index + 1;
+                      final spotNumber = spot.measurementNumber;
+                      final numberLabel = spotNumber?.toString() ?? '?';
                       return CheckboxListTile(
                         value: selected,
                         onChanged: (value) {
@@ -2612,7 +2754,7 @@ class _MeasurementListScreenState extends State<_MeasurementListScreen> {
                           radius: 15,
                           backgroundColor: _spotColor(spot),
                           child: Text(
-                            '$spotNumber',
+                            numberLabel,
                             style: const TextStyle(
                               color: Colors.white,
                               fontSize: 11,
@@ -2620,7 +2762,7 @@ class _MeasurementListScreenState extends State<_MeasurementListScreen> {
                             ),
                           ),
                         ),
-                        title: Text(_spotTitle(spot, spotNumber)),
+                        title: Text(_spotTitle(spot)),
                         subtitle: Text(
                           '${spot.position.latitude.toStringAsFixed(6)}, '
                           '${spot.position.longitude.toStringAsFixed(6)}\n'
@@ -2668,11 +2810,7 @@ class _MeasurementListScreenState extends State<_MeasurementListScreen> {
     );
   }
 
-  Color _spotColor(_SpotProgress spot) {
-    if (spot.uploadDone) return const Color(0xFF27AE60);
-    if (spot.saveDone) return const Color(0xFFE67E22);
-    return const Color(0xFFC0392B);
-  }
+  Color _spotColor(_SpotProgress spot) => measurementSpotColor(spot);
 
   String _spotStatusLabel(_SpotProgress spot) {
     if (spot.uploadDone) return '推定完了';
@@ -2681,10 +2819,11 @@ class _MeasurementListScreenState extends State<_MeasurementListScreen> {
     return '${spot.percent}%';
   }
 
-  String _spotTitle(_SpotProgress spot, int spotNumber) {
+  String _spotTitle(_SpotProgress spot) {
     final created = spot.createdAt;
     final time =
         '${created.hour.toString().padLeft(2, '0')}:${created.minute.toString().padLeft(2, '0')}';
-    return '測定点 $spotNumber / $time';
+    final numberLabel = spot.measurementNumber?.toString() ?? '?';
+    return '測定点 $numberLabel / $time';
   }
 }
