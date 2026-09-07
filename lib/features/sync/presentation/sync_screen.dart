@@ -93,7 +93,10 @@ class _SyncScreenState extends State<SyncScreen> {
       final longitude =
           item.longitude ??
           (measurementParameters['longitude'] as num?)?.toDouble();
-      await MeasurementUploadService().uploadCsvWithInitComplete(
+      final measurementNumber =
+          item.pointNumber ??
+          (measurementParameters['measurement_number'] as num?)?.toInt();
+      final result = await MeasurementUploadService().uploadCsvWithInitComplete(
         farmId: item.farmId,
         csvFile: csvFile,
         measurementParameters: measurementParameters,
@@ -101,6 +104,7 @@ class _SyncScreenState extends State<SyncScreen> {
         note1: item.note1,
         note2: item.note2,
         cultivationType: null,
+        measurementNumber: measurementNumber,
       );
       if (mounted) {
         // complete は受付完了であり、クラウド結果が即時に取得できるとは限らない。
@@ -110,6 +114,8 @@ class _SyncScreenState extends State<SyncScreen> {
           localPinId: item.localPinId,
           latitude: latitude,
           longitude: longitude,
+          uploadId: result.uploadId,
+          measurementNumber: measurementNumber,
         );
       }
       await _store.removeByFileBase(item.fileBase);

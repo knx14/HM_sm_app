@@ -9,6 +9,7 @@ import '../../auth/domain/auth_repository.dart';
 import '../../measure/presentation/measurement_session_screen.dart'
     show MeasurementStateProvider;
 import '../../sync/domain/sync_settings_store.dart';
+import '../domain/sound_settings_store.dart';
 import 'measurement_params_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -20,21 +21,36 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   final SyncSettingsStore _syncSettingsStore = SyncSettingsStore();
+  final SoundSettingsStore _soundSettingsStore = SoundSettingsStore();
   String _version = '-';
   String _buildNumber = '-';
   SyncMode _syncMode = SyncMode.auto;
+  bool _soundEnabled = SoundSettingsStore.defaultEnabled;
 
   @override
   void initState() {
     super.initState();
     _loadInfo();
     _loadSyncMode();
+    _loadSoundEnabled();
   }
 
   Future<void> _loadSyncMode() async {
     final mode = await _syncSettingsStore.loadSyncMode();
     if (!mounted) return;
     setState(() => _syncMode = mode);
+  }
+
+  Future<void> _loadSoundEnabled() async {
+    final enabled = await _soundSettingsStore.loadSoundEnabled();
+    if (!mounted) return;
+    setState(() => _soundEnabled = enabled);
+  }
+
+  Future<void> _setSoundEnabled(bool enabled) async {
+    if (enabled == _soundEnabled) return;
+    setState(() => _soundEnabled = enabled);
+    await _soundSettingsStore.saveSoundEnabled(enabled);
   }
 
   String _syncModeLabel(SyncMode mode) {
@@ -182,6 +198,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           const Divider(height: 1),
           const _SectionHeader('システム'),
+          SwitchListTile(
+            value: _soundEnabled,
+            onChanged: _setSoundEnabled,
+            title: const Text('サウンド'),
+            subtitle: Text(
+              _soundEnabled ? '測定完了時に音を鳴らします' : '測定完了時に音を鳴らしません',
+            ),
+            secondary: Icon(
+              _soundEnabled ? Icons.volume_up_outlined : Icons.volume_off_outlined,
+            ),
+          ),
           ListTile(
             title: const Text('測定条件の設定'),
             subtitle: const Text('測定パラメータとセンサー番号を保存します'),

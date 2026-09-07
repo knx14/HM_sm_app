@@ -198,12 +198,13 @@ class _MeasurementParamsScreenState extends State<MeasurementParamsScreen> {
                 children: [
                   _sectionLabel('測定パラメータ'),
                   Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Expanded(
                         child: _decimalField(
                           label: '励起電圧[V]',
                           controller: _excite,
-                          hintText: '0.5',
+                          hintText: '1.0',
                           validator: _validateExcite,
                         ),
                       ),
@@ -211,8 +212,9 @@ class _MeasurementParamsScreenState extends State<MeasurementParamsScreen> {
                       Expanded(child: _rangeField()),
                     ],
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 16),
                   Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Expanded(
                         child: _decimalField(
@@ -236,6 +238,7 @@ class _MeasurementParamsScreenState extends State<MeasurementParamsScreen> {
                   const SizedBox(height: 16),
                   _sectionLabel('周波数パラメータ'),
                   Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Expanded(
                         child: _integerField(
@@ -256,7 +259,7 @@ class _MeasurementParamsScreenState extends State<MeasurementParamsScreen> {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 16),
                   _integerField(
                     label: '測定点数',
                     controller: _points,
@@ -304,12 +307,7 @@ class _MeasurementParamsScreenState extends State<MeasurementParamsScreen> {
     return TextFormField(
       controller: controller,
       keyboardType: const TextInputType.numberWithOptions(decimal: true),
-      decoration: InputDecoration(
-        labelText: label,
-        hintText: hintText,
-        border: const OutlineInputBorder(),
-        isDense: true,
-      ),
+      decoration: _fieldDecoration(label: label, hintText: hintText),
       validator: validator,
     );
   }
@@ -324,12 +322,7 @@ class _MeasurementParamsScreenState extends State<MeasurementParamsScreen> {
       controller: controller,
       keyboardType: TextInputType.number,
       inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-      decoration: InputDecoration(
-        labelText: label,
-        hintText: hintText,
-        border: const OutlineInputBorder(),
-        isDense: true,
-      ),
+      decoration: _fieldDecoration(label: label, hintText: hintText),
       validator: validator,
     );
   }
@@ -338,11 +331,7 @@ class _MeasurementParamsScreenState extends State<MeasurementParamsScreen> {
     final selectedRange = _normalizeRange(_parseDouble(_range) ?? 0);
     return DropdownButtonFormField<double>(
       initialValue: selectedRange,
-      decoration: const InputDecoration(
-        labelText: '入力レンジ[V]',
-        border: OutlineInputBorder(),
-        isDense: true,
-      ),
+      decoration: _fieldDecoration(label: '入力レンジ[V]'),
       items: _allowedRanges
           .map(
             (value) => DropdownMenuItem<double>(
@@ -355,6 +344,19 @@ class _MeasurementParamsScreenState extends State<MeasurementParamsScreen> {
         if (value == null) return;
         setState(() => _range.text = value.toString());
       },
+    );
+  }
+
+  InputDecoration _fieldDecoration({
+    required String label,
+    String? hintText,
+  }) {
+    return InputDecoration(
+      labelText: label,
+      hintText: hintText,
+      border: const OutlineInputBorder(),
+      isDense: true,
+      errorMaxLines: 4,
     );
   }
 

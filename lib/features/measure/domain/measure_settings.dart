@@ -22,7 +22,7 @@ class MeasureSettings {
     fstart: 10000.0,
     fdelta: 1500.0,
     points: 150,
-    excite: 0.5,
+    excite: 1.0,
     range: 0.5,
     integrate: 0.1,
     average: 1,
