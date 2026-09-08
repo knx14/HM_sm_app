@@ -21,9 +21,11 @@ class MeasureSettingsStore {
   static const _integrateKey = 'measure_settings_integrate';
   static const _averageKey = 'measure_settings_average';
   static const _selectedSensorKey = 'measure_settings_selected_sensor';
+  static const _exciteDefaultMigratedKey = 'measure_settings_excite_default_v1';
 
   Future<StoredMeasureSettings> load() async {
     final prefs = await SharedPreferences.getInstance();
+    await _migrateExciteDefaultIfNeeded(prefs);
     final defaults = MeasureSettings.defaults;
     return StoredMeasureSettings(
       settings: MeasureSettings(
@@ -52,5 +54,16 @@ class MeasureSettingsStore {
       prefs.setInt(_averageKey, settings.average),
       prefs.setString(_selectedSensorKey, value.selectedSensor),
     ]);
+  }
+
+  /// 既存端末に残る古い励起電圧を、一度だけデフォルト(1.0)へ揃える。
+  /// 実施後にユーザーが保存した値は上書きしない。
+  Future<void> _migrateExciteDefaultIfNeeded(SharedPreferences prefs) async {
+    if (prefs.getBool(_exciteDefaultMigratedKey) == true) {
+      return;
+    }
+
+    await prefs.setDouble(_exciteKey, MeasureSettings.defaults.excite);
+    await prefs.setBool(_exciteDefaultMigratedKey, true);
   }
 }
