@@ -65,7 +65,7 @@ class HelpScreen extends StatelessWidget {
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('v${info.version} (${info.buildNumber})'),
+                      Text('v${info.version}'),
                       const SizedBox(height: 8),
                       const Text('磁界式センサーと機械学習による土壌成分分析アプリ'),
                     ],
