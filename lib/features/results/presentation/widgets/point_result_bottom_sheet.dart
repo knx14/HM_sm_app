@@ -92,8 +92,6 @@ class _IngredientsTab extends StatelessWidget {
         controller: controller,
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
         children: [
-          _buildBigCec(pt.values),
-          const SizedBox(height: 16),
           _buildMajorRows(pt.values),
           const SizedBox(height: 16),
           _buildOtherTable(pt.values),
@@ -125,6 +123,7 @@ class _IngredientsTab extends StatelessWidget {
         final pv = previous[p];
         final dv = diff[p];
 
+        final unit = unitForParameter(p, c?.unit ?? pv?.unit ?? dv?.unit);
         final currentText = fmt.format1OrDash(c?.value);
         final prevText = fmt.format1OrDash(pv?.value);
         final diffText = previousMissing ? '--' : fmt.formatDiff1OrDash(dv?.diffValue);
@@ -132,7 +131,7 @@ class _IngredientsTab extends StatelessWidget {
         return Padding(
           padding: const EdgeInsets.only(bottom: 12),
           child: Text(
-            '$p 当日 $currentText / 前回 $prevText / 差分 $diffText',
+            '$p 当日 $currentText / 前回 $prevText / 差分 $diffText $unit',
             style: const TextStyle(fontSize: 14),
           ),
         );
@@ -140,33 +139,18 @@ class _IngredientsTab extends StatelessWidget {
     );
   }
 
-  Widget _buildBigCec(List<ResultValue> values) {
-    final cec = findValueByParameter(values, ResultParameter.cec.apiName);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text('CEC', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
-        const SizedBox(height: 6),
-        Text(
-          fmt.format1OrDash(cec),
-          style: const TextStyle(fontSize: 32, fontWeight: FontWeight.w800),
-        ),
-      ],
-    );
-  }
-
   Widget _buildMajorRows(List<ResultValue> values) {
     Widget row(String p) {
       final v = findResultValue(values, p);
       final valueText = fmt.format1OrDash(v?.value);
-      final unit = (v?.value == null) ? null : v?.unit;
+      final unit = unitForParameter(p, v?.unit);
       return Padding(
         padding: const EdgeInsets.only(bottom: 10),
         child: Row(
           children: [
             SizedBox(width: 64, child: Text(p, style: const TextStyle(fontWeight: FontWeight.w700))),
             Expanded(
-              child: Text(unit == null ? valueText : '$valueText $unit'),
+              child: Text('$valueText $unit'),
             ),
           ],
         ),
@@ -176,6 +160,7 @@ class _IngredientsTab extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        row(ResultParameter.cec.apiName),
         row(ResultParameter.k2o.apiName),
         row(ResultParameter.cao.apiName),
         row(ResultParameter.mgo.apiName),
@@ -218,7 +203,7 @@ class _IngredientsTab extends StatelessWidget {
             ),
             ...others.map((v) {
               final valueText = fmt.format1OrDash(v.value);
-              final unitText = (v.unit == null) ? '' : v.unit!;
+              final unitText = unitForParameter(v.parameter, v.unit);
               return TableRow(
                 children: [
                   Padding(padding: const EdgeInsets.symmetric(vertical: 6), child: Text(v.parameter)),

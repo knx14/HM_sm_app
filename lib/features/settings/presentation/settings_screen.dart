@@ -23,7 +23,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
   final SyncSettingsStore _syncSettingsStore = SyncSettingsStore();
   final SoundSettingsStore _soundSettingsStore = SoundSettingsStore();
   String _version = '-';
-  String _buildNumber = '-';
   SyncMode _syncMode = SyncMode.auto;
   bool _soundEnabled = SoundSettingsStore.defaultEnabled;
 
@@ -108,7 +107,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (!mounted) return;
     setState(() {
       _version = packageInfo.version;
-      _buildNumber = packageInfo.buildNumber;
     });
   }
 
@@ -228,7 +226,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           ListTile(
             title: const Text('バージョン'),
-            subtitle: Text('v$_version ($_buildNumber)'),
+            subtitle: Text('v$_version'),
             leading: const Icon(Icons.info_outline),
           ),
           const ListTile(
