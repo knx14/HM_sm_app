@@ -25,9 +25,10 @@ class ResultLegend extends StatelessWidget {
     final bg = cs.surface.withValues(alpha: 0.92);
     final border = cs.outline.withValues(alpha: 0.12);
 
-    final label = isCompare
+    final range = isCompare
         ? '-${fmt.format1OrZero(deltaMax)} 〜 +${fmt.format1OrZero(deltaMax)}'
         : '${fmt.format1OrZero(min)} 〜 ${fmt.format1OrZero(max)}';
+    final label = '$range ${parameter.unit}';
 
     final gradient = isCompare
         ? const LinearGradient(
